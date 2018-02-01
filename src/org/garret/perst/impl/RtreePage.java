@@ -15,6 +15,8 @@ public class RtreePage extends Persistent {
   Rectangle[] b;
   Link branch;
 
+  RtreePage() {}
+
   RtreePage(Storage storage, Object obj, Rectangle r) {
     branch = storage.createLink(card);
     branch.setSize(card);
@@ -38,7 +40,39 @@ public class RtreePage extends Persistent {
     }
   }
 
-  RtreePage() {}
+  final RtreePage addBranch(Storage storage, Rectangle r, Object obj) {
+    if (n < card) {
+      setBranch(n++, r, obj);
+      return null;
+    } else {
+      return splitPage(storage, r, obj);
+    }
+  }
+
+  final Rectangle cover() {
+    Rectangle r = new Rectangle(b[0]);
+    for (int i = 1; i < n; i++) {
+      r.join(b[i]);
+    }
+    return r;
+  }
+
+
+  void find(Rectangle r, ArrayList result, int level) {
+    if (--level != 0) { /* this is an internal node in the tree */
+      for (int i = 0; i < n; i++) {
+        if (r.intersects(b[i])) {
+          ((RtreePage) branch.get(i)).find(r, result, level);
+        }
+      }
+    } else { /* this is a leaf node */
+      for (int i = 0; i < n; i++) {
+        if (r.intersects(b[i])) {
+          result.add(branch.get(i));
+        }
+      }
+    }
+  }
 
   RtreePage insert(Storage storage, Rectangle r, Object obj, int level) {
     modify();
@@ -75,6 +109,15 @@ public class RtreePage extends Persistent {
     }
   }
 
+  void purge(int level) {
+    if (--level != 0) { /* this is an internal node in the tree */
+      for (int i = 0; i < n; i++) {
+        ((RtreePage) branch.get(i)).purge(level);
+      }
+    }
+    deallocate();
+  }
+
   int remove(Rectangle r, Object obj, int level, ArrayList reinsertList) {
     if (--level != 0) {
       for (int i = 0; i < n; i++) {
@@ -106,37 +149,6 @@ public class RtreePage extends Persistent {
     return -1;
   }
 
-
-  void find(Rectangle r, ArrayList result, int level) {
-    if (--level != 0) { /* this is an internal node in the tree */
-      for (int i = 0; i < n; i++) {
-        if (r.intersects(b[i])) {
-          ((RtreePage) branch.get(i)).find(r, result, level);
-        }
-      }
-    } else { /* this is a leaf node */
-      for (int i = 0; i < n; i++) {
-        if (r.intersects(b[i])) {
-          result.add(branch.get(i));
-        }
-      }
-    }
-  }
-
-  void purge(int level) {
-    if (--level != 0) { /* this is an internal node in the tree */
-      for (int i = 0; i < n; i++) {
-        ((RtreePage) branch.get(i)).purge(level);
-      }
-    }
-    deallocate();
-  }
-
-  final void setBranch(int i, Rectangle r, Object obj) {
-    b[i] = r;
-    branch.setObject(i, obj);
-  }
-
   final void removeBranch(int i) {
     n -= 1;
     System.arraycopy(b, i + 1, b, i, n - i);
@@ -145,13 +157,9 @@ public class RtreePage extends Persistent {
     modify();
   }
 
-  final RtreePage addBranch(Storage storage, Rectangle r, Object obj) {
-    if (n < card) {
-      setBranch(n++, r, obj);
-      return null;
-    } else {
-      return splitPage(storage, r, obj);
-    }
+  final void setBranch(int i, Rectangle r, Object obj) {
+    b[i] = r;
+    branch.setObject(i, obj);
   }
 
   final RtreePage splitPage(Storage storage, Rectangle r, Object obj) {
@@ -266,13 +274,5 @@ public class RtreePage extends Persistent {
     branch.setSize(groupCard1);
     branch.setSize(card);
     return pg;
-  }
-
-  final Rectangle cover() {
-    Rectangle r = new Rectangle(b[0]);
-    for (int i = 1; i < n; i++) {
-      r.join(b[i]);
-    }
-    return r;
   }
 }

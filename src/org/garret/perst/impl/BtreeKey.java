@@ -13,26 +13,6 @@ class BtreeKey {
     this.oid = oid;
   }
 
-  final void getStr(Page pg, int i) {
-    int len = BtreePage.getKeyStrSize(pg, i);
-    int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, i);
-    char[] sval = new char[len];
-    for (int j = 0; j < len; j++) {
-      sval[j] = (char) Bytes.unpack2(pg.data, offs);
-      offs += 2;
-    }
-    key = new Key(sval);
-  }
-
-  final void getByteArray(Page pg, int i) {
-    int len = BtreePage.getKeyStrSize(pg, i);
-    int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, i);
-    byte[] bval = new byte[len];
-    System.arraycopy(pg.data, offs, bval, 0, len);
-    key = new Key(bval);
-  }
-
-
   final void extract(Page pg, int offs, int type) {
     byte[] data = pg.data;
 
@@ -67,6 +47,26 @@ class BtreeKey {
       default:
         Assert.failed("Invalid type");
     }
+  }
+
+  final void getByteArray(Page pg, int i) {
+    int len = BtreePage.getKeyStrSize(pg, i);
+    int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, i);
+    byte[] bval = new byte[len];
+    System.arraycopy(pg.data, offs, bval, 0, len);
+    key = new Key(bval);
+  }
+
+
+  final void getStr(Page pg, int i) {
+    int len = BtreePage.getKeyStrSize(pg, i);
+    int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, i);
+    char[] sval = new char[len];
+    for (int j = 0; j < len; j++) {
+      sval[j] = (char) Bytes.unpack2(pg.data, offs);
+      offs += 2;
+    }
+    key = new Key(sval);
   }
 
   final void pack(Page pg, int i) {

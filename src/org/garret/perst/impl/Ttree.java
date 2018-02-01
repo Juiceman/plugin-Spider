@@ -13,9 +13,60 @@ import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
 
 public class Ttree<T> extends PersistentCollection<T> implements SortedCollection<T> {
+  class TtreeIterator<T> extends IterableIterator<T> implements PersistentIterator {
+    int i;
+    ArrayList list;
+    boolean removed;
+
+    TtreeIterator(ArrayList list) {
+      this.list = list;
+      i = -1;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return i + 1 < list.size();
+    }
+
+    @Override
+    public T next() {
+      if (i + 1 >= list.size()) {
+        throw new NoSuchElementException();
+      }
+      removed = false;
+      return (T) list.get(++i);
+    }
+
+    @Override
+    public int nextOid() {
+      if (i + 1 >= list.size()) {
+        return 0;
+      }
+      removed = false;
+      return getStorage().getOid(list.get(++i));
+    }
+
+    @Override
+    public void remove() {
+      if (removed || i < 0 || i >= list.size()) {
+        throw new IllegalStateException();
+      }
+      Ttree.this.remove(list.get(i));
+      list.remove(i--);
+      removed = true;
+    }
+  }
+  /**
+   * Get all objects in the index as array ordered by index key.
+   * 
+   * @return array of objects in the index ordered by key value
+   */
+  static final Object[] emptySelection = new Object[0];
   private PersistentComparator<T> comparator;
   private boolean unique;
+
   private TtreePage root;
+
   private int nMembers;
 
   private Ttree() {}
@@ -24,67 +75,6 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
     super(db);
     this.comparator = comparator;
     this.unique = unique;
-  }
-
-  /**
-   * Get comparator used in this collection
-   * 
-   * @return collection comparator
-   */
-  @Override
-  public PersistentComparator<T> getComparator() {
-    return comparator;
-  }
-
-  @Override
-  public boolean recursiveLoading() {
-    return false;
-  }
-
-  @Override
-  public T get(Object key) {
-    if (root != null) {
-      ArrayList list = new ArrayList();
-      root.find(comparator, key, 1, key, 1, list);
-      if (list.size() > 1) {
-        throw new StorageError(StorageError.KEY_NOT_UNIQUE);
-      } else if (list.size() == 0) {
-        return null;
-      } else {
-        return (T) list.get(0);
-      }
-    }
-    return null;
-  }
-
-  @Override
-  public ArrayList<T> getList(Object from, Object till) {
-    ArrayList list = new ArrayList();
-    if (root != null) {
-      root.find(comparator, from, 1, till, 1, list);
-    }
-    return list;
-  }
-
-  @Override
-  public ArrayList<T> getList(Object from, boolean fromInclusive, Object till,
-      boolean tillInclusive) {
-    ArrayList list = new ArrayList();
-    if (root != null) {
-      root.find(comparator, from, fromInclusive ? 1 : 0, till, tillInclusive ? 1 : 0, list);
-    }
-    return list;
-  }
-
-
-  @Override
-  public Object[] get(Object from, Object till) {
-    return getList(from, till).toArray();
-  }
-
-  @Override
-  public Object[] get(Object from, boolean fromInclusive, Object till, boolean tillInclusive) {
-    return getList(from, fromInclusive, till, tillInclusive).toArray();
   }
 
   /**
@@ -113,6 +103,29 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
     return true;
   }
 
+  /**
+   * Remove all objects from the collection
+   */
+  @Override
+  public void clear() {
+    if (root != null) {
+      root.prune();
+      root = null;
+      nMembers = 0;
+      modify();
+    }
+  }
+
+  @Override
+  public boolean contains(Object member) {
+    return (root != null && member != null) ? root.contains(comparator, member) : false;
+  }
+
+
+  @Override
+  public boolean containsKey(Object key) {
+    return (root != null && key != null) ? root.containsKey(comparator, key) : false;
+  }
 
   /**
    * Check if collections contains specified member
@@ -124,16 +137,98 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
     return (root != null && member != null) ? root.containsObject(comparator, member) : false;
   }
 
+  /**
+   * T-Tree destructor
+   */
   @Override
-  public boolean contains(Object member) {
-    return (root != null && member != null) ? root.contains(comparator, member) : false;
+  public void deallocate() {
+    if (root != null) {
+      root.prune();
+    }
+    super.deallocate();
+  }
+
+
+  @Override
+  public T get(Object key) {
+    if (root != null) {
+      ArrayList list = new ArrayList();
+      root.find(comparator, key, 1, key, 1, list);
+      if (list.size() > 1) {
+        throw new StorageError(StorageError.KEY_NOT_UNIQUE);
+      } else if (list.size() == 0) {
+        return null;
+      } else {
+        return (T) list.get(0);
+      }
+    }
+    return null;
   }
 
   @Override
-  public boolean containsKey(Object key) {
-    return (root != null && key != null) ? root.containsKey(comparator, key) : false;
+  public Object[] get(Object from, boolean fromInclusive, Object till, boolean tillInclusive) {
+    return getList(from, fromInclusive, till, tillInclusive).toArray();
   }
 
+  @Override
+  public Object[] get(Object from, Object till) {
+    return getList(from, till).toArray();
+  }
+
+
+  /**
+   * Get comparator used in this collection
+   * 
+   * @return collection comparator
+   */
+  @Override
+  public PersistentComparator<T> getComparator() {
+    return comparator;
+  }
+
+  @Override
+  public ArrayList<T> getList(Object from, boolean fromInclusive, Object till,
+      boolean tillInclusive) {
+    ArrayList list = new ArrayList();
+    if (root != null) {
+      root.find(comparator, from, fromInclusive ? 1 : 0, till, tillInclusive ? 1 : 0, list);
+    }
+    return list;
+  }
+
+  @Override
+  public ArrayList<T> getList(Object from, Object till) {
+    ArrayList list = new ArrayList();
+    if (root != null) {
+      root.find(comparator, from, 1, till, 1, list);
+    }
+    return list;
+  }
+
+  @Override
+  public Iterator<T> iterator() {
+    return iterator(null, null);
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Object from, boolean fromInclusive, Object till,
+      boolean tillInclusive) {
+    ArrayList list = new ArrayList();
+    if (root != null) {
+      root.find(comparator, from, fromInclusive ? 1 : 0, till, tillInclusive ? 1 : 0, list);
+    }
+    return new TtreeIterator(list);
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Object from, Object till) {
+    return iterator(from, true, till, true);
+  }
+
+  @Override
+  public boolean recursiveLoading() {
+    return false;
+  }
 
   /**
    * Remove member from collection
@@ -165,37 +260,6 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
   public int size() {
     return nMembers;
   }
-
-  /**
-   * Remove all objects from the collection
-   */
-  @Override
-  public void clear() {
-    if (root != null) {
-      root.prune();
-      root = null;
-      nMembers = 0;
-      modify();
-    }
-  }
-
-  /**
-   * T-Tree destructor
-   */
-  @Override
-  public void deallocate() {
-    if (root != null) {
-      root.prune();
-    }
-    super.deallocate();
-  }
-
-  /**
-   * Get all objects in the index as array ordered by index key.
-   * 
-   * @return array of objects in the index ordered by key value
-   */
-  static final Object[] emptySelection = new Object[0];
 
   @Override
   public Object[] toArray() {
@@ -234,70 +298,6 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
       arr[nMembers] = null;
     }
     return arr;
-  }
-
-  class TtreeIterator<T> extends IterableIterator<T> implements PersistentIterator {
-    int i;
-    ArrayList list;
-    boolean removed;
-
-    TtreeIterator(ArrayList list) {
-      this.list = list;
-      i = -1;
-    }
-
-    @Override
-    public T next() {
-      if (i + 1 >= list.size()) {
-        throw new NoSuchElementException();
-      }
-      removed = false;
-      return (T) list.get(++i);
-    }
-
-    @Override
-    public int nextOid() {
-      if (i + 1 >= list.size()) {
-        return 0;
-      }
-      removed = false;
-      return getStorage().getOid(list.get(++i));
-    }
-
-    @Override
-    public void remove() {
-      if (removed || i < 0 || i >= list.size()) {
-        throw new IllegalStateException();
-      }
-      Ttree.this.remove(list.get(i));
-      list.remove(i--);
-      removed = true;
-    }
-
-    @Override
-    public boolean hasNext() {
-      return i + 1 < list.size();
-    }
-  }
-
-  @Override
-  public Iterator<T> iterator() {
-    return iterator(null, null);
-  }
-
-  @Override
-  public IterableIterator<T> iterator(Object from, Object till) {
-    return iterator(from, true, till, true);
-  }
-
-  @Override
-  public IterableIterator<T> iterator(Object from, boolean fromInclusive, Object till,
-      boolean tillInclusive) {
-    ArrayList list = new ArrayList();
-    if (root != null) {
-      root.find(comparator, from, fromInclusive ? 1 : 0, till, tillInclusive ? 1 : 0, list);
-    }
-    return new TtreeIterator(list);
   }
 
 }

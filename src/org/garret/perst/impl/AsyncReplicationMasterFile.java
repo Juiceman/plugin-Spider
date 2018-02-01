@@ -7,23 +7,36 @@ import org.garret.perst.IFile;
  * File performing asynchronous replication of changed pages to specified slave nodes.
  */
 public class AsyncReplicationMasterFile extends ReplicationMasterFile {
-  /**
-   * Constructor of replication master file
-   * 
-   * @param storage replication storage
-   * @param file local file used to store data locally
-   * @param asyncBufSize size of asynchronous buffer
-   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
-   *        synchronizing with master content of newly attached node
-   */
-  public AsyncReplicationMasterFile(ReplicationMasterStorageImpl storage, IFile file,
-      int asyncBufSize, String pageTimestampFile) {
-    super(storage, file, pageTimestampFile);
-    this.asyncBufSize = asyncBufSize;
-    start();
+  static class Parcel {
+    byte[] data;
+    long pos;
+    int host;
+    Parcel next;
   }
 
 
+  class WriteThread extends Thread {
+    @Override
+    public void run() {
+      asyncWrite();
+    }
+  }
+
+  private int asyncBufSize;
+
+  private int buffered;
+
+  private boolean closed;
+
+  private Object go;
+
+  private Object async;
+
+  private Parcel head;
+
+  private Parcel tail;
+
+  private Thread thread;
   /**
    * Constructor of replication master file
    * 
@@ -35,7 +48,6 @@ public class AsyncReplicationMasterFile extends ReplicationMasterFile {
   public AsyncReplicationMasterFile(IFile file, String[] hosts, int asyncBufSize, boolean ack) {
     this(file, hosts, asyncBufSize, ack, null);
   }
-
   /**
    * Constructor of replication master file
    * 
@@ -52,28 +64,84 @@ public class AsyncReplicationMasterFile extends ReplicationMasterFile {
     this.asyncBufSize = asyncBufSize;
     start();
   }
+  /**
+   * Constructor of replication master file
+   * 
+   * @param storage replication storage
+   * @param file local file used to store data locally
+   * @param asyncBufSize size of asynchronous buffer
+   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
+   *        synchronizing with master content of newly attached node
+   */
+  public AsyncReplicationMasterFile(ReplicationMasterStorageImpl storage, IFile file,
+      int asyncBufSize, String pageTimestampFile) {
+    super(storage, file, pageTimestampFile);
+    this.asyncBufSize = asyncBufSize;
+    start();
+  }
+  public void asyncWrite() {
+    try {
+      while (true) {
+        Parcel p;
+        synchronized (go) {
+          while (head == null) {
+            if (closed) {
+              return;
+            }
+            go.wait();
+          }
+          p = head;
+          head = p.next;
+        }
 
-  class WriteThread extends Thread {
-    @Override
-    public void run() {
-      asyncWrite();
+        synchronized (async) {
+          if (buffered > asyncBufSize) {
+            async.notifyAll();
+          }
+          buffered -= p.data.length;
+        }
+
+        int i = p.host;
+        while (out[i] != null) {
+          try {
+            out[i].write(p.data);
+            if (!ack || p.pos != 0 || in[i].read(rcBuf) == 1) {
+              break;
+            }
+          } catch (IOException x) {
+          }
+
+          out[i] = null;
+          sockets[i] = null;
+          nHosts -= 1;
+          if (handleError(hosts[i])) {
+            connect(i);
+          } else {
+            break;
+          }
+        }
+      }
+    } catch (InterruptedException x) {
     }
   }
-
+  @Override
+  public void close() {
+    try {
+      synchronized (go) {
+        closed = true;
+        go.notify();
+      }
+      thread.join();
+    } catch (InterruptedException x) {
+    }
+    super.close();
+  }
   private void start() {
     go = new Object();
     async = new Object();
     thread = new WriteThread();
     thread.start();
   }
-
-  static class Parcel {
-    byte[] data;
-    long pos;
-    int host;
-    Parcel next;
-  }
-
   @Override
   public void write(long pos, byte[] buf) {
     file.write(pos, buf);
@@ -129,72 +197,4 @@ public class AsyncReplicationMasterFile extends ReplicationMasterFile {
       }
     }
   }
-
-  public void asyncWrite() {
-    try {
-      while (true) {
-        Parcel p;
-        synchronized (go) {
-          while (head == null) {
-            if (closed) {
-              return;
-            }
-            go.wait();
-          }
-          p = head;
-          head = p.next;
-        }
-
-        synchronized (async) {
-          if (buffered > asyncBufSize) {
-            async.notifyAll();
-          }
-          buffered -= p.data.length;
-        }
-
-        int i = p.host;
-        while (out[i] != null) {
-          try {
-            out[i].write(p.data);
-            if (!ack || p.pos != 0 || in[i].read(rcBuf) == 1) {
-              break;
-            }
-          } catch (IOException x) {
-          }
-
-          out[i] = null;
-          sockets[i] = null;
-          nHosts -= 1;
-          if (handleError(hosts[i])) {
-            connect(i);
-          } else {
-            break;
-          }
-        }
-      }
-    } catch (InterruptedException x) {
-    }
-  }
-
-  @Override
-  public void close() {
-    try {
-      synchronized (go) {
-        closed = true;
-        go.notify();
-      }
-      thread.join();
-    } catch (InterruptedException x) {
-    }
-    super.close();
-  }
-
-  private int asyncBufSize;
-  private int buffered;
-  private boolean closed;
-  private Object go;
-  private Object async;
-  private Parcel head;
-  private Parcel tail;
-  private Thread thread;
 }

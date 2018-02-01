@@ -16,14 +16,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Indexable {
   /**
-   * Index may not contain dupicates
+   * Index on autoincremented key field
    */
-  boolean unique() default false;
-
-  /**
-   * Index is optimized to handle large number of duplicate key values
-   */
-  boolean thick() default false;
+  boolean autoincrement() default false;
 
   /**
    * String index is case insensitive
@@ -41,7 +36,12 @@ public @interface Indexable {
   boolean regex() default false;
 
   /**
-   * Index on autoincremented key field
+   * Index is optimized to handle large number of duplicate key values
    */
-  boolean autoincrement() default false;
+  boolean thick() default false;
+
+  /**
+   * Index may not contain dupicates
+   */
+  boolean unique() default false;
 }

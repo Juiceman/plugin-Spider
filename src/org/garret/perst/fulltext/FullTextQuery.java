@@ -17,10 +17,12 @@ public class FullTextQuery {
   public int op;
 
   /**
-   * Query node visitor. It provides convenient way of iterating through query nodes.
+   * Query node constructor
+   * 
+   * @param op operation code
    */
-  public void visit(FullTextQueryVisitor visitor) {
-    visitor.visit(this);
+  public FullTextQuery(int op) {
+    this.op = op;
   }
 
   /**
@@ -33,12 +35,10 @@ public class FullTextQuery {
   }
 
   /**
-   * Query node constructor
-   * 
-   * @param op operation code
+   * Query node visitor. It provides convenient way of iterating through query nodes.
    */
-  public FullTextQuery(int op) {
-    this.op = op;
+  public void visit(FullTextQueryVisitor visitor) {
+    visitor.visit(this);
   }
 }
 

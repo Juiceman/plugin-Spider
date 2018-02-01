@@ -7,12 +7,14 @@ public class FullTextQueryUnaryOp extends FullTextQuery {
   public FullTextQuery opd;
 
   /**
-   * Query node visitor.
+   * Unary node constructor
+   * 
+   * @param op operation code
+   * @param opd operand
    */
-  @Override
-  public void visit(FullTextQueryVisitor visitor) {
-    visitor.visit(this);
-    opd.visit(visitor);
+  public FullTextQueryUnaryOp(int op, FullTextQuery opd) {
+    super(op);
+    this.opd = opd;
   }
 
   /**
@@ -31,13 +33,11 @@ public class FullTextQueryUnaryOp extends FullTextQuery {
   }
 
   /**
-   * Unary node constructor
-   * 
-   * @param op operation code
-   * @param opd operand
+   * Query node visitor.
    */
-  public FullTextQueryUnaryOp(int op, FullTextQuery opd) {
-    super(op);
-    this.opd = opd;
+  @Override
+  public void visit(FullTextQueryVisitor visitor) {
+    visitor.visit(this);
+    opd.visit(visitor);
   }
 }

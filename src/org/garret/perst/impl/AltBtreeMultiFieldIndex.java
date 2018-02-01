@@ -14,54 +14,40 @@ import org.garret.perst.Key;
 import org.garret.perst.Query;
 import org.garret.perst.StorageError;
 
-class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
-  String className;
-  String[] fieldName;
+class AltBtreeCaseInsensitiveMultiFieldIndex<T> extends AltBtreeMultiFieldIndex<T> {
+  AltBtreeCaseInsensitiveMultiFieldIndex() {}
 
-  transient Class cls;
-  transient Field[] fld;
-
-  AltBtreeMultiFieldIndex() {}
-
-  AltBtreeMultiFieldIndex(Class cls, String[] fieldName, boolean unique) {
-    this.cls = cls;
-    this.unique = unique;
-    this.fieldName = fieldName;
-    this.className = ClassDescriptor.getClassName(cls);
-    locateFields();
-    type = ClassDescriptor.tpValue;
+  AltBtreeCaseInsensitiveMultiFieldIndex(Class cls, String[] fieldNames, boolean unique) {
+    super(cls, fieldNames, unique);
   }
 
-  private final void locateFields() {
-    Class scope = cls;
-    fld = new Field[fieldName.length];
-    for (int i = 0; i < fieldName.length; i++) {
-      fld[i] = ClassDescriptor.locateField(cls, fieldName[i]);
-      if (fld[i] == null) {
-        throw new StorageError(StorageError.INDEXED_FIELD_NOT_FOUND,
-            className + "." + fieldName[i]);
+  @Override
+  Key checkKey(Key key) {
+    if (key != null) {
+      CompoundKey ck = (CompoundKey) key.oval;
+      for (int i = 0; i < ck.keys.length; i++) {
+        if (ck.keys[i] instanceof String) {
+          ck.keys[i] = ((String) ck.keys[i]).toLowerCase();
+        }
       }
     }
+    return super.checkKey(key);
   }
 
   @Override
-  public Class getIndexedClass() {
-    return cls;
+  public boolean isCaseInsensitive() {
+    return true;
   }
+}
 
-  @Override
-  public Field[] getKeyFields() {
-    return fld;
-  }
 
-  @Override
-  public void onLoad() {
-    cls = ClassDescriptor.loadClass(getStorage(), className);
-    locateFields();
-  }
-
+class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
   static class CompoundKey implements Comparable, IValue {
     Object[] keys;
+
+    CompoundKey(Object[] keys) {
+      this.keys = keys;
+    }
 
     @Override
     public int compareTo(Object o) {
@@ -83,51 +69,28 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
       }
       return 0; // allow to compare part of the compound key
     }
-
-    CompoundKey(Object[] keys) {
-      this.keys = keys;
-    }
   }
+  String className;
 
-  private Key convertKey(Key key) {
-    if (key == null) {
-      return null;
-    }
-    if (key.type != ClassDescriptor.tpArrayOfObject) {
-      throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
-    }
-    return new Key(new CompoundKey((Object[]) key.oval), key.inclusion != 0);
-  }
+  String[] fieldName;
+  transient Class cls;
 
-  private Key extractKey(Object obj) {
-    Object[] keys = new Object[fld.length];
-    try {
-      for (int i = 0; i < keys.length; i++) {
-        Object val = fld[i].get(obj);
-        keys[i] = val;
-        if (!ClassDescriptor.isEmbedded(val)) {
-          getStorage().makePersistent(val);
-        }
-      }
-    } catch (Exception x) {
-      throw new StorageError(StorageError.ACCESS_VIOLATION, x);
-    }
-    return new Key(new CompoundKey(keys));
+  transient Field[] fld;
+
+  AltBtreeMultiFieldIndex() {}
+
+  AltBtreeMultiFieldIndex(Class cls, String[] fieldName, boolean unique) {
+    this.cls = cls;
+    this.unique = unique;
+    this.fieldName = fieldName;
+    this.className = ClassDescriptor.getClassName(cls);
+    locateFields();
+    type = ClassDescriptor.tpValue;
   }
 
   @Override
   public boolean add(T obj) {
     return super.put(extractKey(obj), obj);
-  }
-
-  @Override
-  public boolean put(T obj) {
-    return super.put(extractKey(obj), obj);
-  }
-
-  @Override
-  public T set(T obj) {
-    return super.set(extractKey(obj), obj);
   }
 
   @Override
@@ -154,34 +117,8 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
   }
 
   @Override
-  public boolean remove(Object obj) {
-    return super.removeIfExists(extractKey(obj), obj);
-  }
-
-  @Override
-  public boolean unlink(Key key, T obj) {
-    return super.unlink(convertKey(key), obj);
-  }
-
-  @Override
-  public T remove(Key key) {
-    return super.remove(convertKey(key));
-  }
-
-  @Override
-  public boolean containsObject(T obj) {
-    Key key = extractKey(obj);
-    if (unique) {
-      return super.get(key) != null;
-    } else {
-      Object[] mbrs = get(key, key);
-      for (int i = 0; i < mbrs.length; i++) {
-        if (mbrs[i] == obj) {
-          return true;
-        }
-      }
-      return false;
-    }
+  public void append(T obj) {
+    throw new StorageError(StorageError.UNSUPPORTED_INDEX_TYPE);
   }
 
   @Override
@@ -201,8 +138,55 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
   }
 
   @Override
-  public void append(T obj) {
-    throw new StorageError(StorageError.UNSUPPORTED_INDEX_TYPE);
+  public boolean containsObject(T obj) {
+    Key key = extractKey(obj);
+    if (unique) {
+      return super.get(key) != null;
+    } else {
+      Object[] mbrs = get(key, key);
+      for (int i = 0; i < mbrs.length; i++) {
+        if (mbrs[i] == obj) {
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+
+  private Key convertKey(Key key) {
+    if (key == null) {
+      return null;
+    }
+    if (key.type != ClassDescriptor.tpArrayOfObject) {
+      throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
+    }
+    return new Key(new CompoundKey((Object[]) key.oval), key.inclusion != 0);
+  }
+
+  @Override
+  public IterableIterator<Map.Entry<Object, T>> entryIterator(Key from, Key till, int order) {
+    return super.entryIterator(convertKey(from), convertKey(till), order);
+  }
+
+  private Key extractKey(Object obj) {
+    Object[] keys = new Object[fld.length];
+    try {
+      for (int i = 0; i < keys.length; i++) {
+        Object val = fld[i].get(obj);
+        keys[i] = val;
+        if (!ClassDescriptor.isEmbedded(val)) {
+          getStorage().makePersistent(val);
+        }
+      }
+    } catch (Exception x) {
+      throw new StorageError(StorageError.ACCESS_VIOLATION, x);
+    }
+    return new Key(new CompoundKey(keys));
+  }
+
+  @Override
+  public T get(Key key) {
+    return super.get(convertKey(key));
   }
 
   @Override
@@ -215,14 +199,84 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
   }
 
   @Override
+  public Class getIndexedClass() {
+    return cls;
+  }
+
+  @Override
+  public Field[] getKeyFields() {
+    return fld;
+  }
+
+  @Override
   public T[] getPrefix(String prefix) {
+    throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
+  }
+
+  @Override
+  public boolean isCaseInsensitive() {
+    return false;
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Key from, Key till, int order) {
+    return super.iterator(convertKey(from), convertKey(till), order);
+  }
+
+  private final void locateFields() {
+    Class scope = cls;
+    fld = new Field[fieldName.length];
+    for (int i = 0; i < fieldName.length; i++) {
+      fld[i] = ClassDescriptor.locateField(cls, fieldName[i]);
+      if (fld[i] == null) {
+        throw new StorageError(StorageError.INDEXED_FIELD_NOT_FOUND,
+            className + "." + fieldName[i]);
+      }
+    }
+  }
+
+  @Override
+  public void onLoad() {
+    cls = ClassDescriptor.loadClass(getStorage(), className);
+    locateFields();
+  }
+
+  @Override
+  public T[] prefixSearch(String key) {
     throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
   }
 
 
   @Override
-  public T[] prefixSearch(String key) {
-    throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
+  public boolean put(T obj) {
+    return super.put(extractKey(obj), obj);
+  }
+
+  @Override
+  public IterableIterator<T> queryByExample(T obj) {
+    Key key = extractKey(obj);
+    return iterator(key, key, ASCENT_ORDER);
+  }
+
+  @Override
+  public T remove(Key key) {
+    return super.remove(convertKey(key));
+  }
+
+  @Override
+  public boolean remove(Object obj) {
+    return super.removeIfExists(extractKey(obj), obj);
+  }
+
+  @Override
+  public IterableIterator<T> select(String predicate) {
+    Query<T> query = new QueryImpl<T>(getStorage());
+    return query.select(cls, iterator(), predicate);
+  }
+
+  @Override
+  public T set(T obj) {
+    return super.set(extractKey(obj), obj);
   }
 
   @Override
@@ -235,61 +289,7 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
   }
 
   @Override
-  public T get(Key key) {
-    return super.get(convertKey(key));
-  }
-
-  @Override
-  public IterableIterator<T> iterator(Key from, Key till, int order) {
-    return super.iterator(convertKey(from), convertKey(till), order);
-  }
-
-  @Override
-  public IterableIterator<Map.Entry<Object, T>> entryIterator(Key from, Key till, int order) {
-    return super.entryIterator(convertKey(from), convertKey(till), order);
-  }
-
-  @Override
-  public IterableIterator<T> queryByExample(T obj) {
-    Key key = extractKey(obj);
-    return iterator(key, key, ASCENT_ORDER);
-  }
-
-  @Override
-  public IterableIterator<T> select(String predicate) {
-    Query<T> query = new QueryImpl<T>(getStorage());
-    return query.select(cls, iterator(), predicate);
-  }
-
-  @Override
-  public boolean isCaseInsensitive() {
-    return false;
-  }
-}
-
-
-class AltBtreeCaseInsensitiveMultiFieldIndex<T> extends AltBtreeMultiFieldIndex<T> {
-  AltBtreeCaseInsensitiveMultiFieldIndex() {}
-
-  AltBtreeCaseInsensitiveMultiFieldIndex(Class cls, String[] fieldNames, boolean unique) {
-    super(cls, fieldNames, unique);
-  }
-
-  @Override
-  Key checkKey(Key key) {
-    if (key != null) {
-      CompoundKey ck = (CompoundKey) key.oval;
-      for (int i = 0; i < ck.keys.length; i++) {
-        if (ck.keys[i] instanceof String) {
-          ck.keys[i] = ((String) ck.keys[i]).toLowerCase();
-        }
-      }
-    }
-    return super.checkKey(key);
-  }
-
-  @Override
-  public boolean isCaseInsensitive() {
-    return true;
+  public boolean unlink(Key key, T obj) {
+    return super.unlink(convertKey(key), obj);
   }
 }

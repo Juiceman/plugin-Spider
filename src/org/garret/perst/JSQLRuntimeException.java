@@ -15,6 +15,10 @@ package org.garret.perst;
  * exption should be treated as false
  */
 public class JSQLRuntimeException extends RuntimeException {
+  String fieldName;
+
+  Class target;
+
   /**
    * Constructor of exception
    * 
@@ -28,21 +32,17 @@ public class JSQLRuntimeException extends RuntimeException {
   }
 
   /**
-   * Get class in which lookup was performed
-   */
-  public Class getTarget() {
-    return target;
-  }
-
-  /**
    * Get name of the field
    */
   public String getFieldName() {
     return fieldName;
   }
-
-  String fieldName;
-  Class target;
+  /**
+   * Get class in which lookup was performed
+   */
+  public Class getTarget() {
+    return target;
+  }
 }
 
 

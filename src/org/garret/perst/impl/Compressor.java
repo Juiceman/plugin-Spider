@@ -12,26 +12,30 @@ public class Compressor {
     this.buf = buf;
   }
 
-  public final void encodeStart() {
-    btg = 8;
-    acc = 0;
-    pos = 0;
+  public int decode() {
+    int x = 1;
+    int nbits = 0;
+    while (decodeBit() == 0) {
+      nbits += 1;
+    }
+    while (nbits-- > 0) {
+      x += x + decodeBit();
+    }
+    return x;
   }
 
-  private final void encodeBit(int b) {
-    btg -= 1;
-    acc |= (b << btg);
+  private final int decodeBit() {
     if (btg == 0) {
-      buf[pos++] = acc;
-      acc = 0;
+      acc = buf[pos++];
       btg = 8;
     }
+    return (acc >> --btg) & 1;
   }
 
-  private int log2(int x) {
-    int v;
-    for (v = -1; x != 0; x >>>= 1, v++);
-    return v;
+  public final void decodeStart() {
+    btg = 0;
+    acc = 0;
+    pos = 0;
   }
 
   public final void encode(int x) {
@@ -46,6 +50,22 @@ public class Compressor {
     }
   }
 
+  private final void encodeBit(int b) {
+    btg -= 1;
+    acc |= (b << btg);
+    if (btg == 0) {
+      buf[pos++] = acc;
+      acc = 0;
+      btg = 8;
+    }
+  }
+
+  public final void encodeStart() {
+    btg = 8;
+    acc = 0;
+    pos = 0;
+  }
+
   public final byte[] encodeStop() {
     if (btg != 8) {
       buf[pos++] = acc;
@@ -55,29 +75,9 @@ public class Compressor {
     return packedArray;
   }
 
-  public final void decodeStart() {
-    btg = 0;
-    acc = 0;
-    pos = 0;
-  }
-
-  private final int decodeBit() {
-    if (btg == 0) {
-      acc = buf[pos++];
-      btg = 8;
-    }
-    return (acc >> --btg) & 1;
-  }
-
-  public int decode() {
-    int x = 1;
-    int nbits = 0;
-    while (decodeBit() == 0) {
-      nbits += 1;
-    }
-    while (nbits-- > 0) {
-      x += x + decodeBit();
-    }
-    return x;
+  private int log2(int x) {
+    int v;
+    for (v = -1; x != 0; x >>>= 1, v++);
+    return v;
   }
 }

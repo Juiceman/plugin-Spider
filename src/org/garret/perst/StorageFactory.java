@@ -9,13 +9,43 @@ import org.garret.perst.impl.StorageImpl;
  * Storage factory
  */
 public class StorageFactory {
+  protected static final StorageFactory instance = new StorageFactory();
+
   /**
-   * Create new instance of the storage
+   * Get instance of storage factory. So new storages should be create in application in the
+   * following way: <code>StorageFactory.getInstance().createStorage()</code>
    * 
-   * @return new instance of the storage (unopened, you should explicitely invoke open method)
+   * @return instance of the storage factory
    */
-  public Storage createStorage() {
-    return new StorageImpl();
+  public static StorageFactory getInstance() {
+    return instance;
+  }
+
+  /**
+   * Add new instance of the dynamic slave node of replicated storage.
+   * 
+   * @param replicationMasterNode name of the host where replication master is running
+   * @param masterPort replication master socket port to which connection should be established
+   * @return new instance of the slave storage (unopened, you should explicitely invoke open method)
+   */
+  public ReplicationSlaveStorage addReplicationSlaveStorage(String replicationMasterNode,
+      int masterPort) {
+    return new ReplicationDynamicSlaveStorageImpl(replicationMasterNode, masterPort, null);
+  }
+
+  /**
+   * Add new instance of the dynamic slave node of replicated storage.
+   * 
+   * @param replicationMasterNode name of the host where replication master is running
+   * @param masterPort replication master socket port to which connection should be established
+   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
+   *        synchronizing with master content of newly attached node
+   * @return new instance of the slave storage (unopened, you should explicitely invoke open method)
+   */
+  public ReplicationSlaveStorage addReplicationSlaveStorage(String replicationMasterNode,
+      int masterPort, String pageTimestampFile) {
+    return new ReplicationDynamicSlaveStorageImpl(replicationMasterNode, masterPort,
+        pageTimestampFile);
   }
 
   /**
@@ -105,41 +135,11 @@ public class StorageFactory {
   }
 
   /**
-   * Add new instance of the dynamic slave node of replicated storage.
+   * Create new instance of the storage
    * 
-   * @param replicationMasterNode name of the host where replication master is running
-   * @param masterPort replication master socket port to which connection should be established
-   * @return new instance of the slave storage (unopened, you should explicitely invoke open method)
+   * @return new instance of the storage (unopened, you should explicitely invoke open method)
    */
-  public ReplicationSlaveStorage addReplicationSlaveStorage(String replicationMasterNode,
-      int masterPort) {
-    return new ReplicationDynamicSlaveStorageImpl(replicationMasterNode, masterPort, null);
+  public Storage createStorage() {
+    return new StorageImpl();
   }
-
-  /**
-   * Add new instance of the dynamic slave node of replicated storage.
-   * 
-   * @param replicationMasterNode name of the host where replication master is running
-   * @param masterPort replication master socket port to which connection should be established
-   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
-   *        synchronizing with master content of newly attached node
-   * @return new instance of the slave storage (unopened, you should explicitely invoke open method)
-   */
-  public ReplicationSlaveStorage addReplicationSlaveStorage(String replicationMasterNode,
-      int masterPort, String pageTimestampFile) {
-    return new ReplicationDynamicSlaveStorageImpl(replicationMasterNode, masterPort,
-        pageTimestampFile);
-  }
-
-  /**
-   * Get instance of storage factory. So new storages should be create in application in the
-   * following way: <code>StorageFactory.getInstance().createStorage()</code>
-   * 
-   * @return instance of the storage factory
-   */
-  public static StorageFactory getInstance() {
-    return instance;
-  }
-
-  protected static final StorageFactory instance = new StorageFactory();
 };

@@ -10,10 +10,12 @@ import org.garret.perst.PersistentCollection;
 import org.garret.perst.Storage;
 
 class ScalableList<E> extends PersistentCollection<E> implements IPersistentList<E> {
+  static final int BTREE_THRESHOLD = 128;
   Link<E> small;
+
   IPersistentList<E> large;
 
-  static final int BTREE_THRESHOLD = 128;
+  ScalableList() {}
 
   ScalableList(Storage storage, int initialSize) {
     super(storage);
@@ -22,43 +24,6 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
     } else {
       large = storage.<E>createList();
     }
-  }
-
-  ScalableList() {}
-
-  @Override
-  public E get(int i) {
-    return small != null ? small.get(i) : large.get(i);
-  }
-
-  @Override
-  public E set(int i, E obj) {
-    return small != null ? small.set(i, obj) : large.set(i, obj);
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return small != null ? small.isEmpty() : large.isEmpty();
-  }
-
-  @Override
-  public int size() {
-    return small != null ? small.size() : large.size();
-  }
-
-  @Override
-  public boolean contains(Object o) {
-    return small != null ? small.contains(o) : large.contains(o);
-  }
-
-  @Override
-  public <T> T[] toArray(T a[]) {
-    return small != null ? small.<T>toArray(a) : large.<T>toArray(a);
-  }
-
-  @Override
-  public Object[] toArray() {
-    return small != null ? small.toArray() : large.toArray();
   }
 
   @Override
@@ -85,8 +50,14 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
   }
 
   @Override
-  public E remove(int i) {
-    return small != null ? small.remove(i) : large.remove(i);
+  public boolean addAll(int index, Collection<? extends E> c) {
+    boolean modified = false;
+    Iterator<? extends E> e = c.iterator();
+    while (e.hasNext()) {
+      add(index++, e.next());
+      modified = true;
+    }
+    return modified;
   }
 
   @Override
@@ -99,29 +70,33 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
   }
 
   @Override
+  public boolean contains(Object o) {
+    return small != null ? small.contains(o) : large.contains(o);
+  }
+
+  @Override
+  public E get(int i) {
+    return small != null ? small.get(i) : large.get(i);
+  }
+
+  @Override
   public int indexOf(Object o) {
     return small != null ? small.indexOf(o) : large.indexOf(o);
   }
 
   @Override
-  public int lastIndexOf(Object o) {
-    return small != null ? small.lastIndexOf(o) : large.lastIndexOf(o);
-  }
-
-  @Override
-  public boolean addAll(int index, Collection<? extends E> c) {
-    boolean modified = false;
-    Iterator<? extends E> e = c.iterator();
-    while (e.hasNext()) {
-      add(index++, e.next());
-      modified = true;
-    }
-    return modified;
+  public boolean isEmpty() {
+    return small != null ? small.isEmpty() : large.isEmpty();
   }
 
   @Override
   public Iterator<E> iterator() {
     return small != null ? small.iterator() : large.iterator();
+  }
+
+  @Override
+  public int lastIndexOf(Object o) {
+    return small != null ? small.lastIndexOf(o) : large.lastIndexOf(o);
   }
 
   @Override
@@ -135,7 +110,32 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
   }
 
   @Override
+  public E remove(int i) {
+    return small != null ? small.remove(i) : large.remove(i);
+  }
+
+  @Override
+  public E set(int i, E obj) {
+    return small != null ? small.set(i, obj) : large.set(i, obj);
+  }
+
+  @Override
+  public int size() {
+    return small != null ? small.size() : large.size();
+  }
+
+  @Override
   public List<E> subList(int fromIndex, int toIndex) {
     return small != null ? small.subList(fromIndex, toIndex) : large.subList(fromIndex, toIndex);
+  }
+
+  @Override
+  public Object[] toArray() {
+    return small != null ? small.toArray() : large.toArray();
+  }
+
+  @Override
+  public <T> T[] toArray(T a[]) {
+    return small != null ? small.<T>toArray(a) : large.<T>toArray(a);
   }
 }

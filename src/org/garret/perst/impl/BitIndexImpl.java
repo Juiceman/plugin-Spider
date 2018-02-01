@@ -10,84 +10,19 @@ import org.garret.perst.PersistentIterator;
 import org.garret.perst.StorageError;
 
 class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
-  BitIndexImpl() {
-    super(ClassDescriptor.tpInt, true);
-  }
-
-  static class Key {
-    int key;
-    int oid;
-
-    Key(int key, int oid) {
-      this.key = key;
-      this.oid = oid;
-    }
-  }
-
-  @Override
-  public int getMask(T obj) {
-    StorageImpl db = (StorageImpl) getStorage();
-    if (root == 0) {
-      throw new StorageError(StorageError.KEY_NOT_FOUND);
-    }
-    return BitIndexPage.find(db, root, db.getOid(obj), height);
-  }
-
-  @Override
-  public void put(T obj, int mask) {
-    StorageImpl db = (StorageImpl) getStorage();
-    if (db == null) {
-      throw new StorageError(StorageError.DELETED_OBJECT);
-    }
-    Key ins = new Key(mask, db.makePersistent(obj));
-    if (root == 0) {
-      root = BitIndexPage.allocate(db, 0, ins);
-      height = 1;
-    } else {
-      int result = BitIndexPage.insert(db, root, ins, height);
-      if (result == op_overflow) {
-        root = BitIndexPage.allocate(db, root, ins);
-        height += 1;
-      }
-    }
-    updateCounter += 1;
-    nElems += 1;
-    modify();
-  }
-
-  @Override
-  public boolean remove(Object obj) {
-    StorageImpl db = (StorageImpl) getStorage();
-    if (db == null) {
-      throw new StorageError(StorageError.DELETED_OBJECT);
-    }
-    if (root == 0) {
-      return false;
-    }
-    int result = BitIndexPage.remove(db, root, db.getOid(obj), height);
-    if (result == op_not_found) {
-      return false;
-    }
-    nElems -= 1;
-    if (result == op_underflow) {
-      Page pg = db.getPage(root);
-      if (BtreePage.getnItems(pg) == 0) {
-        int newRoot = 0;
-        if (height != 1) {
-          newRoot = BitIndexPage.getItem(pg, BtreePage.maxItems - 1);
-        }
-        db.freePage(root);
-        root = newRoot;
-        height -= 1;
-      }
-      db.pool.unfix(pg);
-    }
-    updateCounter += 1;
-    modify();
-    return true;
-  }
-
   class BitIndexIterator<E> extends IterableIterator<E> implements PersistentIterator {
+    int[] pageStack;
+
+    int[] posStack;
+
+    int sp;
+
+    int set;
+
+    int clear;
+
+    int counter;
+
     BitIndexIterator(int set, int clear) {
       sp = 0;
       counter = updateCounter;
@@ -118,37 +53,6 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
         db.pool.unfix(pg);
       }
     }
-
-    @Override
-    public boolean hasNext() {
-      if (counter != updateCounter) {
-        throw new ConcurrentModificationException();
-      }
-      return sp != 0;
-    }
-
-    @Override
-    public E next() {
-      int oid = nextOid();
-      if (oid == 0) {
-        throw new NoSuchElementException();
-      }
-      return (E) ((StorageImpl) getStorage()).lookupObject(oid, null);
-    }
-
-    @Override
-    public int nextOid() {
-      if (!hasNext()) {
-        return 0;
-      }
-      StorageImpl db = (StorageImpl) getStorage();
-      int pos = posStack[sp - 1];
-      Page pg = db.getPage(pageStack[sp - 1]);
-      int oid = BitIndexPage.getItem(pg, BtreePage.maxItems - 1 - pos);
-      gotoNextItem(pg, pos + 1);
-      return oid;
-    }
-
     private final void gotoNextItem(Page pg, int pos) {
       StorageImpl db = (StorageImpl) getStorage();
 
@@ -183,40 +87,41 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
 
       db.pool.unfix(pg);
     }
-
+    @Override
+    public boolean hasNext() {
+      if (counter != updateCounter) {
+        throw new ConcurrentModificationException();
+      }
+      return sp != 0;
+    }
+    @Override
+    public E next() {
+      int oid = nextOid();
+      if (oid == 0) {
+        throw new NoSuchElementException();
+      }
+      return (E) ((StorageImpl) getStorage()).lookupObject(oid, null);
+    }
+    @Override
+    public int nextOid() {
+      if (!hasNext()) {
+        return 0;
+      }
+      StorageImpl db = (StorageImpl) getStorage();
+      int pos = posStack[sp - 1];
+      Page pg = db.getPage(pageStack[sp - 1]);
+      int oid = BitIndexPage.getItem(pg, BtreePage.maxItems - 1 - pos);
+      gotoNextItem(pg, pos + 1);
+      return oid;
+    }
     @Override
     public void remove() {
       throw new UnsupportedOperationException();
     }
-
-    int[] pageStack;
-    int[] posStack;
-    int sp;
-    int set;
-    int clear;
-    int counter;
-  }
-
-  @Override
-  public Iterator<T> iterator() {
-    return iterator(0, 0);
-  }
-
-  @Override
-  public IterableIterator<T> iterator(int set, int clear) {
-    return new BitIndexIterator<T>(set, clear);
   }
 
   static class BitIndexPage extends BtreePage {
     static final int max = keySpace / 8;
-
-    static int getItem(Page pg, int index) {
-      return Bytes.unpack4(pg.data, firstKeyOffs + index * 4);
-    }
-
-    static void setItem(Page pg, int index, int mask) {
-      Bytes.pack4(pg.data, firstKeyOffs + index * 4, mask);
-    }
 
     static int allocate(StorageImpl db, int root, Key ins) {
       int pageId = db.allocatePage();
@@ -227,11 +132,6 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
       setItem(pg, maxItems - 2, root);
       db.pool.unfix(pg);
       return pageId;
-    }
-
-    static void memcpy(Page dst_pg, int dst_idx, Page src_pg, int src_idx, int len) {
-      System.arraycopy(src_pg.data, firstKeyOffs + src_idx * 4, dst_pg.data,
-          firstKeyOffs + dst_idx * 4, len * 4);
     }
 
     static int find(StorageImpl db, int pageId, int oid, int height) {
@@ -265,6 +165,101 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
       } finally {
         if (pg != null) {
           db.pool.unfix(pg);
+        }
+      }
+    }
+
+    static int getItem(Page pg, int index) {
+      return Bytes.unpack4(pg.data, firstKeyOffs + index * 4);
+    }
+
+    static int handlePageUnderflow(StorageImpl db, Page pg, int r, int height) {
+      int nItems = getnItems(pg);
+      Page a = db.putPage(getItem(pg, maxItems - r - 1));
+      int an = getnItems(a);
+      if (r < nItems) { // exists greater page
+        Page b = db.getPage(getItem(pg, maxItems - r - 2));
+        int bn = getnItems(b);
+        Assert.that(bn >= an);
+        if (height != 1) {
+          memcpy(a, an, pg, r, 1);
+          an += 1;
+          bn += 1;
+        }
+        if (an + bn > max) {
+          // reallocation of nodes between pages a and b
+          int i = bn - ((an + bn) >> 1);
+          db.pool.unfix(b);
+          b = db.putPage(getItem(pg, maxItems - r - 2));
+          memcpy(a, an, b, 0, i);
+          memcpy(b, 0, b, i, bn - i);
+          memcpy(a, maxItems - an - i, b, maxItems - i, i);
+          memcpy(b, maxItems - bn + i, b, maxItems - bn, bn - i);
+          if (height != 1) {
+            memcpy(pg, r, a, an + i - 1, 1);
+          } else {
+            memcpy(pg, r, a, maxItems - an - i, 1);
+          }
+          setnItems(b, getnItems(b) - i);
+          setnItems(a, getnItems(a) + i);
+          db.pool.unfix(a);
+          db.pool.unfix(b);
+          return op_done;
+        } else { // merge page b to a
+          memcpy(a, an, b, 0, bn);
+          memcpy(a, maxItems - an - bn, b, maxItems - bn, bn);
+          db.freePage(getItem(pg, maxItems - r - 2));
+          memcpy(pg, maxItems - nItems, pg, maxItems - nItems - 1, nItems - r - 1);
+          memcpy(pg, r, pg, r + 1, nItems - r - 1);
+          setnItems(a, getnItems(a) + bn);
+          setnItems(pg, nItems - 1);
+          db.pool.unfix(a);
+          db.pool.unfix(b);
+          return nItems < max / 3 ? op_underflow : op_done;
+        }
+      } else { // page b is before a
+        Page b = db.getPage(getItem(pg, maxItems - r));
+        int bn = getnItems(b);
+        Assert.that(bn >= an);
+        if (height != 1) {
+          an += 1;
+          bn += 1;
+        }
+        if (an + bn > max) {
+          // reallocation of nodes between pages a and b
+          int i = bn - ((an + bn) >> 1);
+          db.pool.unfix(b);
+          b = db.putPage(getItem(pg, maxItems - r));
+          memcpy(a, i, a, 0, an);
+          memcpy(a, 0, b, bn - i, i);
+          memcpy(a, maxItems - an - i, a, maxItems - an, an);
+          memcpy(a, maxItems - i, b, maxItems - bn, i);
+          if (height != 1) {
+            memcpy(a, i - 1, pg, r - 1, 1);
+            memcpy(pg, r - 1, b, bn - i - 1, 1);
+          } else {
+            memcpy(pg, r - 1, b, maxItems - bn + i, 1);
+          }
+          setnItems(b, getnItems(b) - i);
+          setnItems(a, getnItems(a) + i);
+          db.pool.unfix(a);
+          db.pool.unfix(b);
+          return op_done;
+        } else { // merge page b to a
+          memcpy(a, bn, a, 0, an);
+          memcpy(a, 0, b, 0, bn);
+          memcpy(a, maxItems - an - bn, a, maxItems - an, an);
+          memcpy(a, maxItems - bn, b, maxItems - bn, bn);
+          if (height != 1) {
+            memcpy(a, bn - 1, pg, r - 1, 1);
+          }
+          db.freePage(getItem(pg, maxItems - r));
+          setItem(pg, maxItems - r, getItem(pg, maxItems - r - 1));
+          setnItems(a, getnItems(a) + bn);
+          setnItems(pg, nItems - 1);
+          db.pool.unfix(a);
+          db.pool.unfix(b);
+          return nItems < max / 3 ? op_underflow : op_done;
         }
       }
     }
@@ -362,97 +357,11 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
       }
     }
 
-
-    static int handlePageUnderflow(StorageImpl db, Page pg, int r, int height) {
-      int nItems = getnItems(pg);
-      Page a = db.putPage(getItem(pg, maxItems - r - 1));
-      int an = getnItems(a);
-      if (r < nItems) { // exists greater page
-        Page b = db.getPage(getItem(pg, maxItems - r - 2));
-        int bn = getnItems(b);
-        Assert.that(bn >= an);
-        if (height != 1) {
-          memcpy(a, an, pg, r, 1);
-          an += 1;
-          bn += 1;
-        }
-        if (an + bn > max) {
-          // reallocation of nodes between pages a and b
-          int i = bn - ((an + bn) >> 1);
-          db.pool.unfix(b);
-          b = db.putPage(getItem(pg, maxItems - r - 2));
-          memcpy(a, an, b, 0, i);
-          memcpy(b, 0, b, i, bn - i);
-          memcpy(a, maxItems - an - i, b, maxItems - i, i);
-          memcpy(b, maxItems - bn + i, b, maxItems - bn, bn - i);
-          if (height != 1) {
-            memcpy(pg, r, a, an + i - 1, 1);
-          } else {
-            memcpy(pg, r, a, maxItems - an - i, 1);
-          }
-          setnItems(b, getnItems(b) - i);
-          setnItems(a, getnItems(a) + i);
-          db.pool.unfix(a);
-          db.pool.unfix(b);
-          return op_done;
-        } else { // merge page b to a
-          memcpy(a, an, b, 0, bn);
-          memcpy(a, maxItems - an - bn, b, maxItems - bn, bn);
-          db.freePage(getItem(pg, maxItems - r - 2));
-          memcpy(pg, maxItems - nItems, pg, maxItems - nItems - 1, nItems - r - 1);
-          memcpy(pg, r, pg, r + 1, nItems - r - 1);
-          setnItems(a, getnItems(a) + bn);
-          setnItems(pg, nItems - 1);
-          db.pool.unfix(a);
-          db.pool.unfix(b);
-          return nItems < max / 3 ? op_underflow : op_done;
-        }
-      } else { // page b is before a
-        Page b = db.getPage(getItem(pg, maxItems - r));
-        int bn = getnItems(b);
-        Assert.that(bn >= an);
-        if (height != 1) {
-          an += 1;
-          bn += 1;
-        }
-        if (an + bn > max) {
-          // reallocation of nodes between pages a and b
-          int i = bn - ((an + bn) >> 1);
-          db.pool.unfix(b);
-          b = db.putPage(getItem(pg, maxItems - r));
-          memcpy(a, i, a, 0, an);
-          memcpy(a, 0, b, bn - i, i);
-          memcpy(a, maxItems - an - i, a, maxItems - an, an);
-          memcpy(a, maxItems - i, b, maxItems - bn, i);
-          if (height != 1) {
-            memcpy(a, i - 1, pg, r - 1, 1);
-            memcpy(pg, r - 1, b, bn - i - 1, 1);
-          } else {
-            memcpy(pg, r - 1, b, maxItems - bn + i, 1);
-          }
-          setnItems(b, getnItems(b) - i);
-          setnItems(a, getnItems(a) + i);
-          db.pool.unfix(a);
-          db.pool.unfix(b);
-          return op_done;
-        } else { // merge page b to a
-          memcpy(a, bn, a, 0, an);
-          memcpy(a, 0, b, 0, bn);
-          memcpy(a, maxItems - an - bn, a, maxItems - an, an);
-          memcpy(a, maxItems - bn, b, maxItems - bn, bn);
-          if (height != 1) {
-            memcpy(a, bn - 1, pg, r - 1, 1);
-          }
-          db.freePage(getItem(pg, maxItems - r));
-          setItem(pg, maxItems - r, getItem(pg, maxItems - r - 1));
-          setnItems(a, getnItems(a) + bn);
-          setnItems(pg, nItems - 1);
-          db.pool.unfix(a);
-          db.pool.unfix(b);
-          return nItems < max / 3 ? op_underflow : op_done;
-        }
-      }
+    static void memcpy(Page dst_pg, int dst_idx, Page src_pg, int src_idx, int len) {
+      System.arraycopy(src_pg.data, firstKeyOffs + src_idx * 4, dst_pg.data,
+          firstKeyOffs + dst_idx * 4, len * 4);
     }
+
 
     static int remove(StorageImpl db, int pageId, int oid, int height) {
       Page pg = db.getPage(pageId);
@@ -501,6 +410,97 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> {
         }
       }
     }
+
+    static void setItem(Page pg, int index, int mask) {
+      Bytes.pack4(pg.data, firstKeyOffs + index * 4, mask);
+    }
+  }
+
+  static class Key {
+    int key;
+    int oid;
+
+    Key(int key, int oid) {
+      this.key = key;
+      this.oid = oid;
+    }
+  }
+
+  BitIndexImpl() {
+    super(ClassDescriptor.tpInt, true);
+  }
+
+  @Override
+  public int getMask(T obj) {
+    StorageImpl db = (StorageImpl) getStorage();
+    if (root == 0) {
+      throw new StorageError(StorageError.KEY_NOT_FOUND);
+    }
+    return BitIndexPage.find(db, root, db.getOid(obj), height);
+  }
+
+  @Override
+  public Iterator<T> iterator() {
+    return iterator(0, 0);
+  }
+
+  @Override
+  public IterableIterator<T> iterator(int set, int clear) {
+    return new BitIndexIterator<T>(set, clear);
+  }
+
+  @Override
+  public void put(T obj, int mask) {
+    StorageImpl db = (StorageImpl) getStorage();
+    if (db == null) {
+      throw new StorageError(StorageError.DELETED_OBJECT);
+    }
+    Key ins = new Key(mask, db.makePersistent(obj));
+    if (root == 0) {
+      root = BitIndexPage.allocate(db, 0, ins);
+      height = 1;
+    } else {
+      int result = BitIndexPage.insert(db, root, ins, height);
+      if (result == op_overflow) {
+        root = BitIndexPage.allocate(db, root, ins);
+        height += 1;
+      }
+    }
+    updateCounter += 1;
+    nElems += 1;
+    modify();
+  }
+
+  @Override
+  public boolean remove(Object obj) {
+    StorageImpl db = (StorageImpl) getStorage();
+    if (db == null) {
+      throw new StorageError(StorageError.DELETED_OBJECT);
+    }
+    if (root == 0) {
+      return false;
+    }
+    int result = BitIndexPage.remove(db, root, db.getOid(obj), height);
+    if (result == op_not_found) {
+      return false;
+    }
+    nElems -= 1;
+    if (result == op_underflow) {
+      Page pg = db.getPage(root);
+      if (BtreePage.getnItems(pg) == 0) {
+        int newRoot = 0;
+        if (height != 1) {
+          newRoot = BitIndexPage.getItem(pg, BtreePage.maxItems - 1);
+        }
+        db.freePage(root);
+        root = newRoot;
+        height -= 1;
+      }
+      db.pool.unfix(pg);
+    }
+    updateCounter += 1;
+    modify();
+    return true;
   }
 }
 

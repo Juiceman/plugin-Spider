@@ -14,32 +14,64 @@ import org.garret.perst.StorageError;
  * File performing replication of changed pages to specified slave nodes.
  */
 public class ReplicationMasterFile implements IFile, Runnable {
-  /**
-   * Constructor of replication master file
-   * 
-   * @param storage replication storage
-   * @param file local file used to store data locally
-   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
-   *        synchronizing with master content of newly attached node
-   */
-  public ReplicationMasterFile(ReplicationMasterStorageImpl storage, IFile file,
-      String pageTimestampFile) {
-    this(storage, file, storage.port, storage.hosts, storage.replicationAck, pageTimestampFile);
+  class SynchronizeThread extends Thread {
+    int i;
+
+    SynchronizeThread(int i) {
+      this.i = i;
+      // setPriority(Thread.NORM_PRIORITY-1);
+    }
+
+    @Override
+    public void run() {
+      synchronizeNode(i);
+    }
   }
 
-  /**
-   * Constructor of replication master file
-   * 
-   * @param file local file used to store data locally
-   * @param hosts slave node hosts to which replicastion will be performed
-   * @param ack whether master should wait acknowledgment from slave node during trasanction commit
-   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
-   *        synchronizing with master content of newly attached node
-   */
-  public ReplicationMasterFile(IFile file, String[] hosts, boolean ack, String pageTimestampFile) {
-    this(null, file, -1, hosts, ack, pageTimestampFile);
-  }
+  public static int LINGER_TIME = 10; // linger parameter for the socket
 
+  public static int MAX_CONNECT_ATTEMPTS = 10; // attempts to establish connection with slave node
+
+  public static int CONNECTION_TIMEOUT = 1000; // timeout between attempts to conbbect to the slave
+
+  public static int INIT_PAGE_TIMESTAMPS_LENGTH = 64 * 1024;
+
+  Object mutex;
+
+  OutputStream[] out;
+
+  InputStream[] in;
+
+  Socket[] sockets;
+
+  byte[] txBuf;
+
+  byte[] rcBuf;
+
+
+  IFile file;
+
+  String[] hosts;
+
+  int nHosts;
+
+  int port;
+
+  boolean ack;
+
+  boolean listening;
+
+  Thread listenThread;
+
+  ServerSocket listenSocket;
+
+  int[] pageTimestamps;
+  int[] dirtyPageTimestampMap;
+  OSFile pageTimestampFile;
+  int timestamp;
+
+  Thread[] syncThreads;
+  ReplicationMasterStorageImpl storage;
   /**
    * Constructor of replication master file
    * 
@@ -52,7 +84,18 @@ public class ReplicationMasterFile implements IFile, Runnable {
   public ReplicationMasterFile(IFile file, String[] hosts, boolean ack) {
     this(null, file, -1, hosts, ack, null);
   }
-
+  /**
+   * Constructor of replication master file
+   * 
+   * @param file local file used to store data locally
+   * @param hosts slave node hosts to which replicastion will be performed
+   * @param ack whether master should wait acknowledgment from slave node during trasanction commit
+   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
+   *        synchronizing with master content of newly attached node
+   */
+  public ReplicationMasterFile(IFile file, String[] hosts, boolean ack, String pageTimestampFile) {
+    this(null, file, -1, hosts, ack, pageTimestampFile);
+  }
   private ReplicationMasterFile(ReplicationMasterStorageImpl storage, IFile file, int port,
       String[] hosts, boolean ack, String pageTimestampFilePath) {
     this.storage = storage;
@@ -115,35 +158,18 @@ public class ReplicationMasterFile implements IFile, Runnable {
       listenThread.start();
     }
   }
-
-  @Override
-  public void run() {
-    while (true) {
-      Socket s = null;
-      try {
-        s = listenSocket.accept();
-      } catch (IOException x) {
-        x.printStackTrace();
-      }
-      synchronized (mutex) {
-        if (!listening) {
-          return;
-        }
-      }
-      if (s != null) {
-        try {
-          s.setSoLinger(true, LINGER_TIME);
-        } catch (Exception x) {
-        }
-        try {
-          s.setTcpNoDelay(true);
-        } catch (Exception x) {
-        }
-        addConnection(s);
-      }
-    }
+  /**
+   * Constructor of replication master file
+   * 
+   * @param storage replication storage
+   * @param file local file used to store data locally
+   * @param pageTimestampFile path to the file with pages timestamps. This file is used for
+   *        synchronizing with master content of newly attached node
+   */
+  public ReplicationMasterFile(ReplicationMasterStorageImpl storage, IFile file,
+      String pageTimestampFile) {
+    this(storage, file, storage.port, storage.hosts, storage.replicationAck, pageTimestampFile);
   }
-
   private void addConnection(Socket s) {
     OutputStream os = null;
     InputStream is = null;
@@ -189,7 +215,189 @@ public class ReplicationMasterFile implements IFile, Runnable {
       t.start();
     }
   }
+  @Override
+  public void close() {
+    if (listenThread != null) {
+      synchronized (mutex) {
+        listening = false;
+      }
+      try {
+        Socket s = new Socket("localhost", port);
+        s.close();
+      } catch (IOException x) {
+      }
+      try {
+        listenThread.join();
+      } catch (InterruptedException x) {
+      }
+      try {
+        listenSocket.close();
+      } catch (IOException x) {
+      }
+    }
+    for (int i = 0; i < syncThreads.length; i++) {
+      Thread t = syncThreads[i];
+      if (t != null) {
+        try {
+          t.join();
+        } catch (InterruptedException x) {
+        }
+      }
+    }
+    file.close();
+    Bytes.pack8(txBuf, 0, ReplicationSlaveStorageImpl.REPL_CLOSE);
+    for (int i = 0; i < out.length; i++) {
+      if (sockets[i] != null) {
+        try {
+          out[i].write(txBuf);
+          out[i].close();
+          if (in != null) {
+            in[i].close();
+          }
+          sockets[i].close();
+        } catch (IOException x) {
+        }
+      }
+    }
+    if (pageTimestampFile != null) {
+      pageTimestampFile.close();
+    }
+  }
+  protected void connect(int i) {
+    String host = hosts[i];
+    int colon = host.indexOf(':');
+    int port = Integer.parseInt(host.substring(colon + 1));
+    host = host.substring(0, colon);
+    Socket socket = null;
+    try {
+      int maxAttempts = storage != null ? storage.slaveConnectionTimeout : MAX_CONNECT_ATTEMPTS;
+      for (int j = 0; j < maxAttempts; j++) {
+        try {
+          socket = new Socket(InetAddress.getByName(host), port);
+          if (socket != null) {
+            break;
+          }
+          Thread.sleep(CONNECTION_TIMEOUT);
+        } catch (IOException x) {
+        }
+      }
+    } catch (InterruptedException x) {
+    }
 
+    if (socket != null) {
+      try {
+        try {
+          socket.setSoLinger(true, LINGER_TIME);
+        } catch (NoSuchMethodError er) {
+        }
+        try {
+          socket.setTcpNoDelay(true);
+        } catch (Exception x) {
+        }
+        sockets[i] = socket;
+        out[i] = socket.getOutputStream();
+        if (ack || pageTimestamps != null) {
+          in[i] = socket.getInputStream();
+        }
+        nHosts += 1;
+        if (pageTimestamps != null) {
+          synchronizeNode(i);
+        }
+      } catch (IOException x) {
+        handleError(hosts[i]);
+        sockets[i] = null;
+        out[i] = null;
+      }
+    }
+  }
+  public int getNumberOfAvailableHosts() {
+    return nHosts;
+  }
+  /**
+   * When overriden by base class this method perfroms socket error handling
+   * 
+   * @return <code>true</code> if host should be reconnected and attempt to send data to it should
+   *         be repeated, <code>false</code> if no more attmpts to communicate with this host should
+   *         be performed
+   */
+  public boolean handleError(String host) {
+    System.err.println("Failed to establish connection with host " + host);
+    return (storage != null && storage.listener != null) ? storage.listener.replicationError(host)
+        : false;
+  }
+  @Override
+  public long length() {
+    return file.length();
+  }
+  @Override
+  public void lock(boolean shared) {
+    file.lock(shared);
+  }
+  @Override
+  public int read(long pos, byte[] buf) {
+    return file.read(pos, buf);
+  }
+
+  @Override
+  public void run() {
+    while (true) {
+      Socket s = null;
+      try {
+        s = listenSocket.accept();
+      } catch (IOException x) {
+        x.printStackTrace();
+      }
+      synchronized (mutex) {
+        if (!listening) {
+          return;
+        }
+      }
+      if (s != null) {
+        try {
+          s.setSoLinger(true, LINGER_TIME);
+        } catch (Exception x) {
+        }
+        try {
+          s.setTcpNoDelay(true);
+        } catch (Exception x) {
+        }
+        addConnection(s);
+      }
+    }
+  }
+  @Override
+  public void sync() {
+    if (pageTimestamps != null) {
+      synchronized (mutex) {
+        byte[] page = new byte[Page.pageSize];
+        for (int i = 0; i < dirtyPageTimestampMap.length; i++) {
+          if (dirtyPageTimestampMap[i] != 0) {
+            for (int j = 0; j < 32; j++) {
+              if ((dirtyPageTimestampMap[i] & (1 << j)) != 0) {
+                int pageNo = (i << 5) + j;
+                int beg = pageNo << (Page.pageSizeLog - 2);
+                int end = beg + Page.pageSize / 4;
+                if (end > pageTimestamps.length) {
+                  end = pageTimestamps.length;
+                }
+                int offs = 0;
+                while (beg < end) {
+                  Bytes.pack4(page, offs, pageTimestamps[beg]);
+                  beg += 1;
+                  offs += 4;
+                }
+                long pos = pageNo << Page.pageSizeLog;
+                pageTimestampFile.write(pos, page);
+              }
+            }
+            dirtyPageTimestampMap[i] = 0;
+          }
+        }
+      }
+      pageTimestampFile.sync();
+    }
+    file.sync();
+  }
   private void synchronizeNode(int i) {
     long size = storage.getDatabaseSize();
     Socket s;
@@ -284,86 +492,14 @@ public class ReplicationMasterFile implements IFile, Runnable {
       }
     }
   }
-
-  class SynchronizeThread extends Thread {
-    int i;
-
-    SynchronizeThread(int i) {
-      this.i = i;
-      // setPriority(Thread.NORM_PRIORITY-1);
-    }
-
-    @Override
-    public void run() {
-      synchronizeNode(i);
-    }
+  @Override
+  public boolean tryLock(boolean shared) {
+    return file.tryLock(shared);
   }
-
-  public int getNumberOfAvailableHosts() {
-    return nHosts;
+  @Override
+  public void unlock() {
+    file.unlock();
   }
-
-  protected void connect(int i) {
-    String host = hosts[i];
-    int colon = host.indexOf(':');
-    int port = Integer.parseInt(host.substring(colon + 1));
-    host = host.substring(0, colon);
-    Socket socket = null;
-    try {
-      int maxAttempts = storage != null ? storage.slaveConnectionTimeout : MAX_CONNECT_ATTEMPTS;
-      for (int j = 0; j < maxAttempts; j++) {
-        try {
-          socket = new Socket(InetAddress.getByName(host), port);
-          if (socket != null) {
-            break;
-          }
-          Thread.sleep(CONNECTION_TIMEOUT);
-        } catch (IOException x) {
-        }
-      }
-    } catch (InterruptedException x) {
-    }
-
-    if (socket != null) {
-      try {
-        try {
-          socket.setSoLinger(true, LINGER_TIME);
-        } catch (NoSuchMethodError er) {
-        }
-        try {
-          socket.setTcpNoDelay(true);
-        } catch (Exception x) {
-        }
-        sockets[i] = socket;
-        out[i] = socket.getOutputStream();
-        if (ack || pageTimestamps != null) {
-          in[i] = socket.getInputStream();
-        }
-        nHosts += 1;
-        if (pageTimestamps != null) {
-          synchronizeNode(i);
-        }
-      } catch (IOException x) {
-        handleError(hosts[i]);
-        sockets[i] = null;
-        out[i] = null;
-      }
-    }
-  }
-
-  /**
-   * When overriden by base class this method perfroms socket error handling
-   * 
-   * @return <code>true</code> if host should be reconnected and attempt to send data to it should
-   *         be repeated, <code>false</code> if no more attmpts to communicate with this host should
-   *         be performed
-   */
-  public boolean handleError(String host) {
-    System.err.println("Failed to establish connection with host " + host);
-    return (storage != null && storage.listener != null) ? storage.listener.replicationError(host)
-        : false;
-  }
-
 
   @Override
   public void write(long pos, byte[] buf) {
@@ -418,140 +554,4 @@ public class ReplicationMasterFile implements IFile, Runnable {
     }
     file.write(pos, buf);
   }
-
-  @Override
-  public int read(long pos, byte[] buf) {
-    return file.read(pos, buf);
-  }
-
-  @Override
-  public void sync() {
-    if (pageTimestamps != null) {
-      synchronized (mutex) {
-        byte[] page = new byte[Page.pageSize];
-        for (int i = 0; i < dirtyPageTimestampMap.length; i++) {
-          if (dirtyPageTimestampMap[i] != 0) {
-            for (int j = 0; j < 32; j++) {
-              if ((dirtyPageTimestampMap[i] & (1 << j)) != 0) {
-                int pageNo = (i << 5) + j;
-                int beg = pageNo << (Page.pageSizeLog - 2);
-                int end = beg + Page.pageSize / 4;
-                if (end > pageTimestamps.length) {
-                  end = pageTimestamps.length;
-                }
-                int offs = 0;
-                while (beg < end) {
-                  Bytes.pack4(page, offs, pageTimestamps[beg]);
-                  beg += 1;
-                  offs += 4;
-                }
-                long pos = pageNo << Page.pageSizeLog;
-                pageTimestampFile.write(pos, page);
-              }
-            }
-            dirtyPageTimestampMap[i] = 0;
-          }
-        }
-      }
-      pageTimestampFile.sync();
-    }
-    file.sync();
-  }
-
-  @Override
-  public boolean tryLock(boolean shared) {
-    return file.tryLock(shared);
-  }
-
-  @Override
-  public void lock(boolean shared) {
-    file.lock(shared);
-  }
-
-  @Override
-  public void unlock() {
-    file.unlock();
-  }
-
-  @Override
-  public void close() {
-    if (listenThread != null) {
-      synchronized (mutex) {
-        listening = false;
-      }
-      try {
-        Socket s = new Socket("localhost", port);
-        s.close();
-      } catch (IOException x) {
-      }
-      try {
-        listenThread.join();
-      } catch (InterruptedException x) {
-      }
-      try {
-        listenSocket.close();
-      } catch (IOException x) {
-      }
-    }
-    for (int i = 0; i < syncThreads.length; i++) {
-      Thread t = syncThreads[i];
-      if (t != null) {
-        try {
-          t.join();
-        } catch (InterruptedException x) {
-        }
-      }
-    }
-    file.close();
-    Bytes.pack8(txBuf, 0, ReplicationSlaveStorageImpl.REPL_CLOSE);
-    for (int i = 0; i < out.length; i++) {
-      if (sockets[i] != null) {
-        try {
-          out[i].write(txBuf);
-          out[i].close();
-          if (in != null) {
-            in[i].close();
-          }
-          sockets[i].close();
-        } catch (IOException x) {
-        }
-      }
-    }
-    if (pageTimestampFile != null) {
-      pageTimestampFile.close();
-    }
-  }
-
-  @Override
-  public long length() {
-    return file.length();
-  }
-
-  public static int LINGER_TIME = 10; // linger parameter for the socket
-  public static int MAX_CONNECT_ATTEMPTS = 10; // attempts to establish connection with slave node
-  public static int CONNECTION_TIMEOUT = 1000; // timeout between attempts to conbbect to the slave
-  public static int INIT_PAGE_TIMESTAMPS_LENGTH = 64 * 1024;
-
-  Object mutex;
-  OutputStream[] out;
-  InputStream[] in;
-  Socket[] sockets;
-  byte[] txBuf;
-  byte[] rcBuf;
-  IFile file;
-  String[] hosts;
-  int nHosts;
-  int port;
-  boolean ack;
-  boolean listening;
-  Thread listenThread;
-  ServerSocket listenSocket;
-
-  int[] pageTimestamps;
-  int[] dirtyPageTimestampMap;
-  OSFile pageTimestampFile;
-  int timestamp;
-  Thread[] syncThreads;
-
-  ReplicationMasterStorageImpl storage;
 }

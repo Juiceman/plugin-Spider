@@ -9,16 +9,16 @@ package org.garret.perst;
  */
 public interface EmbeddedLink<T> extends Link<T> {
   /**
-   * Set container object for this embedded link
-   * 
-   * @param obj container object
-   */
-  void setOwner(Object obj);
-
-  /**
    * Get container object for this embedded link
    * 
    * @return container object
    */
   Object getOwner();
+
+  /**
+   * Set container object for this embedded link
+   * 
+   * @param obj container object
+   */
+  void setOwner(Object obj);
 }

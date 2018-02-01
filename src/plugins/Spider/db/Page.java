@@ -34,47 +34,9 @@ public class Page extends Persistent implements Comparable<Page> {
     storage.makePersistent(this);
   }
 
-  public synchronized void setStatus(Status status) {
-    preModify();
-    this.status = status;
-    postModify();
-  }
-
-  public Status getStatus() {
-    return status;
-  }
-
-  public synchronized void setComment(String comment) {
-    preModify();
-    this.comment = comment;
-    postModify();
-  }
-
-  public String getComment() {
-    return comment;
-  }
-
-  public String getURI() {
-    return uri;
-  }
-
-  public long getId() {
-    return id;
-  }
-
-  public void setPageTitle(String pageTitle) {
-    preModify();
-    this.pageTitle = pageTitle;
-    postModify();
-  }
-
-  public String getPageTitle() {
-    return pageTitle;
-  }
-
   @Override
-  public int hashCode() {
-    return (int) (id ^ (id >>> 32));
+  public int compareTo(Page o) {
+    return new Long(id).compareTo(o.id);
   }
 
   @Override
@@ -89,15 +51,48 @@ public class Page extends Persistent implements Comparable<Page> {
     return id == ((Page) obj).id;
   }
 
-  @Override
-  public String toString() {
-    return "[PAGE: id=" + id + ", title=" + pageTitle + ", uri=" + uri + ", status=" + status
-        + ", comment=" + comment + "]";
+  public String getComment() {
+    return comment;
+  }
+
+  public long getId() {
+    return id;
+  }
+
+  public String getPageTitle() {
+    return pageTitle;
+  }
+
+  public Status getStatus() {
+    return status;
+  }
+
+  public String getURI() {
+    return uri;
   }
 
   @Override
-  public int compareTo(Page o) {
-    return new Long(id).compareTo(o.id);
+  public int hashCode() {
+    return (int) (id ^ (id >>> 32));
+  }
+
+  private void postModify() {
+    lastChange = System.currentTimeMillis();
+
+    modify();
+
+    Storage storage = getStorage();
+
+    if (storage != null) {
+      PerstRoot root = (PerstRoot) storage.getRoot();
+      FieldIndex<Page> coll = root.getPageIndex(status);
+      coll.exclusiveLock();
+      try {
+        coll.put(this);
+      } finally {
+        coll.unlock();
+      }
+    }
   }
 
   private void preModify() {
@@ -123,22 +118,27 @@ public class Page extends Persistent implements Comparable<Page> {
     }
   }
 
-  private void postModify() {
-    lastChange = System.currentTimeMillis();
+  public synchronized void setComment(String comment) {
+    preModify();
+    this.comment = comment;
+    postModify();
+  }
 
-    modify();
+  public void setPageTitle(String pageTitle) {
+    preModify();
+    this.pageTitle = pageTitle;
+    postModify();
+  }
 
-    Storage storage = getStorage();
+  public synchronized void setStatus(Status status) {
+    preModify();
+    this.status = status;
+    postModify();
+  }
 
-    if (storage != null) {
-      PerstRoot root = (PerstRoot) storage.getRoot();
-      FieldIndex<Page> coll = root.getPageIndex(status);
-      coll.exclusiveLock();
-      try {
-        coll.put(this);
-      } finally {
-        coll.unlock();
-      }
-    }
+  @Override
+  public String toString() {
+    return "[PAGE: id=" + id + ", title=" + pageTitle + ", uri=" + uri + ", status=" + status
+        + ", comment=" + comment + "]";
   }
 }

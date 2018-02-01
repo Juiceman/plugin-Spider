@@ -16,35 +16,7 @@ public class RtreeRnPage extends Persistent implements SelfSerializable {
   RectangleRn[] b;
   Link branch;
 
-  @Override
-  public void pack(PerstOutputStream out) throws java.io.IOException {
-    int nDims = ((Page.pageSize - ObjectHeader.sizeof - 12) / card - 4) / 16;
-    out.writeInt(n);
-    out.writeObject(branch);
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < nDims; j++) {
-        out.writeDouble(b[i].getMinCoord(j));
-        out.writeDouble(b[i].getMaxCoord(j));
-      }
-    }
-  }
-
-  @Override
-  public void unpack(PerstInputStream in) throws java.io.IOException {
-    n = in.readInt();
-    branch = (Link) in.readObject();
-    card = branch.size();
-    int nDims = ((Page.pageSize - ObjectHeader.sizeof - 12) / card - 4) / 16;
-    double[] coords = new double[nDims * 2];
-    b = new RectangleRn[card];
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < nDims; j++) {
-        coords[j] = in.readDouble();
-        coords[j + nDims] = in.readDouble();
-      }
-      b[i] = new RectangleRn(coords);
-    }
-  }
+  RtreeRnPage() {}
 
   RtreeRnPage(Storage storage, Object obj, RectangleRn r) {
     card = (Page.pageSize - ObjectHeader.sizeof - 12) / (16 * r.nDimensions() + 4);
@@ -65,7 +37,38 @@ public class RtreeRnPage extends Persistent implements SelfSerializable {
     setBranch(1, p.cover(), p);
   }
 
-  RtreeRnPage() {}
+  final RtreeRnPage addBranch(Storage storage, RectangleRn r, Object obj) {
+    if (n < card) {
+      setBranch(n++, r, obj);
+      return null;
+    } else {
+      return splitPage(storage, r, obj);
+    }
+  }
+
+  final RectangleRn cover() {
+    RectangleRn r = new RectangleRn(b[0]);
+    for (int i = 1; i < n; i++) {
+      r.join(b[i]);
+    }
+    return r;
+  }
+
+  void find(RectangleRn r, ArrayList result, int level) {
+    if (--level != 0) { /* this is an internal node in the tree */
+      for (int i = 0; i < n; i++) {
+        if (r.intersects(b[i])) {
+          ((RtreeRnPage) branch.get(i)).find(r, result, level);
+        }
+      }
+    } else { /* this is a leaf node */
+      for (int i = 0; i < n; i++) {
+        if (r.intersects(b[i])) {
+          result.add(branch.get(i));
+        }
+      }
+    }
+  }
 
   RtreeRnPage insert(Storage storage, RectangleRn r, Object obj, int level) {
     modify();
@@ -102,6 +105,29 @@ public class RtreeRnPage extends Persistent implements SelfSerializable {
     }
   }
 
+
+  @Override
+  public void pack(PerstOutputStream out) throws java.io.IOException {
+    int nDims = ((Page.pageSize - ObjectHeader.sizeof - 12) / card - 4) / 16;
+    out.writeInt(n);
+    out.writeObject(branch);
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < nDims; j++) {
+        out.writeDouble(b[i].getMinCoord(j));
+        out.writeDouble(b[i].getMaxCoord(j));
+      }
+    }
+  }
+
+  void purge(int level) {
+    if (--level != 0) { /* this is an internal node in the tree */
+      for (int i = 0; i < n; i++) {
+        ((RtreeRnPage) branch.get(i)).purge(level);
+      }
+    }
+    deallocate();
+  }
+
   int remove(RectangleRn r, Object obj, int level, ArrayList reinsertList) {
     if (--level != 0) {
       for (int i = 0; i < n; i++) {
@@ -133,37 +159,6 @@ public class RtreeRnPage extends Persistent implements SelfSerializable {
     return -1;
   }
 
-
-  void find(RectangleRn r, ArrayList result, int level) {
-    if (--level != 0) { /* this is an internal node in the tree */
-      for (int i = 0; i < n; i++) {
-        if (r.intersects(b[i])) {
-          ((RtreeRnPage) branch.get(i)).find(r, result, level);
-        }
-      }
-    } else { /* this is a leaf node */
-      for (int i = 0; i < n; i++) {
-        if (r.intersects(b[i])) {
-          result.add(branch.get(i));
-        }
-      }
-    }
-  }
-
-  void purge(int level) {
-    if (--level != 0) { /* this is an internal node in the tree */
-      for (int i = 0; i < n; i++) {
-        ((RtreeRnPage) branch.get(i)).purge(level);
-      }
-    }
-    deallocate();
-  }
-
-  final void setBranch(int i, RectangleRn r, Object obj) {
-    b[i] = r;
-    branch.setObject(i, obj);
-  }
-
   final void removeBranch(int i) {
     n -= 1;
     System.arraycopy(b, i + 1, b, i, n - i);
@@ -172,13 +167,9 @@ public class RtreeRnPage extends Persistent implements SelfSerializable {
     modify();
   }
 
-  final RtreeRnPage addBranch(Storage storage, RectangleRn r, Object obj) {
-    if (n < card) {
-      setBranch(n++, r, obj);
-      return null;
-    } else {
-      return splitPage(storage, r, obj);
-    }
+  final void setBranch(int i, RectangleRn r, Object obj) {
+    b[i] = r;
+    branch.setObject(i, obj);
   }
 
   final RtreeRnPage splitPage(Storage storage, RectangleRn r, Object obj) {
@@ -295,11 +286,20 @@ public class RtreeRnPage extends Persistent implements SelfSerializable {
     return pg;
   }
 
-  final RectangleRn cover() {
-    RectangleRn r = new RectangleRn(b[0]);
-    for (int i = 1; i < n; i++) {
-      r.join(b[i]);
+  @Override
+  public void unpack(PerstInputStream in) throws java.io.IOException {
+    n = in.readInt();
+    branch = (Link) in.readObject();
+    card = branch.size();
+    int nDims = ((Page.pageSize - ObjectHeader.sizeof - 12) / card - 4) / 16;
+    double[] coords = new double[nDims * 2];
+    b = new RectangleRn[card];
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < nDims; j++) {
+        coords[j] = in.readDouble();
+        coords[j + nDims] = in.readDouble();
+      }
+      b[i] = new RectangleRn(coords);
     }
-    return r;
   }
 }

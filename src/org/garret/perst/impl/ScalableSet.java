@@ -10,10 +10,12 @@ import org.garret.perst.PersistentCollection;
 import org.garret.perst.Storage;
 
 class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T> {
+  static final int BTREE_THRESHOLD = 128;
   Link<T> link;
+
   IPersistentSet<T> set;
 
-  static final int BTREE_THRESHOLD = 128;
+  ScalableSet() {}
 
   ScalableSet(StorageImpl storage, int initialSize) {
     super(storage);
@@ -22,63 +24,6 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
     } else {
       set = storage.<T>createSet();
     }
-  }
-
-  ScalableSet() {}
-
-  @Override
-  public boolean isEmpty() {
-    return size() != 0;
-  }
-
-  @Override
-  public int size() {
-    return link != null ? link.size() : set.size();
-  }
-
-  @Override
-  public void clear() {
-    if (link != null) {
-      link.clear();
-      modify();
-    } else {
-      set.clear();
-    }
-  }
-
-  @Override
-  public boolean contains(Object o) {
-    return link != null ? link.contains(o) : set.contains(o);
-  }
-
-  @Override
-  public Object[] toArray() {
-    return link != null ? link.toArray() : set.toArray();
-  }
-
-  @Override
-  public <E> E[] toArray(E a[]) {
-    return link != null ? link.<E>toArray(a) : set.<E>toArray(a);
-  }
-
-  @Override
-  public Iterator<T> iterator() {
-    return link != null ? link.iterator() : set.iterator();
-  }
-
-  private int binarySearch(T obj) {
-    int l = 0, r = link.size();
-    Storage storage = getStorage();
-    int oid = storage.getOid(obj);
-    while (l < r) {
-      int m = (l + r) >> 1;
-      if (storage.getOid(link.getRaw(m)) > oid) {
-        l = m + 1;
-      } else {
-        r = m;
-      }
-    }
-    return r;
   }
 
   @Override
@@ -107,27 +52,42 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
     }
   }
 
-  @Override
-  public boolean remove(Object o) {
-    if (link != null) {
-      if (link.remove(o)) {
-        modify();
-        return true;
+  private int binarySearch(T obj) {
+    int l = 0, r = link.size();
+    Storage storage = getStorage();
+    int oid = storage.getOid(obj);
+    while (l < r) {
+      int m = (l + r) >> 1;
+      if (storage.getOid(link.getRaw(m)) > oid) {
+        l = m + 1;
+      } else {
+        r = m;
       }
-      return false;
+    }
+    return r;
+  }
+
+  @Override
+  public void clear() {
+    if (link != null) {
+      link.clear();
+      modify();
     } else {
-      return set.remove(o);
+      set.clear();
     }
   }
 
   @Override
-  public int hashCode() {
-    int h = 0;
-    Iterator<T> i = iterator();
-    while (i.hasNext()) {
-      h += getStorage().getOid(i.next());
+  public boolean contains(Object o) {
+    return link != null ? link.contains(o) : set.contains(o);
+  }
+
+  @Override
+  public void deallocate() {
+    if (set != null) {
+      set.deallocate();
     }
-    return h;
+    super.deallocate();
   }
 
   @Override
@@ -146,16 +106,56 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
   }
 
   @Override
-  public void deallocate() {
-    if (set != null) {
-      set.deallocate();
+  public int hashCode() {
+    int h = 0;
+    Iterator<T> i = iterator();
+    while (i.hasNext()) {
+      h += getStorage().getOid(i.next());
     }
-    super.deallocate();
+    return h;
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return size() != 0;
+  }
+
+  @Override
+  public Iterator<T> iterator() {
+    return link != null ? link.iterator() : set.iterator();
   }
 
   @Override
   public IterableIterator<T> join(Iterator<T> with) {
     return with == null ? (IterableIterator<T>) iterator()
         : new JoinSetIterator<T>(getStorage(), iterator(), with);
+  }
+
+  @Override
+  public boolean remove(Object o) {
+    if (link != null) {
+      if (link.remove(o)) {
+        modify();
+        return true;
+      }
+      return false;
+    } else {
+      return set.remove(o);
+    }
+  }
+
+  @Override
+  public int size() {
+    return link != null ? link.size() : set.size();
+  }
+
+  @Override
+  public Object[] toArray() {
+    return link != null ? link.toArray() : set.toArray();
+  }
+
+  @Override
+  public <E> E[] toArray(E a[]) {
+    return link != null ? link.<E>toArray(a) : set.<E>toArray(a);
   }
 }

@@ -4,12 +4,32 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 
 public class WeakHashTable implements OidHashTable {
-  Entry table[];
+  static class Entry {
+    Entry next;
+    Reference ref;
+    int oid;
+    int dirty;
+
+    Entry(int oid, Reference ref, Entry chain) {
+      next = chain;
+      this.oid = oid;
+      this.ref = ref;
+    }
+
+    void clear() {
+      ref.clear();
+      ref = null;
+      dirty = 0;
+      next = null;
+    }
+  }
   static final float loadFactor = 0.75f;
+  Entry table[];
   int count;
   int threshold;
   long nModified;
   boolean disableRehash;
+
   StorageImpl db;
 
   public WeakHashTable(StorageImpl db, int initialCapacity) {
@@ -19,75 +39,31 @@ public class WeakHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized boolean remove(int oid) {
+  public synchronized void clear() {
     Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index], prev = null; e != null; prev = e, e = e.next) {
-      if (e.oid == oid) {
-        if (prev != null) {
-          prev.next = e.next;
-        } else {
-          tab[index] = e.next;
-        }
-        e.clear();
-        count -= 1;
-        return true;
-      }
+    for (int i = 0; i < tab.length; i++) {
+      tab[i] = null;
     }
-    return false;
-  }
-
-  protected Reference createReference(Object obj) {
-    return new WeakReference(obj);
+    count = 0;
   }
 
   @Override
-  public synchronized void put(int oid, Object obj) {
-    Reference ref = createReference(obj);
+  public synchronized void clearDirty(Object obj) {
+    int oid = db.getOid(obj);
     Entry tab[] = table;
     int index = (oid & 0x7FFFFFFF) % tab.length;
     for (Entry e = tab[index]; e != null; e = e.next) {
       if (e.oid == oid) {
-        e.ref = ref;
+        if (e.dirty > 0) {
+          e.dirty -= 1;
+        }
         return;
       }
     }
-    if (count >= threshold && !disableRehash) {
-      // Rehash the table if the threshold is exceeded
-      rehash();
-      tab = table;
-      index = (oid & 0x7FFFFFFF) % tab.length;
-    }
-
-    // Creates the new entry.
-    tab[index] = new Entry(oid, ref, tab[index]);
-    count += 1;
   }
 
-  @Override
-  public Object get(int oid) {
-    while (true) {
-      cs: synchronized (this) {
-        Entry tab[] = table;
-        int index = (oid & 0x7FFFFFFF) % tab.length;
-        for (Entry e = tab[index]; e != null; e = e.next) {
-          if (e.oid == oid) {
-            Object obj = e.ref.get();
-            if (obj == null) {
-              if (e.dirty != 0) {
-                break cs;
-              }
-            } else if (db.isDeleted(obj)) {
-              e.ref.clear();
-              return null;
-            }
-            return obj;
-          }
-        }
-        return null;
-      }
-      System.runFinalization();
-    }
+  protected Reference createReference(Object obj) {
+    return new WeakReference(obj);
   }
 
   @Override
@@ -124,6 +100,32 @@ public class WeakHashTable implements OidHashTable {
   }
 
   @Override
+  public Object get(int oid) {
+    while (true) {
+      cs: synchronized (this) {
+        Entry tab[] = table;
+        int index = (oid & 0x7FFFFFFF) % tab.length;
+        for (Entry e = tab[index]; e != null; e = e.next) {
+          if (e.oid == oid) {
+            Object obj = e.ref.get();
+            if (obj == null) {
+              if (e.dirty != 0) {
+                break cs;
+              }
+            } else if (db.isDeleted(obj)) {
+              e.ref.clear();
+              return null;
+            }
+            return obj;
+          }
+        }
+        return null;
+      }
+      System.runFinalization();
+    }
+  }
+
+  @Override
   public void invalidate() {
     while (true) {
       cs: synchronized (this) {
@@ -147,37 +149,26 @@ public class WeakHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized void reload() {
-    disableRehash = true;
-    for (int i = 0; i < table.length; i++) {
-      Entry e, next, prev;
-      for (e = table[i]; e != null; e = e.next) {
-        Object obj = e.ref.get();
-        if (obj != null) {
-          db.invalidate(obj);
-          try {
-            db.load(obj);
-          } catch (Exception x) {
-            // ignore errors caused by attempt to load object which was created in rollbacked
-            // transaction
-          }
-        }
+  public synchronized void put(int oid, Object obj) {
+    Reference ref = createReference(obj);
+    Entry tab[] = table;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index]; e != null; e = e.next) {
+      if (e.oid == oid) {
+        e.ref = ref;
+        return;
       }
     }
-    disableRehash = false;
-    if (count >= threshold) {
+    if (count >= threshold && !disableRehash) {
       // Rehash the table if the threshold is exceeded
       rehash();
+      tab = table;
+      index = (oid & 0x7FFFFFFF) % tab.length;
     }
-  }
 
-  @Override
-  public synchronized void clear() {
-    Entry tab[] = table;
-    for (int i = 0; i < tab.length; i++) {
-      tab[i] = null;
-    }
-    count = 0;
+    // Creates the new entry.
+    tab[index] = new Entry(oid, ref, tab[index]);
+    count += 1;
   }
 
   void rehash() {
@@ -225,6 +216,50 @@ public class WeakHashTable implements OidHashTable {
   }
 
   @Override
+  public synchronized void reload() {
+    disableRehash = true;
+    for (int i = 0; i < table.length; i++) {
+      Entry e, next, prev;
+      for (e = table[i]; e != null; e = e.next) {
+        Object obj = e.ref.get();
+        if (obj != null) {
+          db.invalidate(obj);
+          try {
+            db.load(obj);
+          } catch (Exception x) {
+            // ignore errors caused by attempt to load object which was created in rollbacked
+            // transaction
+          }
+        }
+      }
+    }
+    disableRehash = false;
+    if (count >= threshold) {
+      // Rehash the table if the threshold is exceeded
+      rehash();
+    }
+  }
+
+  @Override
+  public synchronized boolean remove(int oid) {
+    Entry tab[] = table;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index], prev = null; e != null; prev = e, e = e.next) {
+      if (e.oid == oid) {
+        if (prev != null) {
+          prev.next = e.next;
+        } else {
+          tab[index] = e.next;
+        }
+        e.clear();
+        count -= 1;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
   public synchronized void setDirty(Object obj) {
     int oid = db.getOid(obj);
     Entry tab[] = table;
@@ -239,43 +274,8 @@ public class WeakHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized void clearDirty(Object obj) {
-    int oid = db.getOid(obj);
-    Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index]; e != null; e = e.next) {
-      if (e.oid == oid) {
-        if (e.dirty > 0) {
-          e.dirty -= 1;
-        }
-        return;
-      }
-    }
-  }
-
-  @Override
   public int size() {
     return count;
-  }
-
-  static class Entry {
-    Entry next;
-    Reference ref;
-    int oid;
-    int dirty;
-
-    void clear() {
-      ref.clear();
-      ref = null;
-      dirty = 0;
-      next = null;
-    }
-
-    Entry(int oid, Reference ref, Entry chain) {
-      next = chain;
-      this.oid = oid;
-      this.ref = ref;
-    }
   }
 }
 

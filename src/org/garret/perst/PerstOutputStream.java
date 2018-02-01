@@ -8,6 +8,10 @@ import java.io.OutputStream;
  * Output stream for SelfSerializable and CustumSerializer
  */
 public abstract class PerstOutputStream extends DataOutputStream {
+  public PerstOutputStream(OutputStream stream) {
+    super(stream);
+  }
+
   /**
    * Write reference to the object or content of embedded object
    * 
@@ -21,8 +25,4 @@ public abstract class PerstOutputStream extends DataOutputStream {
    * @param str string to be packed (myay be null)
    */
   public abstract void writeString(String str) throws IOException;
-
-  public PerstOutputStream(OutputStream stream) {
-    super(stream);
-  }
 }

@@ -1,15 +1,27 @@
 package org.garret.perst.impl;
 
 public class StrongHashTable implements OidHashTable {
-  Entry table[];
+  static class Entry {
+    Entry next;
+    Object obj;
+    int oid;
+
+    Entry(int oid, Object obj, Entry chain) {
+      next = chain;
+      this.oid = oid;
+      this.obj = obj;
+    }
+  }
   static final float loadFactor = 0.75f;
+  static final int MODIFIED_BUFFER_SIZE = 1024;
+  Entry table[];
   int count;
   int threshold;
+
   boolean disableRehash;
   StorageImpl db;
-
-  static final int MODIFIED_BUFFER_SIZE = 1024;
   Object[] modified;
+
   long nModified;
 
   public StrongHashTable(StorageImpl db, int initialCapacity) {
@@ -22,80 +34,17 @@ public class StrongHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized boolean remove(int oid) {
+  public synchronized void clear() {
     Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index], prev = null; e != null; prev = e, e = e.next) {
-      if (e.oid == oid) {
-        e.obj = null;
-        count -= 1;
-        if (prev != null) {
-          prev.next = e.next;
-        } else {
-          tab[index] = e.next;
-        }
-        return true;
-      }
+    for (int i = 0; i < tab.length; i++) {
+      tab[i] = null;
     }
-    return false;
+    count = 0;
+    nModified = 0;
   }
 
   @Override
-  public synchronized void put(int oid, Object obj) {
-    Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index]; e != null; e = e.next) {
-      if (e.oid == oid) {
-        e.obj = obj;
-        return;
-      }
-    }
-    if (count >= threshold && !disableRehash) {
-      // Rehash the table if the threshold is exceeded
-      rehash();
-      tab = table;
-      index = (oid & 0x7FFFFFFF) % tab.length;
-    }
-
-    // Creates the new entry.
-    tab[index] = new Entry(oid, obj, tab[index]);
-    count++;
-  }
-
-  @Override
-  public synchronized Object get(int oid) {
-    Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index]; e != null; e = e.next) {
-      if (e.oid == oid) {
-        return e.obj;
-      }
-    }
-    return null;
-  }
-
-  void rehash() {
-    int oldCapacity = table.length;
-    Entry oldMap[] = table;
-    int i;
-
-    int newCapacity = oldCapacity * 2 + 1;
-    Entry newMap[] = new Entry[newCapacity];
-
-    threshold = (int) (newCapacity * loadFactor);
-    table = newMap;
-
-    for (i = oldCapacity; --i >= 0;) {
-      for (Entry old = oldMap[i]; old != null;) {
-        Entry e = old;
-        old = old.next;
-
-        int index = (e.oid & 0x7FFFFFFF) % newCapacity;
-        e.next = newMap[index];
-        newMap[index] = e;
-      }
-    }
-  }
+  public void clearDirty(Object obj) {}
 
   @Override
   public synchronized void flush() {
@@ -131,13 +80,15 @@ public class StrongHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized void clear() {
+  public synchronized Object get(int oid) {
     Entry tab[] = table;
-    for (int i = 0; i < tab.length; i++) {
-      tab[i] = null;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index]; e != null; e = e.next) {
+      if (e.oid == oid) {
+        return e.obj;
+      }
     }
-    count = 0;
-    nModified = 0;
+    return null;
   }
 
   @Override
@@ -150,6 +101,53 @@ public class StrongHashTable implements OidHashTable {
       }
     }
     nModified = 0;
+  }
+
+  public void preprocess() {}
+
+  @Override
+  public synchronized void put(int oid, Object obj) {
+    Entry tab[] = table;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index]; e != null; e = e.next) {
+      if (e.oid == oid) {
+        e.obj = obj;
+        return;
+      }
+    }
+    if (count >= threshold && !disableRehash) {
+      // Rehash the table if the threshold is exceeded
+      rehash();
+      tab = table;
+      index = (oid & 0x7FFFFFFF) % tab.length;
+    }
+
+    // Creates the new entry.
+    tab[index] = new Entry(oid, obj, tab[index]);
+    count++;
+  }
+
+  void rehash() {
+    int oldCapacity = table.length;
+    Entry oldMap[] = table;
+    int i;
+
+    int newCapacity = oldCapacity * 2 + 1;
+    Entry newMap[] = new Entry[newCapacity];
+
+    threshold = (int) (newCapacity * loadFactor);
+    table = newMap;
+
+    for (i = oldCapacity; --i >= 0;) {
+      for (Entry old = oldMap[i]; old != null;) {
+        Entry e = old;
+        old = old.next;
+
+        int index = (e.oid & 0x7FFFFFFF) % newCapacity;
+        e.next = newMap[index];
+        newMap[index] = e;
+      }
+    }
   }
 
   @Override
@@ -175,6 +173,25 @@ public class StrongHashTable implements OidHashTable {
   }
 
   @Override
+  public synchronized boolean remove(int oid) {
+    Entry tab[] = table;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index], prev = null; e != null; prev = e, e = e.next) {
+      if (e.oid == oid) {
+        e.obj = null;
+        count -= 1;
+        if (prev != null) {
+          prev.next = e.next;
+        } else {
+          tab[index] = e.next;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
   public synchronized void setDirty(Object obj) {
     if (nModified < MODIFIED_BUFFER_SIZE) {
       modified[(int) nModified] = obj;
@@ -183,25 +200,8 @@ public class StrongHashTable implements OidHashTable {
   }
 
   @Override
-  public void clearDirty(Object obj) {}
-
-  @Override
   public int size() {
     return count;
-  }
-
-  public void preprocess() {}
-
-  static class Entry {
-    Entry next;
-    Object obj;
-    int oid;
-
-    Entry(int oid, Object obj, Entry chain) {
-      next = chain;
-      this.oid = oid;
-      this.obj = obj;
-    }
   }
 }
 

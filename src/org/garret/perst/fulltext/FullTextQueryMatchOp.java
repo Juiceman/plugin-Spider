@@ -21,11 +21,16 @@ public class FullTextQueryMatchOp extends FullTextQuery {
 
 
   /**
-   * Query node visitor.
+   * Match node constructor
+   * 
+   * @param op operation code (should ne MATCH or STICT_MATCH)
+   * @param word searched word
+   * @param pos position of word in the query
    */
-  @Override
-  public void visit(FullTextQueryVisitor visitor) {
-    visitor.visit(this);
+  public FullTextQueryMatchOp(int op, String word, int pos) {
+    super(op);
+    this.word = word;
+    this.pos = pos;
   }
 
   /**
@@ -43,15 +48,10 @@ public class FullTextQueryMatchOp extends FullTextQuery {
 
 
   /**
-   * Match node constructor
-   * 
-   * @param op operation code (should ne MATCH or STICT_MATCH)
-   * @param word searched word
-   * @param pos position of word in the query
+   * Query node visitor.
    */
-  public FullTextQueryMatchOp(int op, String word, int pos) {
-    super(op);
-    this.word = word;
-    this.pos = pos;
+  @Override
+  public void visit(FullTextQueryVisitor visitor) {
+    visitor.visit(this);
   }
 }

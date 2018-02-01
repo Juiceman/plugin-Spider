@@ -11,10 +11,117 @@ import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
 
 public class XMLExporter {
+  static final char hexDigit[] =
+      {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+  private StorageImpl storage;
+
+  private Writer writer;
+
+  private int[] markedBitmap;
+
+  private int[] exportedBitmap;
+
+  private int[] compoundKeyTypes;
+
+  private DateFormat httpFormatter;
+
   public XMLExporter(StorageImpl storage, Writer writer) {
     this.storage = storage;
     this.writer = writer;
     httpFormatter = new SimpleDateFormat(storage.xmlDateFormat, Locale.ENGLISH);
+  }
+
+  final void exportAssoc(int oid, byte[] body, int offs, int size, int type) throws IOException {
+    writer.write("  <ref id=\"" + oid + "\"");
+    if ((exportedBitmap[oid >> 5] & (1 << (oid & 31))) == 0) {
+      markedBitmap[oid >> 5] |= 1 << (oid & 31);
+    }
+    if (compoundKeyTypes != null) {
+      exportCompoundKey(body, offs, size, type);
+    } else {
+      writer.write(" key=\"");
+      exportKey(body, offs, size, type);
+      writer.write("\"");
+    }
+    writer.write("/>\n");
+  }
+
+  final int exportBinary(byte[] body, int offs) throws IOException {
+    int len = Bytes.unpack4(body, offs);
+    offs += 4;
+    if (len < 0) {
+      writer.write("null");
+    } else {
+      writer.write('\"');
+      while (--len >= 0) {
+        byte b = body[offs++];
+        writer.write(hexDigit[(b >>> 4) & 0xF]);
+        writer.write(hexDigit[b & 0xF]);
+      }
+      writer.write('\"');
+    }
+    return offs;
+  }
+
+  final void exportChar(char ch) throws IOException {
+    switch (ch) {
+      case '<':
+        writer.write("&lt;");
+        break;
+      case '>':
+        writer.write("&gt;");
+        break;
+      case '&':
+        writer.write("&amp;");
+        break;
+      case '"':
+        writer.write("&quot;");
+        break;
+      case '\'':
+        writer.write("&apos;");
+        break;
+      default:
+        writer.write(ch);
+    }
+  }
+
+  final void exportCompoundIndex(int oid, byte[] data) throws IOException {
+    Btree btree = new Btree(data, ObjectHeader.sizeof);
+    storage.assignOid(btree, oid, false);
+    writer.write(" <org.garret.perst.impl.BtreeCompoundIndex id=\"" + oid + "\" unique=\""
+        + (btree.unique ? '1' : '0') + "\"");
+    int offs = Btree.sizeof;
+    int nTypes = Bytes.unpack4(data, offs);
+    offs += 4;
+    compoundKeyTypes = new int[nTypes];
+    for (int i = 0; i < nTypes; i++) {
+      int type = Bytes.unpack4(data, offs);
+      writer.write(" type" + i + "=\"" + ClassDescriptor.signature[type] + "\"");
+
+      compoundKeyTypes[i] = type;
+      offs += 4;
+    }
+    writer.write(">\n");
+    btree.export(this);
+    compoundKeyTypes = null;
+    writer.write(" </org.garret.perst.impl.BtreeCompoundIndex>\n");
+  }
+
+  final void exportCompoundKey(byte[] body, int offs, int size, int type) throws IOException {
+    Assert.that(type == ClassDescriptor.tpArrayOfByte);
+    int end = offs + size;
+    for (int i = 0; i < compoundKeyTypes.length; i++) {
+      type = compoundKeyTypes[i];
+      if (type == ClassDescriptor.tpArrayOfByte || type == ClassDescriptor.tpString) {
+        size = Bytes.unpack4(body, offs);
+        offs += 4;
+      }
+      writer.write(" key" + i + "=\"");
+      offs = exportKey(body, offs, size, type);
+      writer.write("\"");
+    }
+    Assert.that(offs == end);
   }
 
   public void exportDatabase(int rootOid) throws IOException {
@@ -85,28 +192,6 @@ public class XMLExporter {
     writer.flush(); // writer should be closed by calling code
   }
 
-  final String exportIdentifier(String name) {
-    return name.replace('$', '-');
-  }
-
-  final void exportSet(int oid, byte[] data) throws IOException {
-    Btree btree = new Btree(data, ObjectHeader.sizeof);
-    storage.assignOid(btree, oid, false);
-    writer.write(" <org.garret.perst.impl.PersistentSet id=\"" + oid + "\" unique=\""
-        + (btree.unique ? '1' : '0') + "\">\n");
-    btree.export(this);
-    writer.write(" </org.garret.perst.impl.PersistentSet>\n");
-  }
-
-  final void exportIndex(int oid, byte[] data, String name) throws IOException {
-    Btree btree = new Btree(data, ObjectHeader.sizeof);
-    storage.assignOid(btree, oid, false);
-    writer.write(" <" + name + " id=\"" + oid + "\" unique=\"" + (btree.unique ? '1' : '0')
-        + "\" type=\"" + ClassDescriptor.signature[btree.type] + "\">\n");
-    btree.export(this);
-    writer.write(" </" + name + ">\n");
-  }
-
   final void exportFieldIndex(int oid, byte[] data, String name) throws IOException {
     Btree btree = new Btree(data, ObjectHeader.sizeof);
     storage.assignOid(btree, oid, false);
@@ -123,51 +208,17 @@ public class XMLExporter {
     writer.write(" </" + name + ">\n");
   }
 
-  final void exportMultiFieldIndex(int oid, byte[] data, String name) throws IOException {
-    Btree btree = new Btree(data, ObjectHeader.sizeof);
-    storage.assignOid(btree, oid, false);
-    writer.write(
-        " <" + name + " id=\"" + oid + "\" unique=\"" + (btree.unique ? '1' : '0') + "\" class=");
-    int offs = exportString(data, Btree.sizeof);
-    int nFields = Bytes.unpack4(data, offs);
-    offs += 4;
-    for (int i = 0; i < nFields; i++) {
-      writer.write(" field" + i + "=");
-      offs = exportString(data, offs);
-    }
-    writer.write(">\n");
-    int nTypes = Bytes.unpack4(data, offs);
-    offs += 4;
-    compoundKeyTypes = new int[nTypes];
-    for (int i = 0; i < nTypes; i++) {
-      compoundKeyTypes[i] = Bytes.unpack4(data, offs);
-      offs += 4;
-    }
-    btree.export(this);
-    compoundKeyTypes = null;
-    writer.write(" </" + name + ">\n");
+  final String exportIdentifier(String name) {
+    return name.replace('$', '-');
   }
 
-  final void exportCompoundIndex(int oid, byte[] data) throws IOException {
+  final void exportIndex(int oid, byte[] data, String name) throws IOException {
     Btree btree = new Btree(data, ObjectHeader.sizeof);
     storage.assignOid(btree, oid, false);
-    writer.write(" <org.garret.perst.impl.BtreeCompoundIndex id=\"" + oid + "\" unique=\""
-        + (btree.unique ? '1' : '0') + "\"");
-    int offs = Btree.sizeof;
-    int nTypes = Bytes.unpack4(data, offs);
-    offs += 4;
-    compoundKeyTypes = new int[nTypes];
-    for (int i = 0; i < nTypes; i++) {
-      int type = Bytes.unpack4(data, offs);
-      writer.write(" type" + i + "=\"" + ClassDescriptor.signature[type] + "\"");
-
-      compoundKeyTypes[i] = type;
-      offs += 4;
-    }
-    writer.write(">\n");
+    writer.write(" <" + name + " id=\"" + oid + "\" unique=\"" + (btree.unique ? '1' : '0')
+        + "\" type=\"" + ClassDescriptor.signature[btree.type] + "\">\n");
     btree.export(this);
-    compoundKeyTypes = null;
-    writer.write(" </org.garret.perst.impl.BtreeCompoundIndex>\n");
+    writer.write(" </" + name + ">\n");
   }
 
   final int exportKey(byte[] body, int offs, int size, int type) throws IOException {
@@ -234,204 +285,31 @@ public class XMLExporter {
     return offs;
   }
 
-  final void exportCompoundKey(byte[] body, int offs, int size, int type) throws IOException {
-    Assert.that(type == ClassDescriptor.tpArrayOfByte);
-    int end = offs + size;
-    for (int i = 0; i < compoundKeyTypes.length; i++) {
-      type = compoundKeyTypes[i];
-      if (type == ClassDescriptor.tpArrayOfByte || type == ClassDescriptor.tpString) {
-        size = Bytes.unpack4(body, offs);
-        offs += 4;
-      }
-      writer.write(" key" + i + "=\"");
-      offs = exportKey(body, offs, size, type);
-      writer.write("\"");
-    }
-    Assert.that(offs == end);
-  }
 
-  final void exportAssoc(int oid, byte[] body, int offs, int size, int type) throws IOException {
-    writer.write("  <ref id=\"" + oid + "\"");
-    if ((exportedBitmap[oid >> 5] & (1 << (oid & 31))) == 0) {
-      markedBitmap[oid >> 5] |= 1 << (oid & 31);
-    }
-    if (compoundKeyTypes != null) {
-      exportCompoundKey(body, offs, size, type);
-    } else {
-      writer.write(" key=\"");
-      exportKey(body, offs, size, type);
-      writer.write("\"");
-    }
-    writer.write("/>\n");
-  }
-
-  final void indentation(int indent) throws IOException {
-    while (--indent >= 0) {
-      writer.write(' ');
-    }
-  }
-
-  final void exportChar(char ch) throws IOException {
-    switch (ch) {
-      case '<':
-        writer.write("&lt;");
-        break;
-      case '>':
-        writer.write("&gt;");
-        break;
-      case '&':
-        writer.write("&amp;");
-        break;
-      case '"':
-        writer.write("&quot;");
-        break;
-      case '\'':
-        writer.write("&apos;");
-        break;
-      default:
-        writer.write(ch);
-    }
-  }
-
-  final int exportString(byte[] body, int offs) throws IOException {
-    int len = Bytes.unpack4(body, offs);
+  final void exportMultiFieldIndex(int oid, byte[] data, String name) throws IOException {
+    Btree btree = new Btree(data, ObjectHeader.sizeof);
+    storage.assignOid(btree, oid, false);
+    writer.write(
+        " <" + name + " id=\"" + oid + "\" unique=\"" + (btree.unique ? '1' : '0') + "\" class=");
+    int offs = exportString(data, Btree.sizeof);
+    int nFields = Bytes.unpack4(data, offs);
     offs += 4;
-    if (len >= 0) {
-      writer.write("\"");
-      while (--len >= 0) {
-        exportChar((char) Bytes.unpack2(body, offs));
-        offs += 2;
-      }
-      writer.write("\"");
-    } else if (len < -1) {
-      writer.write("\"");
-      String s;
-      if (storage.encoding != null) {
-        s = new String(body, offs, -len - 2, storage.encoding);
-      } else {
-        s = new String(body, offs, -len - 2);
-      }
-      offs -= len + 2;
-      for (int i = 0, n = s.length(); i < n; i++) {
-        exportChar(s.charAt(i));
-      }
-      writer.write("\"");
-    } else {
-      writer.write("null");
+    for (int i = 0; i < nFields; i++) {
+      writer.write(" field" + i + "=");
+      offs = exportString(data, offs);
     }
-    return offs;
-  }
-
-  static final char hexDigit[] =
-      {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-
-  final int exportBinary(byte[] body, int offs) throws IOException {
-    int len = Bytes.unpack4(body, offs);
+    writer.write(">\n");
+    int nTypes = Bytes.unpack4(data, offs);
     offs += 4;
-    if (len < 0) {
-      writer.write("null");
-    } else {
-      writer.write('\"');
-      while (--len >= 0) {
-        byte b = body[offs++];
-        writer.write(hexDigit[(b >>> 4) & 0xF]);
-        writer.write(hexDigit[b & 0xF]);
-      }
-      writer.write('\"');
+    compoundKeyTypes = new int[nTypes];
+    for (int i = 0; i < nTypes; i++) {
+      compoundKeyTypes[i] = Bytes.unpack4(data, offs);
+      offs += 4;
     }
-    return offs;
+    btree.export(this);
+    compoundKeyTypes = null;
+    writer.write(" </" + name + ">\n");
   }
-
-  final int exportRef(byte[] body, int offs, int indent) throws IOException {
-    int oid = Bytes.unpack4(body, offs);
-    offs += 4;
-    if (oid < 0) {
-      int tid = -1 - oid;
-      switch (tid) {
-        case ClassDescriptor.tpString:
-          offs = exportString(body, offs);
-          break;
-        case ClassDescriptor.tpClass:
-          writer.write("<class name=\"");
-          offs = exportString(body, offs);
-          writer.write("\"/>");
-          break;
-        case ClassDescriptor.tpBoolean:
-        case ClassDescriptor.tpByte:
-        case ClassDescriptor.tpChar:
-        case ClassDescriptor.tpShort:
-        case ClassDescriptor.tpInt:
-        case ClassDescriptor.tpLong:
-        case ClassDescriptor.tpFloat:
-        case ClassDescriptor.tpDouble:
-        case ClassDescriptor.tpDate:
-        case ClassDescriptor.tpEnum: {
-          int len = ClassDescriptor.sizeof[tid];
-          writer.write("<scalar type=\"" + tid + "\" value=\"");
-          while (--len >= 0) {
-            byte b = body[offs++];
-            writer.write(hexDigit[(b >> 4) & 0xF]);
-            writer.write(hexDigit[b & 0xF]);
-          }
-          writer.write("\"/>");
-          break;
-        }
-        case ClassDescriptor.tpCustom: {
-          StorageImpl.ByteArrayObjectInputStream in =
-              storage.new ByteArrayObjectInputStream(body, offs, null, true, false);
-          Object obj = storage.serializer.unpack(in);
-          offs = in.getPosition();
-          writer.write("<scalar type=\"" + tid + "\" value=\"");
-          String s = storage.serializer.print(obj);
-          for (int i = 0; i < s.length(); i++) {
-            exportChar(s.charAt(i));
-          }
-          writer.write("\"/>");
-          break;
-        }
-        default:
-          if (tid >= ClassDescriptor.tpValueTypeBias) {
-            int typeOid = -ClassDescriptor.tpValueTypeBias - oid;
-            ClassDescriptor desc = storage.findClassDescriptor(typeOid);
-            if (desc.isCollection) {
-              int len = Bytes.unpack4(body, offs);
-              offs += 4;
-              String className = exportIdentifier(desc.name);
-              writer.write("\n");
-              indentation(indent + 1);
-              writer.write("<" + className + ">\n");
-              for (int i = 0; i < len; i++) {
-                indentation(indent + 2);
-                writer.write("<element>");
-                offs = exportRef(body, offs, indent + 2);
-                writer.write("</element>");
-              }
-              indentation(indent + 1);
-              writer.write("</" + className + ">\n");
-              indentation(indent);
-            } else {
-              String className = exportIdentifier(desc.name);
-              writer.write("\n");
-              indentation(indent + 1);
-              writer.write("<" + className + ">\n");
-              offs = exportObject(desc, body, offs, indent + 2);
-              indentation(indent + 1);
-              writer.write("</" + className + ">\n");
-              indentation(indent);
-            }
-          } else {
-            throw new StorageError(StorageError.UNSUPPORTED_TYPE);
-          }
-      }
-    } else {
-      writer.write("<ref id=\"" + oid + "\"/>");
-      if (oid != 0 && (exportedBitmap[oid >> 5] & (1 << (oid & 31))) == 0) {
-        markedBitmap[oid >> 5] |= 1 << (oid & 31);
-      }
-    }
-    return offs;
-  }
-
   final int exportObject(ClassDescriptor desc, byte[] body, int offs, int indent)
       throws IOException {
     ClassDescriptor.FieldDescriptor[] all = desc.allFields;
@@ -737,13 +615,135 @@ public class XMLExporter {
     }
     return offs;
   }
-
-
-  private StorageImpl storage;
-  private Writer writer;
-  private int[] markedBitmap;
-  private int[] exportedBitmap;
-  private int[] compoundKeyTypes;
-  private DateFormat httpFormatter;
+  final int exportRef(byte[] body, int offs, int indent) throws IOException {
+    int oid = Bytes.unpack4(body, offs);
+    offs += 4;
+    if (oid < 0) {
+      int tid = -1 - oid;
+      switch (tid) {
+        case ClassDescriptor.tpString:
+          offs = exportString(body, offs);
+          break;
+        case ClassDescriptor.tpClass:
+          writer.write("<class name=\"");
+          offs = exportString(body, offs);
+          writer.write("\"/>");
+          break;
+        case ClassDescriptor.tpBoolean:
+        case ClassDescriptor.tpByte:
+        case ClassDescriptor.tpChar:
+        case ClassDescriptor.tpShort:
+        case ClassDescriptor.tpInt:
+        case ClassDescriptor.tpLong:
+        case ClassDescriptor.tpFloat:
+        case ClassDescriptor.tpDouble:
+        case ClassDescriptor.tpDate:
+        case ClassDescriptor.tpEnum: {
+          int len = ClassDescriptor.sizeof[tid];
+          writer.write("<scalar type=\"" + tid + "\" value=\"");
+          while (--len >= 0) {
+            byte b = body[offs++];
+            writer.write(hexDigit[(b >> 4) & 0xF]);
+            writer.write(hexDigit[b & 0xF]);
+          }
+          writer.write("\"/>");
+          break;
+        }
+        case ClassDescriptor.tpCustom: {
+          StorageImpl.ByteArrayObjectInputStream in =
+              storage.new ByteArrayObjectInputStream(body, offs, null, true, false);
+          Object obj = storage.serializer.unpack(in);
+          offs = in.getPosition();
+          writer.write("<scalar type=\"" + tid + "\" value=\"");
+          String s = storage.serializer.print(obj);
+          for (int i = 0; i < s.length(); i++) {
+            exportChar(s.charAt(i));
+          }
+          writer.write("\"/>");
+          break;
+        }
+        default:
+          if (tid >= ClassDescriptor.tpValueTypeBias) {
+            int typeOid = -ClassDescriptor.tpValueTypeBias - oid;
+            ClassDescriptor desc = storage.findClassDescriptor(typeOid);
+            if (desc.isCollection) {
+              int len = Bytes.unpack4(body, offs);
+              offs += 4;
+              String className = exportIdentifier(desc.name);
+              writer.write("\n");
+              indentation(indent + 1);
+              writer.write("<" + className + ">\n");
+              for (int i = 0; i < len; i++) {
+                indentation(indent + 2);
+                writer.write("<element>");
+                offs = exportRef(body, offs, indent + 2);
+                writer.write("</element>");
+              }
+              indentation(indent + 1);
+              writer.write("</" + className + ">\n");
+              indentation(indent);
+            } else {
+              String className = exportIdentifier(desc.name);
+              writer.write("\n");
+              indentation(indent + 1);
+              writer.write("<" + className + ">\n");
+              offs = exportObject(desc, body, offs, indent + 2);
+              indentation(indent + 1);
+              writer.write("</" + className + ">\n");
+              indentation(indent);
+            }
+          } else {
+            throw new StorageError(StorageError.UNSUPPORTED_TYPE);
+          }
+      }
+    } else {
+      writer.write("<ref id=\"" + oid + "\"/>");
+      if (oid != 0 && (exportedBitmap[oid >> 5] & (1 << (oid & 31))) == 0) {
+        markedBitmap[oid >> 5] |= 1 << (oid & 31);
+      }
+    }
+    return offs;
+  }
+  final void exportSet(int oid, byte[] data) throws IOException {
+    Btree btree = new Btree(data, ObjectHeader.sizeof);
+    storage.assignOid(btree, oid, false);
+    writer.write(" <org.garret.perst.impl.PersistentSet id=\"" + oid + "\" unique=\""
+        + (btree.unique ? '1' : '0') + "\">\n");
+    btree.export(this);
+    writer.write(" </org.garret.perst.impl.PersistentSet>\n");
+  }
+  final int exportString(byte[] body, int offs) throws IOException {
+    int len = Bytes.unpack4(body, offs);
+    offs += 4;
+    if (len >= 0) {
+      writer.write("\"");
+      while (--len >= 0) {
+        exportChar((char) Bytes.unpack2(body, offs));
+        offs += 2;
+      }
+      writer.write("\"");
+    } else if (len < -1) {
+      writer.write("\"");
+      String s;
+      if (storage.encoding != null) {
+        s = new String(body, offs, -len - 2, storage.encoding);
+      } else {
+        s = new String(body, offs, -len - 2);
+      }
+      offs -= len + 2;
+      for (int i = 0, n = s.length(); i < n; i++) {
+        exportChar(s.charAt(i));
+      }
+      writer.write("\"");
+    } else {
+      writer.write("null");
+    }
+    return offs;
+  }
+  final void indentation(int indent) throws IOException {
+    while (--indent >= 0) {
+      writer.write(' ');
+    }
+  }
 
 }

@@ -20,12 +20,6 @@ import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
 
 public final class ClassDescriptor extends Persistent {
-  ClassDescriptor next;
-  String name;
-  boolean hasReferences;
-  FieldDescriptor[] allFields;
-  CustomAllocator allocator;
-
   static class FieldDescriptor extends Persistent implements Comparable {
     String fieldName;
     String className;
@@ -43,24 +37,13 @@ public final class ClassDescriptor extends Persistent {
           && valueDesc == fd.valueDesc && type == fd.type;
     }
   }
-
-  transient Class cls;
-  transient Constructor loadConstructor;
-  transient LoadFactory factory;
-  transient Object[] constructorParams;
-  transient boolean customSerializable;
-  transient boolean hasSubclasses;
-  transient boolean resolved;
-  transient boolean isCollection;
-  transient boolean isMap;
-
   static ReflectionProvider reflectionProvider;
-
   static boolean reverseMembersOrder;
-
   public static final int tpBoolean = 0;
   public static final int tpByte = 1;
+
   public static final int tpChar = 2;
+
   public static final int tpShort = 3;
   public static final int tpInt = 4;
   public static final int tpLong = 5;
@@ -70,8 +53,11 @@ public final class ClassDescriptor extends Persistent {
   public static final int tpDate = 9;
   public static final int tpObject = 10;
   public static final int tpValue = 11;
+
   public static final int tpRaw = 12;
+
   public static final int tpLink = 13;
+
   public static final int tpEnum = 14;
   public static final int tpCustom = 15;
   public static final int tpArrayOfBoolean = 20;
@@ -90,16 +76,12 @@ public final class ClassDescriptor extends Persistent {
   public static final int tpArrayOfLink = 33; // not supported
   public static final int tpArrayOfEnum = 34;
   public static final int tpClass = 35;
-
   public static final int tpValueTypeBias = 100;
-
   static final String signature[] = {"boolean", "byte", "char", "short", "int", "long", "float",
       "double", "String", "Date", "Object", "Value", "Raw", "Link", "enum", "", "", "", "", "", "",
       "ArrayOfBoolean", "ArrayOfByte", "ArrayOfChar", "ArrayOfShort", "ArrayOfInt", "ArrayOfLong",
       "ArrayOfFloat", "ArrayOfDouble", "ArrayOfEnum", "ArrayOfString", "ArrayOfDate",
       "ArrayOfObject", "ArrayOfValue", "ArrayOfRaw", "ArrayOfLink", "ArrayOfEnum", "Class"};
-
-
   static final int sizeof[] = {1, // tpBoolean
       1, // tpByte
       2, // tpChar
@@ -116,9 +98,16 @@ public final class ClassDescriptor extends Persistent {
       0, // tpLink
       4 // tpEnum
   };
-
   static final Class[] perstConstructorProfile = new Class[] {ClassDescriptor.class};
-
+  static boolean treateAnyNonPersistentObjectAsValue = Boolean.getBoolean("perst.implicit.values");
+  static boolean serializeNonPersistentObjects =
+      Boolean.getBoolean("perst.serialize.transient.objects");
+  public static String getClassName(Class cls) {
+    ClassLoader loader = cls.getClassLoader();
+    return (loader instanceof INamedClassLoader)
+        ? ((INamedClassLoader) loader).getName() + ':' + cls.getName()
+        : cls.getName();
+  }
   static ReflectionProvider getReflectionProvider() {
     if (reflectionProvider == null) {
       try {
@@ -131,31 +120,169 @@ public final class ClassDescriptor extends Persistent {
     }
     return reflectionProvider;
   }
-
-
-  public boolean equals(ClassDescriptor cd) {
-    if (cd == null || allFields.length != cd.allFields.length) {
-      return false;
-    }
-    for (int i = 0; i < allFields.length; i++) {
-      if (!allFields[i].equals(cd.allFields[i])) {
-        return false;
+  public static int getTypeCode(Class c) {
+    int type;
+    if (c.equals(byte.class)) {
+      type = tpByte;
+    } else if (c.equals(short.class)) {
+      type = tpShort;
+    } else if (c.equals(char.class)) {
+      type = tpChar;
+    } else if (c.equals(int.class)) {
+      type = tpInt;
+    } else if (c.equals(long.class)) {
+      type = tpLong;
+    } else if (c.equals(float.class)) {
+      type = tpFloat;
+    } else if (c.equals(double.class)) {
+      type = tpDouble;
+    } else if (c.equals(String.class)) {
+      type = tpString;
+    } else if (c.equals(boolean.class)) {
+      type = tpBoolean;
+    } else if (c.isEnum()) {
+      type = tpEnum;
+    } else if (c.equals(java.util.Date.class)) {
+      type = tpDate;
+    } else if (IValue.class.isAssignableFrom(c)) {
+      type = tpValue;
+    } else if (c.equals(Link.class)) {
+      type = tpLink;
+    } else if (c.equals(Class.class)) {
+      type = tpClass;
+    } else if (c.isArray()) {
+      type = getTypeCode(c.getComponentType());
+      if (type >= tpLink && type != tpEnum) {
+        throw new StorageError(StorageError.UNSUPPORTED_TYPE, c);
       }
-    }
-    return true;
-  }
-
-
-  Object newInstance() {
-    if (factory != null) {
-      return factory.create(this);
+      type += tpArrayOfBoolean;
+    } else if (CustomSerializable.class.isAssignableFrom(c)) {
+      type = tpCustom;
+    } else if (IPersistent.class.isAssignableFrom(c)) {
+      type = tpObject;
+    } else if (serializeNonPersistentObjects) {
+      type = tpRaw;
+    } else if (treateAnyNonPersistentObjectAsValue) {
+      if (c.equals(Object.class)) {
+        throw new StorageError(StorageError.EMPTY_VALUE);
+      }
+      type = tpValue;
     } else {
-      try {
-        return loadConstructor.newInstance(constructorParams);
-      } catch (Exception x) {
-        throw new StorageError(StorageError.CONSTRUCTOR_FAILURE, cls, x);
+      type = tpObject;
+    }
+    return type;
+  }
+  public static boolean isEmbedded(Object obj) {
+    if (obj != null) {
+      Class cls = obj.getClass();
+      return obj instanceof IValue || obj instanceof Number || cls.isArray()
+          || cls == Character.class || cls == Boolean.class || cls == Date.class
+          || cls == String.class;
+    }
+    return false;
+  }
+  public static Class loadClass(Storage storage, String name) {
+    if (storage != null) {
+      int col = name.indexOf(':');
+      ClassLoader loader;
+      if (col >= 0) {
+        loader = storage.findClassLoader(name.substring(0, col));
+        if (loader == null) {
+          // just ignore this class
+          return null;
+        }
+        name = name.substring(col + 1);
+      } else {
+        loader = storage.getClassLoader();
+      }
+      if (loader != null) {
+        try {
+          return loader.loadClass(name);
+        } catch (ClassNotFoundException x) {
+        }
       }
     }
+    try {
+      return loadClass(name);
+    } catch (ClassNotFoundException x) {
+      if (!((StorageImpl) storage).ignoreMissedClasses) {
+        throw new StorageError(StorageError.CLASS_NOT_FOUND, name, x);
+      }
+      return null;
+    }
+  }
+  private static Class loadClass(String name) throws ClassNotFoundException {
+    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+    if (loader != null) {
+      try {
+        return loader.loadClass(name);
+      } catch (ClassNotFoundException x) {
+      }
+    }
+    return Class.forName(name);
+  }
+  public static Field locateField(Class scope, String name) {
+    try {
+      do {
+        try {
+          Field fld = scope.getDeclaredField(name);
+          try {
+            fld.setAccessible(true);
+          } catch (Exception e) {
+          }
+          return fld;
+        } catch (NoSuchFieldException x) {
+          scope = scope.getSuperclass();
+        }
+      } while (scope != null);
+    } catch (Exception x) {
+      throw new StorageError(StorageError.ACCESS_VIOLATION, scope.getName() + "." + name, x);
+    }
+    return null;
+  }
+  ClassDescriptor next;
+
+  String name;
+
+  boolean hasReferences;
+
+
+  FieldDescriptor[] allFields;
+
+  CustomAllocator allocator;
+
+  transient Class cls;
+
+
+  transient Constructor loadConstructor;
+
+
+  transient LoadFactory factory;
+
+  transient Object[] constructorParams;
+
+  transient boolean customSerializable;
+
+  transient boolean hasSubclasses;
+
+  transient boolean resolved;
+  transient boolean isCollection;
+
+  transient boolean isMap;
+
+  ClassDescriptor() {}
+
+  ClassDescriptor(StorageImpl storage, Class cls) {
+    this.cls = cls;
+    customSerializable = storage.serializer != null && storage.serializer.isApplicable(cls);
+    isCollection = Collection.class.isAssignableFrom(cls);
+    isMap = Map.class.isAssignableFrom(cls);
+    name = getClassName(cls);
+    ArrayList list = new ArrayList();
+    buildFieldList(storage, cls, list);
+    allFields = (FieldDescriptor[]) list.toArray(new FieldDescriptor[list.size()]);
+    locateConstructor();
+    resolved = true;
   }
 
   void buildFieldList(StorageImpl storage, Class cls, ArrayList list) {
@@ -222,84 +349,16 @@ public final class ClassDescriptor extends Persistent {
     }
   }
 
-  public static boolean isEmbedded(Object obj) {
-    if (obj != null) {
-      Class cls = obj.getClass();
-      return obj instanceof IValue || obj instanceof Number || cls.isArray()
-          || cls == Character.class || cls == Boolean.class || cls == Date.class
-          || cls == String.class;
+  public boolean equals(ClassDescriptor cd) {
+    if (cd == null || allFields.length != cd.allFields.length) {
+      return false;
     }
-    return false;
-  }
-
-  public static int getTypeCode(Class c) {
-    int type;
-    if (c.equals(byte.class)) {
-      type = tpByte;
-    } else if (c.equals(short.class)) {
-      type = tpShort;
-    } else if (c.equals(char.class)) {
-      type = tpChar;
-    } else if (c.equals(int.class)) {
-      type = tpInt;
-    } else if (c.equals(long.class)) {
-      type = tpLong;
-    } else if (c.equals(float.class)) {
-      type = tpFloat;
-    } else if (c.equals(double.class)) {
-      type = tpDouble;
-    } else if (c.equals(String.class)) {
-      type = tpString;
-    } else if (c.equals(boolean.class)) {
-      type = tpBoolean;
-    } else if (c.isEnum()) {
-      type = tpEnum;
-    } else if (c.equals(java.util.Date.class)) {
-      type = tpDate;
-    } else if (IValue.class.isAssignableFrom(c)) {
-      type = tpValue;
-    } else if (c.equals(Link.class)) {
-      type = tpLink;
-    } else if (c.equals(Class.class)) {
-      type = tpClass;
-    } else if (c.isArray()) {
-      type = getTypeCode(c.getComponentType());
-      if (type >= tpLink && type != tpEnum) {
-        throw new StorageError(StorageError.UNSUPPORTED_TYPE, c);
-      }
-      type += tpArrayOfBoolean;
-    } else if (CustomSerializable.class.isAssignableFrom(c)) {
-      type = tpCustom;
-    } else if (IPersistent.class.isAssignableFrom(c)) {
-      type = tpObject;
-    } else if (serializeNonPersistentObjects) {
-      type = tpRaw;
-    } else if (treateAnyNonPersistentObjectAsValue) {
-      if (c.equals(Object.class)) {
-        throw new StorageError(StorageError.EMPTY_VALUE);
-      }
-      type = tpValue;
-    } else {
-      type = tpObject;
-    }
-    return type;
-  }
-
-  static boolean treateAnyNonPersistentObjectAsValue = Boolean.getBoolean("perst.implicit.values");
-  static boolean serializeNonPersistentObjects =
-      Boolean.getBoolean("perst.serialize.transient.objects");
-
-  ClassDescriptor() {}
-
-  private static Class loadClass(String name) throws ClassNotFoundException {
-    ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    if (loader != null) {
-      try {
-        return loader.loadClass(name);
-      } catch (ClassNotFoundException x) {
+    for (int i = 0; i < allFields.length; i++) {
+      if (!allFields[i].equals(cd.allFields[i])) {
+        return false;
       }
     }
-    return Class.forName(name);
+    return true;
   }
 
   private void locateConstructor() {
@@ -325,74 +384,15 @@ public final class ClassDescriptor extends Persistent {
     }
   }
 
-  ClassDescriptor(StorageImpl storage, Class cls) {
-    this.cls = cls;
-    customSerializable = storage.serializer != null && storage.serializer.isApplicable(cls);
-    isCollection = Collection.class.isAssignableFrom(cls);
-    isMap = Map.class.isAssignableFrom(cls);
-    name = getClassName(cls);
-    ArrayList list = new ArrayList();
-    buildFieldList(storage, cls, list);
-    allFields = (FieldDescriptor[]) list.toArray(new FieldDescriptor[list.size()]);
-    locateConstructor();
-    resolved = true;
-  }
-
-  public static Field locateField(Class scope, String name) {
-    try {
-      do {
-        try {
-          Field fld = scope.getDeclaredField(name);
-          try {
-            fld.setAccessible(true);
-          } catch (Exception e) {
-          }
-          return fld;
-        } catch (NoSuchFieldException x) {
-          scope = scope.getSuperclass();
-        }
-      } while (scope != null);
-    } catch (Exception x) {
-      throw new StorageError(StorageError.ACCESS_VIOLATION, scope.getName() + "." + name, x);
-    }
-    return null;
-  }
-
-  public static String getClassName(Class cls) {
-    ClassLoader loader = cls.getClassLoader();
-    return (loader instanceof INamedClassLoader)
-        ? ((INamedClassLoader) loader).getName() + ':' + cls.getName()
-        : cls.getName();
-  }
-
-  public static Class loadClass(Storage storage, String name) {
-    if (storage != null) {
-      int col = name.indexOf(':');
-      ClassLoader loader;
-      if (col >= 0) {
-        loader = storage.findClassLoader(name.substring(0, col));
-        if (loader == null) {
-          // just ignore this class
-          return null;
-        }
-        name = name.substring(col + 1);
-      } else {
-        loader = storage.getClassLoader();
+  Object newInstance() {
+    if (factory != null) {
+      return factory.create(this);
+    } else {
+      try {
+        return loadConstructor.newInstance(constructorParams);
+      } catch (Exception x) {
+        throw new StorageError(StorageError.CONSTRUCTOR_FAILURE, cls, x);
       }
-      if (loader != null) {
-        try {
-          return loader.loadClass(name);
-        } catch (ClassNotFoundException x) {
-        }
-      }
-    }
-    try {
-      return loadClass(name);
-    } catch (ClassNotFoundException x) {
-      if (!((StorageImpl) storage).ignoreMissedClasses) {
-        throw new StorageError(StorageError.CLASS_NOT_FOUND, name, x);
-      }
-      return null;
     }
   }
 
@@ -462,6 +462,11 @@ public final class ClassDescriptor extends Persistent {
   }
 
 
+  @Override
+  public boolean recursiveLoading() {
+    return false;
+  }
+
   void resolve() {
     if (!resolved) {
       StorageImpl classStorage = (StorageImpl) getStorage();
@@ -471,10 +476,5 @@ public final class ClassDescriptor extends Persistent {
         classStorage.registerClassDescriptor(desc);
       }
     }
-  }
-
-  @Override
-  public boolean recursiveLoading() {
-    return false;
   }
 }

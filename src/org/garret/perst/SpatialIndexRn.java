@@ -11,6 +11,24 @@ import java.util.Map;
  */
 public interface SpatialIndexRn<T> extends IPersistent, IResource, ITable<T> {
   /**
+   * Get entry iterator through all members of the index This iterator doesn't support remove()
+   * method. It is not possible to modify spatial index during iteration.
+   * 
+   * @return entry iterator which key specifies recrtangle and value - correspondent object
+   */
+  public IterableIterator<Map.Entry<RectangleRn, T>> entryIterator();
+
+  /**
+   * Get entry iterator through objects which rectangle intersects with specified rectangle This
+   * iterator doesn't support remove() method. It is not possible to modify spatial index during
+   * iteration.
+   * 
+   * @param r selected rectangle
+   * @return entry iterator for objects which enveloping rectangle overlaps with specified rectangle
+   */
+  public IterableIterator<Map.Entry<RectangleRn, T>> entryIterator(RectangleRn r);
+
+  /**
    * Find all objects located in the selected rectangle
    * 
    * @param r selected rectangle
@@ -25,25 +43,6 @@ public interface SpatialIndexRn<T> extends IPersistent, IResource, ITable<T> {
    * @return array list of objects which enveloping rectangle intersects with specified rectangle
    */
   public ArrayList<T> getList(RectangleRn r);
-
-  /**
-   * Put new object in the index.
-   * 
-   * @param r enveloping rectangle for the object
-   * @param obj object associated with this rectangle. Object can be not yet persistent, in this
-   *        case its forced to become persistent by assigning OID to it.
-   */
-  public void put(RectangleRn r, T obj);
-
-  /**
-   * Remove object with specified enveloping rectangle from the tree.
-   * 
-   * @param r enveloping rectangle for the object
-   * @param obj object removed from the index
-   * @exception StorageError (StorageError.KEY_NOT_FOUND) exception if there is no such key in the
-   *            index
-   */
-  public void remove(RectangleRn r, T obj);
 
   /**
    * Get wrapping rectangle
@@ -63,14 +62,6 @@ public interface SpatialIndexRn<T> extends IPersistent, IResource, ITable<T> {
   public Iterator<T> iterator();
 
   /**
-   * Get entry iterator through all members of the index This iterator doesn't support remove()
-   * method. It is not possible to modify spatial index during iteration.
-   * 
-   * @return entry iterator which key specifies recrtangle and value - correspondent object
-   */
-  public IterableIterator<Map.Entry<RectangleRn, T>> entryIterator();
-
-  /**
    * Get objects which rectangle intersects with specified rectangle This iterator doesn't support
    * remove() method. It is not possible to modify spatial index during iteration.
    * 
@@ -78,16 +69,6 @@ public interface SpatialIndexRn<T> extends IPersistent, IResource, ITable<T> {
    * @return iterator for objects which enveloping rectangle overlaps with specified rectangle
    */
   public IterableIterator<T> iterator(RectangleRn r);
-
-  /**
-   * Get entry iterator through objects which rectangle intersects with specified rectangle This
-   * iterator doesn't support remove() method. It is not possible to modify spatial index during
-   * iteration.
-   * 
-   * @param r selected rectangle
-   * @return entry iterator for objects which enveloping rectangle overlaps with specified rectangle
-   */
-  public IterableIterator<Map.Entry<RectangleRn, T>> entryIterator(RectangleRn r);
 
   /**
    * Get iterator through all neighbors of the specified point in the order of increasing distance
@@ -98,4 +79,23 @@ public interface SpatialIndexRn<T> extends IPersistent, IResource, ITable<T> {
    *         specified point
    */
   public IterableIterator<T> neighborIterator(PointRn center);
+
+  /**
+   * Put new object in the index.
+   * 
+   * @param r enveloping rectangle for the object
+   * @param obj object associated with this rectangle. Object can be not yet persistent, in this
+   *        case its forced to become persistent by assigning OID to it.
+   */
+  public void put(RectangleRn r, T obj);
+
+  /**
+   * Remove object with specified enveloping rectangle from the tree.
+   * 
+   * @param r enveloping rectangle for the object
+   * @param obj object removed from the index
+   * @exception StorageError (StorageError.KEY_NOT_FOUND) exception if there is no such key in the
+   *            index
+   */
+  public void remove(RectangleRn r, T obj);
 }

@@ -14,6 +14,11 @@ public class ThreadSafeIterator<T> extends IterableIterator<T> {
   private Iterator<T> iterator;
   private T next;
 
+  public ThreadSafeIterator(IResource collection, Iterator<T> iterator) {
+    this.collection = collection;
+    this.iterator = iterator;
+  }
+
   @Override
   public boolean hasNext() {
     boolean result;
@@ -43,11 +48,6 @@ public class ThreadSafeIterator<T> extends IterableIterator<T> {
       next = null;
     }
     return obj;
-  }
-
-  public ThreadSafeIterator(IResource collection, Iterator<T> iterator) {
-    this.collection = collection;
-    this.iterator = iterator;
   }
 
   @Override

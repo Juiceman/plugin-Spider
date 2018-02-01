@@ -14,18 +14,28 @@ import org.garret.perst.Key;
 import org.garret.perst.Query;
 import org.garret.perst.StorageError;
 
-class FieldValue implements Comparable<FieldValue> {
-  Comparable value;
-  Object obj;
+class BtreeCaseInsensitiveFieldIndex<T> extends BtreeFieldIndex<T> {
+  BtreeCaseInsensitiveFieldIndex() {}
 
-  @Override
-  public int compareTo(FieldValue f) {
-    return value.compareTo(f.value);
+  BtreeCaseInsensitiveFieldIndex(Class cls, String fieldName, boolean unique) {
+    super(cls, fieldName, unique);
   }
 
-  FieldValue(Object obj, Object value) {
-    this.obj = obj;
-    this.value = (Comparable) value;
+  BtreeCaseInsensitiveFieldIndex(Class cls, String fieldName, boolean unique, long autoincCount) {
+    super(cls, fieldName, unique, autoincCount);
+  }
+
+  @Override
+  Key checkKey(Key key) {
+    if (key != null && key.oval instanceof String) {
+      key = new Key(((String) key.oval).toLowerCase(), key.inclusion != 0);
+    }
+    return super.checkKey(key);
+  }
+
+  @Override
+  public boolean isCaseInsensitive() {
+    return true;
   }
 }
 
@@ -38,29 +48,6 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
   transient Field fld;
 
   BtreeFieldIndex() {}
-
-  private final void locateField() {
-    fld = ClassDescriptor.locateField(cls, fieldName);
-    if (fld == null) {
-      throw new StorageError(StorageError.INDEXED_FIELD_NOT_FOUND, className + "." + fieldName);
-    }
-  }
-
-  @Override
-  public Class getIndexedClass() {
-    return cls;
-  }
-
-  @Override
-  public Field[] getKeyFields() {
-    return new Field[] {fld};
-  }
-
-  @Override
-  public void onLoad() {
-    cls = ClassDescriptor.loadClass(getStorage(), className);
-    locateField();
-  }
 
   BtreeFieldIndex(Class cls, String fieldName, boolean unique) {
     this(cls, fieldName, unique, 0);
@@ -77,8 +64,89 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
   }
 
   @Override
-  protected Object unpackEnum(int val) {
-    return fld.getType().getEnumConstants()[val];
+  public boolean add(T obj) {
+    return put(obj);
+  }
+
+  @Override
+  public boolean addAll(Collection<? extends T> c) {
+    FieldValue[] arr = new FieldValue[c.size()];
+    Iterator<? extends T> e = c.iterator();
+    try {
+      for (int i = 0; e.hasNext(); i++) {
+        T obj = e.next();
+        arr[i] = new FieldValue(obj, fld.get(obj));
+      }
+    } catch (Exception x) {
+      throw new StorageError(StorageError.ACCESS_VIOLATION, x);
+    }
+    Arrays.sort(arr);
+    for (int i = 0; i < arr.length; i++) {
+      add((T) arr[i].obj);
+    }
+    return arr.length > 0;
+  }
+
+  @Override
+  public synchronized void append(T obj) {
+    Key key;
+    try {
+      switch (type) {
+        case ClassDescriptor.tpInt:
+          key = new Key((int) autoincCount);
+          fld.setInt(obj, (int) autoincCount);
+          break;
+        case ClassDescriptor.tpLong:
+          key = new Key(autoincCount);
+          fld.setLong(obj, autoincCount);
+          break;
+        default:
+          throw new StorageError(StorageError.UNSUPPORTED_INDEX_TYPE, fld.getType());
+      }
+    } catch (Exception x) {
+      throw new StorageError(StorageError.ACCESS_VIOLATION, x);
+    }
+    autoincCount += 1;
+    getStorage().modify(obj);
+    super.insert(key, obj, false);
+  }
+
+  @Override
+  public boolean contains(Object obj) {
+    Key key = extractKey(obj);
+    if (key == null) {
+      return false;
+    }
+    if (unique) {
+      return super.get(key) != null;
+    } else {
+      Object[] mbrs = get(key, key);
+      for (int i = 0; i < mbrs.length; i++) {
+        if (mbrs[i].equals(obj)) {
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+
+  @Override
+  public boolean containsObject(T obj) {
+    Key key = extractKey(obj);
+    if (key == null) {
+      return false;
+    }
+    if (unique) {
+      return super.get(key) != null;
+    } else {
+      Object[] mbrs = get(key, key);
+      for (int i = 0; i < mbrs.length; i++) {
+        if (mbrs[i] == obj) {
+          return true;
+        }
+      }
+      return false;
+    }
   }
 
   private Key extractKey(Object obj) {
@@ -138,14 +206,78 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
   }
 
   @Override
-  public boolean add(T obj) {
-    return put(obj);
+  public T[] get(Key from, Key till) {
+    ArrayList list = new ArrayList();
+    if (root != 0) {
+      BtreePage.find((StorageImpl) getStorage(), root, checkKey(from), checkKey(till), this, height,
+          list);
+    }
+    return (T[]) list.toArray((T[]) Array.newInstance(cls, list.size()));
+  }
+
+  @Override
+  public Class getIndexedClass() {
+    return cls;
+  }
+
+  @Override
+  public Field[] getKeyFields() {
+    return new Field[] {fld};
+  }
+
+  @Override
+  public T[] getPrefix(String prefix) {
+    ArrayList<T> list =
+        getList(new Key(prefix, true), new Key(prefix + Character.MAX_VALUE, false));
+    return list.toArray((T[]) Array.newInstance(cls, list.size()));
+  }
+
+  @Override
+  public boolean isCaseInsensitive() {
+    return false;
+  }
+
+  private final void locateField() {
+    fld = ClassDescriptor.locateField(cls, fieldName);
+    if (fld == null) {
+      throw new StorageError(StorageError.INDEXED_FIELD_NOT_FOUND, className + "." + fieldName);
+    }
+  }
+
+  @Override
+  public void onLoad() {
+    cls = ClassDescriptor.loadClass(getStorage(), className);
+    locateField();
+  }
+
+  @Override
+  public T[] prefixSearch(String key) {
+    ArrayList<T> list = prefixSearchList(key);
+    return list.toArray((T[]) Array.newInstance(cls, list.size()));
   }
 
   @Override
   public boolean put(T obj) {
     Key key = extractKey(obj);
     return key != null && super.insert(key, obj, false) >= 0;
+  }
+
+  @Override
+  public IterableIterator<T> queryByExample(T obj) {
+    Key key = extractKey(obj);
+    return iterator(key, key, ASCENT_ORDER);
+  }
+
+  @Override
+  public boolean remove(Object obj) {
+    Key key = extractKey(obj);
+    return key != null && super.removeIfExists(key, obj);
+  }
+
+  @Override
+  public IterableIterator<T> select(String predicate) {
+    Query<T> query = new QueryImpl<T>(getStorage());
+    return query.select(cls, iterator(), predicate);
   }
 
   @Override
@@ -158,116 +290,6 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
   }
 
   @Override
-  public boolean addAll(Collection<? extends T> c) {
-    FieldValue[] arr = new FieldValue[c.size()];
-    Iterator<? extends T> e = c.iterator();
-    try {
-      for (int i = 0; e.hasNext(); i++) {
-        T obj = e.next();
-        arr[i] = new FieldValue(obj, fld.get(obj));
-      }
-    } catch (Exception x) {
-      throw new StorageError(StorageError.ACCESS_VIOLATION, x);
-    }
-    Arrays.sort(arr);
-    for (int i = 0; i < arr.length; i++) {
-      add((T) arr[i].obj);
-    }
-    return arr.length > 0;
-  }
-
-  @Override
-  public boolean remove(Object obj) {
-    Key key = extractKey(obj);
-    return key != null && super.removeIfExists(key, obj);
-  }
-
-  @Override
-  public boolean containsObject(T obj) {
-    Key key = extractKey(obj);
-    if (key == null) {
-      return false;
-    }
-    if (unique) {
-      return super.get(key) != null;
-    } else {
-      Object[] mbrs = get(key, key);
-      for (int i = 0; i < mbrs.length; i++) {
-        if (mbrs[i] == obj) {
-          return true;
-        }
-      }
-      return false;
-    }
-  }
-
-  @Override
-  public boolean contains(Object obj) {
-    Key key = extractKey(obj);
-    if (key == null) {
-      return false;
-    }
-    if (unique) {
-      return super.get(key) != null;
-    } else {
-      Object[] mbrs = get(key, key);
-      for (int i = 0; i < mbrs.length; i++) {
-        if (mbrs[i].equals(obj)) {
-          return true;
-        }
-      }
-      return false;
-    }
-  }
-
-  @Override
-  public synchronized void append(T obj) {
-    Key key;
-    try {
-      switch (type) {
-        case ClassDescriptor.tpInt:
-          key = new Key((int) autoincCount);
-          fld.setInt(obj, (int) autoincCount);
-          break;
-        case ClassDescriptor.tpLong:
-          key = new Key(autoincCount);
-          fld.setLong(obj, autoincCount);
-          break;
-        default:
-          throw new StorageError(StorageError.UNSUPPORTED_INDEX_TYPE, fld.getType());
-      }
-    } catch (Exception x) {
-      throw new StorageError(StorageError.ACCESS_VIOLATION, x);
-    }
-    autoincCount += 1;
-    getStorage().modify(obj);
-    super.insert(key, obj, false);
-  }
-
-  @Override
-  public T[] getPrefix(String prefix) {
-    ArrayList<T> list =
-        getList(new Key(prefix, true), new Key(prefix + Character.MAX_VALUE, false));
-    return list.toArray((T[]) Array.newInstance(cls, list.size()));
-  }
-
-  @Override
-  public T[] prefixSearch(String key) {
-    ArrayList<T> list = prefixSearchList(key);
-    return list.toArray((T[]) Array.newInstance(cls, list.size()));
-  }
-
-  @Override
-  public T[] get(Key from, Key till) {
-    ArrayList list = new ArrayList();
-    if (root != 0) {
-      BtreePage.find((StorageImpl) getStorage(), root, checkKey(from), checkKey(till), this, height,
-          list);
-    }
-    return (T[]) list.toArray((T[]) Array.newInstance(cls, list.size()));
-  }
-
-  @Override
   public T[] toArray() {
     T[] arr = (T[]) Array.newInstance(cls, nElems);
     if (root != 0) {
@@ -277,45 +299,23 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
   }
 
   @Override
-  public IterableIterator<T> queryByExample(T obj) {
-    Key key = extractKey(obj);
-    return iterator(key, key, ASCENT_ORDER);
-  }
-
-  @Override
-  public IterableIterator<T> select(String predicate) {
-    Query<T> query = new QueryImpl<T>(getStorage());
-    return query.select(cls, iterator(), predicate);
-  }
-
-  @Override
-  public boolean isCaseInsensitive() {
-    return false;
+  protected Object unpackEnum(int val) {
+    return fld.getType().getEnumConstants()[val];
   }
 }
 
 
-class BtreeCaseInsensitiveFieldIndex<T> extends BtreeFieldIndex<T> {
-  BtreeCaseInsensitiveFieldIndex() {}
+class FieldValue implements Comparable<FieldValue> {
+  Comparable value;
+  Object obj;
 
-  BtreeCaseInsensitiveFieldIndex(Class cls, String fieldName, boolean unique) {
-    super(cls, fieldName, unique);
-  }
-
-  BtreeCaseInsensitiveFieldIndex(Class cls, String fieldName, boolean unique, long autoincCount) {
-    super(cls, fieldName, unique, autoincCount);
-  }
-
-  @Override
-  Key checkKey(Key key) {
-    if (key != null && key.oval instanceof String) {
-      key = new Key(((String) key.oval).toLowerCase(), key.inclusion != 0);
-    }
-    return super.checkKey(key);
+  FieldValue(Object obj, Object value) {
+    this.obj = obj;
+    this.value = (Comparable) value;
   }
 
   @Override
-  public boolean isCaseInsensitive() {
-    return true;
+  public int compareTo(FieldValue f) {
+    return value.compareTo(f.value);
   }
 }

@@ -8,12 +8,12 @@ import org.garret.perst.IPersistent;
  */
 public interface FullTextSearchable extends IPersistent {
   /**
-   * Get document text
-   */
-  Reader getText();
-
-  /**
    * Get document language (null if unknown)
    */
   String getLanguage();
+
+  /**
+   * Get document text
+   */
+  Reader getText();
 }

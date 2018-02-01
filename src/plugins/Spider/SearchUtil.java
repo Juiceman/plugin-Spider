@@ -5,6 +5,10 @@ import java.util.Arrays;
 import java.util.List;
 
 public class SearchUtil {
+  private static List<String> stopWords =
+      Arrays.asList(new String[] {"the", "and", "that", "have", "for" // English stop words
+      });
+
   public static boolean isCJK(int codePoint) {
     UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
     return block == UnicodeBlock.CJK_COMPATIBILITY // CJK
@@ -28,10 +32,6 @@ public class SearchUtil {
         || block == UnicodeBlock.KATAKANA //
         || block == UnicodeBlock.KATAKANA_PHONETIC_EXTENSIONS;
   }
-
-  private static List<String> stopWords =
-      Arrays.asList(new String[] {"the", "and", "that", "have", "for" // English stop words
-      });
 
   public static boolean isStopWord(String word) {
     if (stopWords.contains(word))

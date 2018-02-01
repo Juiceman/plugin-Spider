@@ -20,37 +20,29 @@ public interface CodeGenerator {
   public interface Code {
   }
 
-  /**
-   * Set query predicate code
-   * 
-   * @param code AST constructed using CodeGenerator methods
-   */
-  void predicate(Code code);
+  Code abs(Code expr);
 
-  /**
-   * Literal constant
-   */
-  Code literal(Object value);
+  Code acos(Code expr);
 
-  /**
-   * List of alternatives for IN operator
-   */
-  Code list(Code... values);
+  Code add(Code left, Code right);
 
-  /**
-   * Query parameter
-   * 
-   * @param n parameter index (0 based)
-   * @param type parameter type
-   */
-  Code parameter(int n, Class type);
+  Code and(Code left, Code right);
 
-  /**
-   * Get self field
-   * 
-   * @param name field name
-   */
-  Code field(String name);
+  Code asin(Code expr);
+
+  Code atan(Code expr);
+
+  Code between(Code expr, Code low, Code high);
+
+  Code ceil(Code expr);
+
+  Code cos(Code expr);
+
+  Code div(Code left, Code right);
+
+  Code eq(Code left, Code right);
+
+  Code exp(Code expr);
 
   /**
    * Get field
@@ -59,6 +51,31 @@ public interface CodeGenerator {
    * @param name field name
    */
   Code field(Code base, String name);
+
+  /**
+   * Get self field
+   * 
+   * @param name field name
+   */
+  Code field(String name);
+
+  Code floor(Code expr);
+
+  Code ge(Code left, Code right);
+
+  /**
+   * Get array element
+   */
+  Code getAt(Code array, Code index);
+
+  Code gt(Code left, Code right);
+
+  Code in(Code expr, Code set);
+
+  /**
+   * Convert real to integer
+   */
+  Code integer(Code expr);
 
   /**
    * Invoke method
@@ -77,102 +94,53 @@ public interface CodeGenerator {
    */
   Code invoke(String name, Code[] arguments);
 
-  Code and(Code left, Code right);
-
-  Code or(Code left, Code right);
-
-  Code add(Code left, Code right);
-
-  Code sub(Code left, Code right);
-
-  Code mul(Code left, Code right);
-
-  Code div(Code left, Code right);
-
-  Code pow(Code left, Code right);
-
-  Code eq(Code left, Code right);
-
-  Code ge(Code left, Code right);
-
-  Code gt(Code left, Code right);
-
-  Code lt(Code left, Code right);
-
   Code le(Code left, Code right);
-
-  Code ne(Code left, Code right);
-
-  Code neg(Code expr);
-
-  Code abs(Code expr);
-
-  Code not(Code expr);
-
-  Code between(Code expr, Code low, Code high);
-
-  Code like(Code expr, Code pattern, Code esc);
-
-  Code like(Code expr, Code pattern);
-
-  Code in(Code expr, Code set);
-
-  Code sin(Code expr);
-
-  Code cos(Code expr);
-
-  Code tan(Code expr);
-
-  Code asin(Code expr);
-
-  Code acos(Code expr);
-
-  Code atan(Code expr);
-
-  Code sqrt(Code expr);
-
-  Code exp(Code expr);
-
-  Code log(Code expr);
-
-  Code ceil(Code expr);
-
-  Code floor(Code expr);
-
-  /**
-   * Convert string to lower case
-   */
-  Code lower(Code expr);
-
-  /**
-   * Convert string to upper case
-   */
-  Code upper(Code expr);
 
   /**
    * Get array length
    */
   Code length(Code expr);
 
-  /**
-   * Get array element
-   */
-  Code getAt(Code array, Code index);
+  Code like(Code expr, Code pattern);
+
+  Code like(Code expr, Code pattern, Code esc);
 
   /**
-   * Convert real to integer
+   * List of alternatives for IN operator
    */
-  Code integer(Code expr);
+  Code list(Code... values);
 
   /**
-   * Convert integer to real
+   * Literal constant
    */
-  Code real(Code expr);
+  Code literal(Object value);
+
+  Code log(Code expr);
 
   /**
-   * Convert integer/real/date to string
+   * Convert string to lower case
    */
-  Code string(Code expr);
+  Code lower(Code expr);
+
+  Code lt(Code left, Code right);
+
+  Code mul(Code left, Code right);
+
+  Code ne(Code left, Code right);
+
+  Code neg(Code expr);
+
+  Code not(Code expr);
+
+  Code or(Code left, Code right);
+
+  /**
+   * Add order by clause. It is possible to invoke this method several times - in this case result
+   * will be sorted by all specified fields in the correspondent order
+   * 
+   * @param name field name by which sort should be performed
+   */
+  void orderBy(String name);
 
   /**
    * Add order by clause. It is possible to invoke this method several times - in this case result
@@ -184,10 +152,42 @@ public interface CodeGenerator {
   void orderBy(String name, boolean ascent);
 
   /**
-   * Add order by clause. It is possible to invoke this method several times - in this case result
-   * will be sorted by all specified fields in the correspondent order
+   * Query parameter
    * 
-   * @param name field name by which sort should be performed
+   * @param n parameter index (0 based)
+   * @param type parameter type
    */
-  void orderBy(String name);
+  Code parameter(int n, Class type);
+
+  Code pow(Code left, Code right);
+
+  /**
+   * Set query predicate code
+   * 
+   * @param code AST constructed using CodeGenerator methods
+   */
+  void predicate(Code code);
+
+  /**
+   * Convert integer to real
+   */
+  Code real(Code expr);
+
+  Code sin(Code expr);
+
+  Code sqrt(Code expr);
+
+  /**
+   * Convert integer/real/date to string
+   */
+  Code string(Code expr);
+
+  Code sub(Code left, Code right);
+
+  Code tan(Code expr);
+
+  /**
+   * Convert string to upper case
+   */
+  Code upper(Code expr);
 }

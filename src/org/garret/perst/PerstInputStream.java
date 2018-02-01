@@ -8,6 +8,10 @@ import java.io.InputStream;
  * Input stream for SelfSerializable and CustumSerializer
  */
 public abstract class PerstInputStream extends DataInputStream {
+  public PerstInputStream(InputStream stream) {
+    super(stream);
+  }
+
   /**
    * Read refeernce to the object or content of the enbedded object
    * 
@@ -21,8 +25,4 @@ public abstract class PerstInputStream extends DataInputStream {
    * @return extracted string or null
    */
   public abstract String readString() throws IOException;
-
-  public PerstInputStream(InputStream stream) {
-    super(stream);
-  }
 }

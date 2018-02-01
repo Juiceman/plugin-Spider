@@ -7,6 +7,10 @@ package org.garret.perst;
  * Also PersistentString class is mutable, allowing to change it's values.
  */
 public class PersistentString extends PersistentResource {
+  private String str;
+
+  private PersistentString() {}
+
   /**
    * Consutrctor of perisstent string
    * 
@@ -14,18 +18,6 @@ public class PersistentString extends PersistentResource {
    */
   public PersistentString(String str) {
     this.str = str;
-  }
-
-  private PersistentString() {}
-
-  /**
-   * Get Java string
-   * 
-   * @return Java string
-   */
-  @Override
-  public String toString() {
-    return str;
   }
 
   /**
@@ -39,6 +31,15 @@ public class PersistentString extends PersistentResource {
   }
 
   /**
+   * Get current string value
+   * 
+   * @return Java string
+   */
+  public String get() {
+    return str;
+  }
+
+  /**
    * Assign new string value to the PersistentString
    * 
    * @param str new string value
@@ -49,13 +50,12 @@ public class PersistentString extends PersistentResource {
   }
 
   /**
-   * Get current string value
+   * Get Java string
    * 
    * @return Java string
    */
-  public String get() {
+  @Override
+  public String toString() {
     return str;
   }
-
-  private String str;
 }

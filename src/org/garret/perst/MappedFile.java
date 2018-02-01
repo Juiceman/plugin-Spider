@@ -11,90 +11,15 @@ import java.nio.channels.FileLock;
  * significantly increase speed of application in some cases.
  */
 public class MappedFile implements IFile {
-  private final void checkSize(long size) throws IOException {
-    if (size > mapSize) {
-      long newSize = mapSize < Integer.MAX_VALUE / 2 ? mapSize * 2 : Integer.MAX_VALUE;
-      if (newSize < size) {
-        newSize = size;
-      }
-      mapSize = newSize;
-      map = chan.map(FileChannel.MapMode.READ_WRITE, 0, // position
-          mapSize);
-    }
-  }
+  RandomAccessFile f;
 
-  @Override
-  public void write(long pos, byte[] buf) {
-    try {
-      checkSize(pos + buf.length);
-      map.position((int) pos);
-      map.put(buf, 0, buf.length);
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
-    }
-  }
+  MappedByteBuffer map;
 
-  @Override
-  public int read(long pos, byte[] buf) {
-    if (pos >= mapSize) {
-      return 0;
-    }
-    map.position((int) pos);
-    map.get(buf, 0, buf.length);
-    return buf.length;
-  }
+  FileChannel chan;
 
-  @Override
-  public void sync() {
-    map.force();
-  }
+  long mapSize;
 
-  @Override
-  public void close() {
-    try {
-      chan.close();
-      f.close();
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
-    }
-  }
-
-  @Override
-  public boolean tryLock(boolean shared) {
-    try {
-      lck = chan.tryLock(0, Long.MAX_VALUE, shared);
-      return lck != null;
-    } catch (IOException x) {
-      return true;
-    }
-  }
-
-  @Override
-  public void lock(boolean shared) {
-    try {
-      lck = chan.lock(0, Long.MAX_VALUE, shared);
-    } catch (IOException x) {
-      throw new StorageError(StorageError.LOCK_FAILED, x);
-    }
-  }
-
-  @Override
-  public void unlock() {
-    try {
-      lck.release();
-    } catch (IOException x) {
-      throw new StorageError(StorageError.LOCK_FAILED, x);
-    }
-  }
-
-  @Override
-  public long length() {
-    try {
-      return f.length();
-    } catch (IOException x) {
-      return -1;
-    }
-  }
+  FileLock lck;
 
   public MappedFile(String filePath, long initialSize, boolean readOnly) {
     try {
@@ -109,9 +34,84 @@ public class MappedFile implements IFile {
     }
   }
 
-  RandomAccessFile f;
-  MappedByteBuffer map;
-  FileChannel chan;
-  long mapSize;
-  FileLock lck;
+  private final void checkSize(long size) throws IOException {
+    if (size > mapSize) {
+      long newSize = mapSize < Integer.MAX_VALUE / 2 ? mapSize * 2 : Integer.MAX_VALUE;
+      if (newSize < size) {
+        newSize = size;
+      }
+      mapSize = newSize;
+      map = chan.map(FileChannel.MapMode.READ_WRITE, 0, // position
+          mapSize);
+    }
+  }
+
+  @Override
+  public void close() {
+    try {
+      chan.close();
+      f.close();
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
+    }
+  }
+
+  @Override
+  public long length() {
+    try {
+      return f.length();
+    } catch (IOException x) {
+      return -1;
+    }
+  }
+
+  @Override
+  public void lock(boolean shared) {
+    try {
+      lck = chan.lock(0, Long.MAX_VALUE, shared);
+    } catch (IOException x) {
+      throw new StorageError(StorageError.LOCK_FAILED, x);
+    }
+  }
+
+  @Override
+  public int read(long pos, byte[] buf) {
+    if (pos >= mapSize) {
+      return 0;
+    }
+    map.position((int) pos);
+    map.get(buf, 0, buf.length);
+    return buf.length;
+  }
+  @Override
+  public void sync() {
+    map.force();
+  }
+  @Override
+  public boolean tryLock(boolean shared) {
+    try {
+      lck = chan.tryLock(0, Long.MAX_VALUE, shared);
+      return lck != null;
+    } catch (IOException x) {
+      return true;
+    }
+  }
+  @Override
+  public void unlock() {
+    try {
+      lck.release();
+    } catch (IOException x) {
+      throw new StorageError(StorageError.LOCK_FAILED, x);
+    }
+  }
+  @Override
+  public void write(long pos, byte[] buf) {
+    try {
+      checkSize(pos + buf.length);
+      map.position((int) pos);
+      map.put(buf, 0, buf.length);
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
+    }
+  }
 }

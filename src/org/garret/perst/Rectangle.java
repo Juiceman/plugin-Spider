@@ -4,37 +4,59 @@ package org.garret.perst;
  * R2 rectangle class. This class is used in spatial index.
  */
 public class Rectangle implements IValue, Cloneable {
+  /**
+   * Non destructive join of two rectangles.
+   * 
+   * @param a first joined rectangle
+   * @param b second joined rectangle
+   * @return rectangle containing cover of these two rectangles
+   */
+  public static Rectangle join(Rectangle a, Rectangle b) {
+    Rectangle r = new Rectangle(a);
+    r.join(b);
+    return r;
+  }
+  /**
+   * Area of covered rectangle for two sepcified rectangles
+   */
+  public static long joinArea(Rectangle a, Rectangle b) {
+    int left = (a.left < b.left) ? a.left : b.left;
+    int right = (a.right > b.right) ? a.right : b.right;
+    int top = (a.top < b.top) ? a.top : b.top;
+    int bottom = (a.bottom > b.bottom) ? a.bottom : b.bottom;
+    return (long) (bottom - top) * (right - left);
+  }
   private int top;
   private int left;
+
   private int bottom;
+
   private int right;
 
   /**
-   * Smallest Y coordinate of the rectangle
+   * Default constructor for PERST
    */
-  public final int getTop() {
-    return top;
+  public Rectangle() {}
+
+  /**
+   * Construct rectangle with specified coordinates
+   */
+  public Rectangle(int top, int left, int bottom, int right) {
+    Assert.that(top <= bottom && left <= right);
+    this.top = top;
+    this.left = left;
+    this.bottom = bottom;
+    this.right = right;
   }
 
   /**
-   * Smallest X coordinate of the rectangle
+   * Create copy of the rectangle
    */
-  public final int getLeft() {
-    return left;
-  }
-
-  /**
-   * Greatest Y coordinate of the rectangle
-   */
-  public final int getBottom() {
-    return bottom;
-  }
-
-  /**
-   * Greatest X coordinate of the rectangle
-   */
-  public final int getRight() {
-    return right;
+  public Rectangle(Rectangle r) {
+    this.top = r.top;
+    this.left = r.left;
+    this.bottom = r.bottom;
+    this.right = r.right;
   }
 
   /**
@@ -45,14 +67,28 @@ public class Rectangle implements IValue, Cloneable {
   }
 
   /**
-   * Area of covered rectangle for two sepcified rectangles
+   * Clone rectangle
    */
-  public static long joinArea(Rectangle a, Rectangle b) {
-    int left = (a.left < b.left) ? a.left : b.left;
-    int right = (a.right > b.right) ? a.right : b.right;
-    int top = (a.top < b.top) ? a.top : b.top;
-    int bottom = (a.bottom > b.bottom) ? a.bottom : b.bottom;
-    return (long) (bottom - top) * (right - left);
+  @Override
+  public Object clone() {
+    try {
+      Rectangle r = (Rectangle) super.clone();
+      r.top = this.top;
+      r.left = this.left;
+      r.bottom = this.bottom;
+      r.right = this.right;
+      return r;
+    } catch (CloneNotSupportedException e) {
+      // this shouldn't happen, since we are Cloneable
+      throw new InternalError();
+    }
+  }
+
+  /**
+   * Checks if this rectangle contains the specified rectangle
+   */
+  public final boolean contains(Rectangle r) {
+    return left <= r.left && top <= r.top && right >= r.right && bottom >= r.bottom;
   }
 
   /**
@@ -82,48 +118,61 @@ public class Rectangle implements IValue, Cloneable {
   }
 
   /**
-   * Clone rectangle
+   * Check if two rectangles are equal
    */
   @Override
-  public Object clone() {
-    try {
-      Rectangle r = (Rectangle) super.clone();
-      r.top = this.top;
-      r.left = this.left;
-      r.bottom = this.bottom;
-      r.right = this.right;
-      return r;
-    } catch (CloneNotSupportedException e) {
-      // this shouldn't happen, since we are Cloneable
-      throw new InternalError();
+  public boolean equals(Object o) {
+    if (o instanceof Rectangle) {
+      Rectangle r = (Rectangle) o;
+      return left == r.left && top == r.top && right == r.right && bottom == r.bottom;
     }
+    return false;
   }
 
   /**
-   * Create copy of the rectangle
+   * Greatest Y coordinate of the rectangle
    */
-  public Rectangle(Rectangle r) {
-    this.top = r.top;
-    this.left = r.left;
-    this.bottom = r.bottom;
-    this.right = r.right;
+  public final int getBottom() {
+    return bottom;
   }
 
   /**
-   * Construct rectangle with specified coordinates
+   * Smallest X coordinate of the rectangle
    */
-  public Rectangle(int top, int left, int bottom, int right) {
-    Assert.that(top <= bottom && left <= right);
-    this.top = top;
-    this.left = left;
-    this.bottom = bottom;
-    this.right = right;
+  public final int getLeft() {
+    return left;
+  }
+
+
+  /**
+   * Greatest X coordinate of the rectangle
+   */
+  public final int getRight() {
+    return right;
+  }
+
+
+  /**
+   * Smallest Y coordinate of the rectangle
+   */
+  public final int getTop() {
+    return top;
   }
 
   /**
-   * Default constructor for PERST
+   * Hash code consists of all rectangle coordinates
    */
-  public Rectangle() {}
+  @Override
+  public int hashCode() {
+    return top ^ (bottom << 1) ^ (left << 2) ^ (right << 3);
+  }
+
+  /**
+   * Checks if this rectangle intersects with specified rectangle
+   */
+  public final boolean intersects(Rectangle r) {
+    return left <= r.right && top <= r.bottom && right >= r.left && bottom >= r.top;
+  }
 
   /**
    * Join two rectangles. This rectangle is updates to contain cover of this and specified
@@ -144,55 +193,6 @@ public class Rectangle implements IValue, Cloneable {
     if (bottom < r.bottom) {
       bottom = r.bottom;
     }
-  }
-
-
-  /**
-   * Non destructive join of two rectangles.
-   * 
-   * @param a first joined rectangle
-   * @param b second joined rectangle
-   * @return rectangle containing cover of these two rectangles
-   */
-  public static Rectangle join(Rectangle a, Rectangle b) {
-    Rectangle r = new Rectangle(a);
-    r.join(b);
-    return r;
-  }
-
-
-  /**
-   * Checks if this rectangle intersects with specified rectangle
-   */
-  public final boolean intersects(Rectangle r) {
-    return left <= r.right && top <= r.bottom && right >= r.left && bottom >= r.top;
-  }
-
-  /**
-   * Checks if this rectangle contains the specified rectangle
-   */
-  public final boolean contains(Rectangle r) {
-    return left <= r.left && top <= r.top && right >= r.right && bottom >= r.bottom;
-  }
-
-  /**
-   * Check if two rectangles are equal
-   */
-  @Override
-  public boolean equals(Object o) {
-    if (o instanceof Rectangle) {
-      Rectangle r = (Rectangle) o;
-      return left == r.left && top == r.top && right == r.right && bottom == r.bottom;
-    }
-    return false;
-  }
-
-  /**
-   * Hash code consists of all rectangle coordinates
-   */
-  @Override
-  public int hashCode() {
-    return top ^ (bottom << 1) ^ (left << 2) ^ (right << 3);
   }
 
   @Override

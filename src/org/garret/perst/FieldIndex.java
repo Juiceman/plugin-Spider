@@ -11,29 +11,6 @@ import java.lang.reflect.Field;
  */
 public interface FieldIndex<T> extends GenericIndex<T> {
   /**
-   * Put new object in the index.
-   * 
-   * @param obj object to be inserted in index. Object should contain indexed field. Object can be
-   *        not yet peristent, in this case its forced to become persistent by assigning OID to it.
-   * @return <code>true</code> if object is successfully inserted in the index, <code>false</code>
-   *         if index was declared as unique and there is already object with such value of the key
-   *         in the index.
-   */
-  public boolean put(T obj);
-
-  /**
-   * Associate new object with the key specified by object field value. If there is already object
-   * with such key in the index, then it will be removed from the index and new value associated
-   * with this key.
-   * 
-   * @param obj object to be inserted in index. Object should contain indexed field. Object can be
-   *        not yet peristent, in this case its forced to become persistent by assigning OID to it.
-   * @return object previously associated with this key, <code>null</code> if there was no such
-   *         object
-   */
-  public T set(T obj);
-
-  /**
    * Assign to the integer indexed field unique autoicremented value and insert object in the index.
    * 
    * @param obj object to be inserted in index. Object should contain indexed field of integer
@@ -45,6 +22,54 @@ public interface FieldIndex<T> extends GenericIndex<T> {
    *            than <code>int</code> or <code>long</code>
    */
   public void append(T obj);
+
+  /**
+   * Check if index contains specified object instance.
+   * 
+   * @param obj object to be searched in the index. Object should contain indexed field.
+   * @return <code>true</code> if object is present in the index, <code>false</code> otherwise
+   */
+  public boolean containsObject(T obj);
+
+  /**
+   * Get class obejct objects which can be inserted in this index
+   * 
+   * @return class specified in Storage.createFielIndex method
+   */
+  public Class getIndexedClass();
+
+  /**
+   * Get fields used as a key
+   * 
+   * @return array of index key fields
+   */
+  public Field[] getKeyFields();
+
+  /**
+   * Check if field index is case insensitive
+   * 
+   * @return true if index ignore case of string keys
+   */
+  boolean isCaseInsensitive();
+
+  /**
+   * Put new object in the index.
+   * 
+   * @param obj object to be inserted in index. Object should contain indexed field. Object can be
+   *        not yet peristent, in this case its forced to become persistent by assigning OID to it.
+   * @return <code>true</code> if object is successfully inserted in the index, <code>false</code>
+   *         if index was declared as unique and there is already object with such value of the key
+   *         in the index.
+   */
+  public boolean put(T obj);
+
+  /**
+   * Locate objects with the same value of the key as specified object
+   * 
+   * @param obj object specifying search key value
+   * @return selection iterator
+   */
+  public IterableIterator<T> queryByExample(T obj);
 
   /**
    * Remove object with specified key from the unique index
@@ -67,36 +92,6 @@ public interface FieldIndex<T> extends GenericIndex<T> {
   public T removeKey(Object key);
 
   /**
-   * Check if index contains specified object instance.
-   * 
-   * @param obj object to be searched in the index. Object should contain indexed field.
-   * @return <code>true</code> if object is present in the index, <code>false</code> otherwise
-   */
-  public boolean containsObject(T obj);
-
-  /**
-   * Locate objects with the same value of the key as specified object
-   * 
-   * @param obj object specifying search key value
-   * @return selection iterator
-   */
-  public IterableIterator<T> queryByExample(T obj);
-
-  /**
-   * Get class obejct objects which can be inserted in this index
-   * 
-   * @return class specified in Storage.createFielIndex method
-   */
-  public Class getIndexedClass();
-
-  /**
-   * Get fields used as a key
-   * 
-   * @return array of index key fields
-   */
-  public Field[] getKeyFields();
-
-  /**
    * Select members of the collection using search predicate This iterator doesn't support remove()
    * method. To make it possible to update, remove or add members to the index during iteration it
    * is necessary to set "perst.concurrent.iterator" property (by default it is not supported
@@ -108,10 +103,15 @@ public interface FieldIndex<T> extends GenericIndex<T> {
   public IterableIterator<T> select(String predicate);
 
   /**
-   * Check if field index is case insensitive
+   * Associate new object with the key specified by object field value. If there is already object
+   * with such key in the index, then it will be removed from the index and new value associated
+   * with this key.
    * 
-   * @return true if index ignore case of string keys
+   * @param obj object to be inserted in index. Object should contain indexed field. Object can be
+   *        not yet peristent, in this case its forced to become persistent by assigning OID to it.
+   * @return object previously associated with this key, <code>null</code> if there was no such
+   *         object
    */
-  boolean isCaseInsensitive();
+  public T set(T obj);
 }
 

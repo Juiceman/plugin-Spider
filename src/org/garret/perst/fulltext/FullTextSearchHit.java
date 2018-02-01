@@ -7,13 +7,6 @@ import org.garret.perst.Storage;
  */
 public class FullTextSearchHit implements Comparable {
   /**
-   * Get document matching full text query
-   */
-  public Object getDocument() {
-    return storage.getObjectByOID(oid);
-  }
-
-  /**
    * Rank of the document for this query
    */
   public final float rank;
@@ -25,12 +18,6 @@ public class FullTextSearchHit implements Comparable {
 
   public final Storage storage;
 
-  @Override
-  public int compareTo(Object o) {
-    float oRank = ((FullTextSearchHit) o).rank;
-    return rank > oRank ? -1 : rank < oRank ? 1 : 0;
-  }
-
   /**
    * Constructor of the full text search result hit
    */
@@ -38,5 +25,18 @@ public class FullTextSearchHit implements Comparable {
     this.storage = storage;
     this.oid = oid;
     this.rank = rank;
+  }
+
+  @Override
+  public int compareTo(Object o) {
+    float oRank = ((FullTextSearchHit) o).rank;
+    return rank > oRank ? -1 : rank < oRank ? 1 : 0;
+  }
+
+  /**
+   * Get document matching full text query
+   */
+  public Object getDocument() {
+    return storage.getObjectByOID(oid);
   }
 }

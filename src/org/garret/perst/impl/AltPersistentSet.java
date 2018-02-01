@@ -19,8 +19,8 @@ class AltPersistentSet<T> extends AltBtree<T> implements IPersistentSet<T> {
   }
 
   @Override
-  public boolean isEmpty() {
-    return nElems == 0;
+  public boolean add(T obj) {
+    return put(new Key(obj), obj);
   }
 
   @Override
@@ -28,22 +28,6 @@ class AltPersistentSet<T> extends AltBtree<T> implements IPersistentSet<T> {
     Key key = new Key(o);
     Iterator i = iterator(key, key, ASCENT_ORDER);
     return i.hasNext();
-  }
-
-  @Override
-  public <E> E[] toArray(E[] arr) {
-    return (E[]) super.toArray((T[]) arr);
-  }
-
-  @Override
-  public boolean add(T obj) {
-    return put(new Key(obj), obj);
-  }
-
-  @Override
-  public boolean remove(Object o) {
-    T obj = (T) o;
-    return removeIfExists(new BtreeKey(checkKey(new Key(obj)), obj));
   }
 
   @Override
@@ -72,8 +56,24 @@ class AltPersistentSet<T> extends AltBtree<T> implements IPersistentSet<T> {
   }
 
   @Override
+  public boolean isEmpty() {
+    return nElems == 0;
+  }
+
+  @Override
   public IterableIterator<T> join(Iterator<T> with) {
     return with == null ? (IterableIterator<T>) iterator()
         : new JoinSetIterator<T>(getStorage(), iterator(), with);
+  }
+
+  @Override
+  public boolean remove(Object o) {
+    T obj = (T) o;
+    return removeIfExists(new BtreeKey(checkKey(new Key(obj)), obj));
+  }
+
+  @Override
+  public <E> E[] toArray(E[] arr) {
+    return (E[]) super.toArray((T[]) arr);
   }
 }

@@ -5,15 +5,28 @@ import org.garret.perst.Persistent;
 import org.garret.perst.Storage;
 
 public class DefaultAllocator extends Persistent implements CustomAllocator {
+  protected DefaultAllocator() {}
+
   public DefaultAllocator(Storage storage) {
     super(storage);
   }
 
-  protected DefaultAllocator() {}
-
   @Override
   public long allocate(long size) {
     return ((StorageImpl) getStorage()).allocate(size, 0);
+  }
+
+  @Override
+  public void commit() {}
+
+  @Override
+  public void free(long pos, long size) {
+    ((StorageImpl) getStorage()).cloneBitmap(pos, size);
+  }
+
+  @Override
+  public long getAllocatedMemory() {
+    return getStorage().getDatabaseSize();
   }
 
   @Override
@@ -32,11 +45,6 @@ public class DefaultAllocator extends Persistent implements CustomAllocator {
   }
 
   @Override
-  public long getAllocatedMemory() {
-    return getStorage().getDatabaseSize();
-  }
-
-  @Override
   public long reallocate(long pos, long oldSize, long newSize) {
     StorageImpl db = (StorageImpl) getStorage();
     if (((newSize + StorageImpl.dbAllocationQuantum - 1)
@@ -49,14 +57,6 @@ public class DefaultAllocator extends Persistent implements CustomAllocator {
     }
     return pos;
   }
-
-  @Override
-  public void free(long pos, long size) {
-    ((StorageImpl) getStorage()).cloneBitmap(pos, size);
-  }
-
-  @Override
-  public void commit() {}
 }
 
 

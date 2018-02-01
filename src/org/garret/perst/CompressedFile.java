@@ -14,10 +14,51 @@ import java.util.zip.ZipFile;
 public class CompressedFile implements IFile {
   static final int SEGMENT_LENGTH = 128 * 1024;
 
-  @Override
-  public void write(long pos, byte[] buf) {
-    throw new UnsupportedOperationException("ZipFile.write");
+  ZipFile file;
+
+  ZipEntry[] entries;
+
+  byte[] segment;
+
+  ZipEntry currEntry;
+
+  /**
+   * Constructor of comressed file
+   * 
+   * @param path path to the archieve previously prepared by CompressDatabase utility
+   */
+  public CompressedFile(String path) {
+    try {
+      file = new ZipFile(path);
+      int nEntries = file.size();
+      entries = new ZipEntry[nEntries];
+      Enumeration ee = file.entries();
+      for (int i = 0; ee.hasMoreElements(); i++) {
+        entries[i] = (ZipEntry) ee.nextElement();
+      }
+      segment = new byte[SEGMENT_LENGTH];
+      currEntry = null;
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR);
+    }
   }
+
+  @Override
+  public void close() {
+    try {
+      file.close();
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR);
+    }
+  }
+
+  @Override
+  public long length() {
+    return (long) (entries.length - 1) * SEGMENT_LENGTH + entries[entries.length - 1].getSize();
+  }
+
+  @Override
+  public void lock(boolean shared) {}
 
   @Override
   public int read(long pos, byte[] buf) {
@@ -51,55 +92,14 @@ public class CompressedFile implements IFile {
 
   @Override
   public void sync() {}
-
   @Override
   public boolean tryLock(boolean shared) {
     return true;
   }
-
-  @Override
-  public void lock(boolean shared) {}
-
   @Override
   public void unlock() {}
-
   @Override
-  public void close() {
-    try {
-      file.close();
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR);
-    }
+  public void write(long pos, byte[] buf) {
+    throw new UnsupportedOperationException("ZipFile.write");
   }
-
-  @Override
-  public long length() {
-    return (long) (entries.length - 1) * SEGMENT_LENGTH + entries[entries.length - 1].getSize();
-  }
-
-  /**
-   * Constructor of comressed file
-   * 
-   * @param path path to the archieve previously prepared by CompressDatabase utility
-   */
-  public CompressedFile(String path) {
-    try {
-      file = new ZipFile(path);
-      int nEntries = file.size();
-      entries = new ZipEntry[nEntries];
-      Enumeration ee = file.entries();
-      for (int i = 0; ee.hasMoreElements(); i++) {
-        entries[i] = (ZipEntry) ee.nextElement();
-      }
-      segment = new byte[SEGMENT_LENGTH];
-      currEntry = null;
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR);
-    }
-  }
-
-  ZipFile file;
-  ZipEntry[] entries;
-  byte[] segment;
-  ZipEntry currEntry;
 }

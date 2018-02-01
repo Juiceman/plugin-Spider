@@ -29,76 +29,46 @@ import plugins.Spider.index.TermPageEntry;
  * @author MikeB
  */
 public class LibraryBuffer implements FredPluginTalker {
+  static final File SAVE_FILE = new File("spider.saved.data");
   private PluginRespirator pr;
   private long timeStalled = 0;
   private long timeNotStalled = 0;
   private long timeLastNotStalled = System.currentTimeMillis();
   private boolean shutdown;
   private FreenetURI lastURI;
-  private boolean badURI;
 
+  private boolean badURI;
   private TreeMap<TermPageEntry, TermPageEntry> termPageBuffer = new TreeMap();
+
   // Garbage collection behaving perversely. Lets try moving stuff into instance members.
   private Collection<TermPageEntry> pushing = null;
-
   private int bufferUsageEstimate = 0;
-  private int bufferMax;
 
-  static final File SAVE_FILE = new File("spider.saved.data");
+  private int bufferMax;
 
   /** For resetPages */
   private Spider spider;
-
-  synchronized void setBufferSize(int maxSize) {
-    if (maxSize <= 0)
-      throw new IllegalArgumentException();
-    bufferMax = maxSize;
-  }
-
-  /** We only consider sending the data after a file has been parsed, not mid way through. */
-  public void maybeSend() {
-    boolean push = false;
-    synchronized (this) {
-      if (bufferMax == 0)
-        return;
-      if (bufferUsageEstimate > bufferMax) {
-        if (pushing != null) {
-          throw new IllegalStateException("Still pushing?!");
-        }
-        pushing = termPageBuffer.values();
-        push = true;
-        termPageBuffer = new TreeMap();
-        bufferUsageEstimate = 0;
-      }
-    }
-    if (push)
-      sendBuffer();
-  }
-
-  /**
-   * Increments the estimate by specified amount.
-   * 
-   * @param increment
-   */
-  private synchronized void increaseEstimate(int increment) {
-    bufferUsageEstimate += increment;
-  }
-
-  public synchronized int bufferUsageEstimate() {
-    return bufferUsageEstimate;
-  }
-
 
   LibraryBuffer(PluginRespirator pr, Spider spider) {
     this.pr = pr;
     this.spider = spider;
   }
 
-  public void start() {
-    // Do in a transaction so it gets committed separately.
-    spider.db.beginThreadTransaction(Storage.EXCLUSIVE_TRANSACTION);
-    spider.resetPages(Status.NOT_PUSHED, Status.QUEUED);
-    spider.db.endThreadTransaction();
+  /**
+   * Puts a term position in the TermPageEntry and increments the bufferUsageEstimate
+   * 
+   * @param tp
+   * @param position
+   */
+  synchronized void addPos(TermPageEntry tp, int position) {
+    // Logger.normal(this, "length : "+bufferUsageEstimate+", adding to "+tp);
+    get(tp).putPosition(position);
+    // Logger.normal(this, "length : "+bufferUsageEstimate+", increasing length "+tp);
+    increaseEstimate(4);
+  }
+
+  public synchronized int bufferUsageEstimate() {
+    return bufferUsageEstimate;
   }
 
   /**
@@ -127,31 +97,105 @@ public class LibraryBuffer implements FredPluginTalker {
       return exTPE;
   }
 
-  /**
-   * Set the title of the
-   * 
-   * @param termPageEntry
-   * @param s
-   */
-  synchronized void setTitle(TermPageEntry termPageEntry, String s) {
-    get(termPageEntry).title = s;
+
+  public long getTimeNotStalled() {
+    return timeNotStalled;
   }
 
-  synchronized void setRelevance(TermPageEntry termPageEntry, float f) {
-    get(termPageEntry).rel = f;
+  public long getTimeStalled() {
+    return timeStalled;
+  }
+
+  public FreenetURI getURI() {
+    SimpleFieldSet sfs = new SimpleFieldSet(true);
+    sfs.putSingle("command", "getSpiderURI");
+    PluginTalker libraryTalker;
+    try {
+      libraryTalker = pr.getPluginTalker(this, "plugins.Library.Main", "SpiderBuffer.getURI");
+      libraryTalker.sendSyncInternalOnly(sfs, null);
+    } catch (PluginNotFoundException e) {
+      Logger.error(this, "Couldn't connect buffer to Library", e);
+    }
+    synchronized (this) {
+      if (lastURI == null) {
+        if (badURI)
+          return null;
+        try {
+          wait(1000);
+        } catch (InterruptedException e) {
+          // Ignore.
+        }
+      }
+      return lastURI;
+    }
   }
 
   /**
-   * Puts a term position in the TermPageEntry and increments the bufferUsageEstimate
+   * Increments the estimate by specified amount.
    * 
-   * @param tp
-   * @param position
+   * @param increment
    */
-  synchronized void addPos(TermPageEntry tp, int position) {
-    // Logger.normal(this, "length : "+bufferUsageEstimate+", adding to "+tp);
-    get(tp).putPosition(position);
-    // Logger.normal(this, "length : "+bufferUsageEstimate+", increasing length "+tp);
-    increaseEstimate(4);
+  private synchronized void increaseEstimate(int increment) {
+    bufferUsageEstimate += increment;
+  }
+
+  private void innerSend(Bucket bucket) {
+    SimpleFieldSet sfs = new SimpleFieldSet(true);
+    sfs.putSingle("command", "pushBuffer");
+    PluginTalker libraryTalker;
+    try {
+      libraryTalker = pr.getPluginTalker(this, "plugins.Library.Main", "SpiderBuffer");
+      libraryTalker.sendSyncInternalOnly(sfs, bucket);
+      bucket.free();
+    } catch (PluginNotFoundException e) {
+      Logger.error(this, "Couldn't connect buffer to Library", e);
+    }
+
+  }
+
+  /** We only consider sending the data after a file has been parsed, not mid way through. */
+  public void maybeSend() {
+    boolean push = false;
+    synchronized (this) {
+      if (bufferMax == 0)
+        return;
+      if (bufferUsageEstimate > bufferMax) {
+        if (pushing != null) {
+          throw new IllegalStateException("Still pushing?!");
+        }
+        pushing = termPageBuffer.values();
+        push = true;
+        termPageBuffer = new TreeMap();
+        bufferUsageEstimate = 0;
+      }
+    }
+    if (push)
+      sendBuffer();
+  }
+
+  @Override
+  public void onReply(String pluginname, String indentifier, SimpleFieldSet params, Bucket data) {
+    String reply = params.get("reply");
+    if ("getSpiderURI".equals(reply)) {
+      String s = params.get("publicUSK");
+      if (s != null) {
+        try {
+          FreenetURI uri = new FreenetURI(s);
+          synchronized (this) {
+            lastURI = uri;
+            notifyAll();
+          }
+          return;
+        } catch (MalformedURLException e) {
+          Logger.error(this, "Got bogus URI: " + s, new Exception("error"));
+        }
+      }
+      synchronized (this) {
+        badURI = true;
+        notifyAll();
+      }
+    }
+    Logger.error(this, "Ignoring message " + reply);
   }
 
   /**
@@ -194,75 +238,31 @@ public class LibraryBuffer implements FredPluginTalker {
     }
   }
 
-  private synchronized Bucket writeToPush(long totalPagesIndexed, Bucket bucket)
-      throws IOException {
-    OutputStream os = bucket.getOutputStream();
-    SimpleFieldSet meta = new SimpleFieldSet(true); // Stored with data to make things easier.
-    String indexTitle = spider.getConfig().getIndexTitle();
-    String indexOwner = spider.getConfig().getIndexOwner();
-    String indexOwnerEmail = spider.getConfig().getIndexOwnerEmail();
-    if (indexTitle != null)
-      meta.putSingle("index.title", indexTitle);
-    if (indexOwner != null)
-      meta.putSingle("index.owner.name", indexOwner);
-    if (indexOwnerEmail != null)
-      meta.putSingle("index.owner.email", indexOwnerEmail);
-    meta.put("totalPages", totalPagesIndexed);
-    meta.writeTo(os);
-    for (TermPageEntry termPageEntry : pushing) {
-      TermEntryWriter.getInstance().writeObject(termPageEntry, os);
-    }
-    pushing = null;
-    os.close();
-    bucket.setReadOnly();
-    return bucket;
+  synchronized void setBufferSize(int maxSize) {
+    if (maxSize <= 0)
+      throw new IllegalArgumentException();
+    bufferMax = maxSize;
   }
 
-  private void innerSend(Bucket bucket) {
-    SimpleFieldSet sfs = new SimpleFieldSet(true);
-    sfs.putSingle("command", "pushBuffer");
-    PluginTalker libraryTalker;
-    try {
-      libraryTalker = pr.getPluginTalker(this, "plugins.Library.Main", "SpiderBuffer");
-      libraryTalker.sendSyncInternalOnly(sfs, bucket);
-      bucket.free();
-    } catch (PluginNotFoundException e) {
-      Logger.error(this, "Couldn't connect buffer to Library", e);
-    }
-
+  synchronized void setRelevance(TermPageEntry termPageEntry, float f) {
+    get(termPageEntry).rel = f;
   }
 
-  public long getTimeStalled() {
-    return timeStalled;
+  /**
+   * Set the title of the
+   * 
+   * @param termPageEntry
+   * @param s
+   */
+  synchronized void setTitle(TermPageEntry termPageEntry, String s) {
+    get(termPageEntry).title = s;
   }
 
-  public long getTimeNotStalled() {
-    return timeNotStalled;
-  }
-
-  @Override
-  public void onReply(String pluginname, String indentifier, SimpleFieldSet params, Bucket data) {
-    String reply = params.get("reply");
-    if ("getSpiderURI".equals(reply)) {
-      String s = params.get("publicUSK");
-      if (s != null) {
-        try {
-          FreenetURI uri = new FreenetURI(s);
-          synchronized (this) {
-            lastURI = uri;
-            notifyAll();
-          }
-          return;
-        } catch (MalformedURLException e) {
-          Logger.error(this, "Got bogus URI: " + s, new Exception("error"));
-        }
-      }
-      synchronized (this) {
-        badURI = true;
-        notifyAll();
-      }
-    }
-    Logger.error(this, "Ignoring message " + reply);
+  public void start() {
+    // Do in a transaction so it gets committed separately.
+    spider.db.beginThreadTransaction(Storage.EXCLUSIVE_TRANSACTION);
+    spider.resetPages(Status.NOT_PUSHED, Status.QUEUED);
+    spider.db.endThreadTransaction();
   }
 
   public void terminate() {
@@ -299,28 +299,28 @@ public class LibraryBuffer implements FredPluginTalker {
     System.out.println("Written pending data to " + SAVE_FILE);
   }
 
-  public FreenetURI getURI() {
-    SimpleFieldSet sfs = new SimpleFieldSet(true);
-    sfs.putSingle("command", "getSpiderURI");
-    PluginTalker libraryTalker;
-    try {
-      libraryTalker = pr.getPluginTalker(this, "plugins.Library.Main", "SpiderBuffer.getURI");
-      libraryTalker.sendSyncInternalOnly(sfs, null);
-    } catch (PluginNotFoundException e) {
-      Logger.error(this, "Couldn't connect buffer to Library", e);
+  private synchronized Bucket writeToPush(long totalPagesIndexed, Bucket bucket)
+      throws IOException {
+    OutputStream os = bucket.getOutputStream();
+    SimpleFieldSet meta = new SimpleFieldSet(true); // Stored with data to make things easier.
+    String indexTitle = spider.getConfig().getIndexTitle();
+    String indexOwner = spider.getConfig().getIndexOwner();
+    String indexOwnerEmail = spider.getConfig().getIndexOwnerEmail();
+    if (indexTitle != null)
+      meta.putSingle("index.title", indexTitle);
+    if (indexOwner != null)
+      meta.putSingle("index.owner.name", indexOwner);
+    if (indexOwnerEmail != null)
+      meta.putSingle("index.owner.email", indexOwnerEmail);
+    meta.put("totalPages", totalPagesIndexed);
+    meta.writeTo(os);
+    for (TermPageEntry termPageEntry : pushing) {
+      TermEntryWriter.getInstance().writeObject(termPageEntry, os);
     }
-    synchronized (this) {
-      if (lastURI == null) {
-        if (badURI)
-          return null;
-        try {
-          wait(1000);
-        } catch (InterruptedException e) {
-          // Ignore.
-        }
-      }
-      return lastURI;
-    }
+    pushing = null;
+    os.close();
+    bucket.setReadOnly();
+    return bucket;
   }
 
 }

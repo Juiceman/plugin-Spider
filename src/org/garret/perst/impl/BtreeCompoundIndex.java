@@ -12,25 +12,6 @@ import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
 
 class BtreeCompoundIndex<T> extends Btree<T> implements Index<T> {
-  int[] types;
-
-  BtreeCompoundIndex() {}
-
-  BtreeCompoundIndex(Class[] keyTypes, boolean unique) {
-    this.unique = unique;
-    type = ClassDescriptor.tpArrayOfByte;
-    types = new int[keyTypes.length];
-    for (int i = 0; i < keyTypes.length; i++) {
-      types[i] = getCompoundKeyComponentType(keyTypes[i]);
-    }
-  }
-
-  BtreeCompoundIndex(int[] types, boolean unique) {
-    type = ClassDescriptor.tpArrayOfByte;
-    this.types = types;
-    this.unique = unique;
-  }
-
   static int getCompoundKeyComponentType(Class c) {
     if (c.equals(Boolean.class)) {
       return ClassDescriptor.tpBoolean;
@@ -61,13 +42,23 @@ class BtreeCompoundIndex<T> extends Btree<T> implements Index<T> {
     }
   }
 
-  @Override
-  public Class[] getKeyTypes() {
-    Class[] keyTypes = new Class[types.length];
+  int[] types;
+
+  BtreeCompoundIndex() {}
+
+  BtreeCompoundIndex(Class[] keyTypes, boolean unique) {
+    this.unique = unique;
+    type = ClassDescriptor.tpArrayOfByte;
+    types = new int[keyTypes.length];
     for (int i = 0; i < keyTypes.length; i++) {
-      keyTypes[i] = mapKeyType(types[i]);
+      types[i] = getCompoundKeyComponentType(keyTypes[i]);
     }
-    return keyTypes;
+  }
+
+  BtreeCompoundIndex(int[] types, boolean unique) {
+    type = ClassDescriptor.tpArrayOfByte;
+    this.types = types;
+    this.unique = unique;
   }
 
   @Override
@@ -168,84 +159,6 @@ class BtreeCompoundIndex<T> extends Btree<T> implements Index<T> {
       }
     }
     return 0;
-  }
-
-  @Override
-  Object unpackByteArrayKey(Page pg, int pos) {
-    int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, pos);
-    byte[] data = pg.data;
-    Object values[] = new Object[types.length];
-
-    for (int i = 0; i < types.length; i++) {
-      Object v = null;
-      switch (types[i]) {
-        case ClassDescriptor.tpBoolean:
-          v = Boolean.valueOf(data[offs++] != 0);
-          break;
-        case ClassDescriptor.tpByte:
-          v = new Byte(data[offs++]);
-          break;
-        case ClassDescriptor.tpShort:
-          v = new Short(Bytes.unpack2(data, offs));
-          offs += 2;
-          break;
-        case ClassDescriptor.tpChar:
-          v = new Character((char) Bytes.unpack2(data, offs));
-          offs += 2;
-          break;
-        case ClassDescriptor.tpInt:
-          v = new Integer(Bytes.unpack4(data, offs));
-          offs += 4;
-          break;
-        case ClassDescriptor.tpObject: {
-          int oid = Bytes.unpack4(data, offs);
-          v = oid == 0 ? null : ((StorageImpl) getStorage()).lookupObject(oid, null);
-          offs += 4;
-          break;
-        }
-        case ClassDescriptor.tpLong:
-          v = new Long(Bytes.unpack8(data, offs));
-          offs += 8;
-          break;
-        case ClassDescriptor.tpDate: {
-          long msec = Bytes.unpack8(data, offs);
-          v = msec == Storage.INVALID_DATE ? null : new Date(msec);
-          offs += 8;
-          break;
-        }
-        case ClassDescriptor.tpFloat:
-          v = new Float(Float.intBitsToFloat(Bytes.unpack4(data, offs)));
-          offs += 4;
-          break;
-        case ClassDescriptor.tpDouble:
-          v = new Double(Double.longBitsToDouble(Bytes.unpack8(data, offs)));
-          offs += 8;
-          break;
-        case ClassDescriptor.tpString: {
-          int len = Bytes.unpack4(data, offs);
-          offs += 4;
-          char[] sval = new char[len];
-          for (int j = 0; j < len; j++) {
-            sval[j] = (char) Bytes.unpack2(data, offs);
-            offs += 2;
-          }
-          v = new String(sval);
-          break;
-        }
-        case ClassDescriptor.tpArrayOfByte: {
-          int len = Bytes.unpack4(data, offs);
-          offs += 4;
-          byte[] bval = new byte[len];
-          System.arraycopy(data, offs, bval, 0, len);
-          offs += len;
-          break;
-        }
-        default:
-          Assert.failed("Invalid type");
-      }
-      values[i] = v;
-    }
-    return values;
   }
 
   private Key convertKey(Key key) {
@@ -364,8 +277,8 @@ class BtreeCompoundIndex<T> extends Btree<T> implements Index<T> {
   }
 
   @Override
-  public ArrayList<T> getList(Key from, Key till) {
-    return super.getList(convertKey(from), convertKey(till));
+  public IterableIterator<Map.Entry<Object, T>> entryIterator(Key from, Key till, int order) {
+    return super.entryIterator(convertKey(from), convertKey(till), order);
   }
 
   @Override
@@ -374,8 +287,27 @@ class BtreeCompoundIndex<T> extends Btree<T> implements Index<T> {
   }
 
   @Override
-  public boolean unlink(Key key, T obj) {
-    return super.unlink(convertKey(key, false), obj);
+  public Class[] getKeyTypes() {
+    Class[] keyTypes = new Class[types.length];
+    for (int i = 0; i < keyTypes.length; i++) {
+      keyTypes[i] = mapKeyType(types[i]);
+    }
+    return keyTypes;
+  }
+
+  @Override
+  public ArrayList<T> getList(Key from, Key till) {
+    return super.getList(convertKey(from), convertKey(till));
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Key from, Key till, int order) {
+    return super.iterator(convertKey(from), convertKey(till), order);
+  }
+
+  @Override
+  public boolean put(Key key, T obj) {
+    return super.put(convertKey(key, false), obj);
   }
 
   @Override
@@ -394,18 +326,86 @@ class BtreeCompoundIndex<T> extends Btree<T> implements Index<T> {
   }
 
   @Override
-  public boolean put(Key key, T obj) {
-    return super.put(convertKey(key, false), obj);
+  public boolean unlink(Key key, T obj) {
+    return super.unlink(convertKey(key, false), obj);
   }
 
   @Override
-  public IterableIterator<T> iterator(Key from, Key till, int order) {
-    return super.iterator(convertKey(from), convertKey(till), order);
-  }
+  Object unpackByteArrayKey(Page pg, int pos) {
+    int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, pos);
+    byte[] data = pg.data;
+    Object values[] = new Object[types.length];
 
-  @Override
-  public IterableIterator<Map.Entry<Object, T>> entryIterator(Key from, Key till, int order) {
-    return super.entryIterator(convertKey(from), convertKey(till), order);
+    for (int i = 0; i < types.length; i++) {
+      Object v = null;
+      switch (types[i]) {
+        case ClassDescriptor.tpBoolean:
+          v = Boolean.valueOf(data[offs++] != 0);
+          break;
+        case ClassDescriptor.tpByte:
+          v = new Byte(data[offs++]);
+          break;
+        case ClassDescriptor.tpShort:
+          v = new Short(Bytes.unpack2(data, offs));
+          offs += 2;
+          break;
+        case ClassDescriptor.tpChar:
+          v = new Character((char) Bytes.unpack2(data, offs));
+          offs += 2;
+          break;
+        case ClassDescriptor.tpInt:
+          v = new Integer(Bytes.unpack4(data, offs));
+          offs += 4;
+          break;
+        case ClassDescriptor.tpObject: {
+          int oid = Bytes.unpack4(data, offs);
+          v = oid == 0 ? null : ((StorageImpl) getStorage()).lookupObject(oid, null);
+          offs += 4;
+          break;
+        }
+        case ClassDescriptor.tpLong:
+          v = new Long(Bytes.unpack8(data, offs));
+          offs += 8;
+          break;
+        case ClassDescriptor.tpDate: {
+          long msec = Bytes.unpack8(data, offs);
+          v = msec == Storage.INVALID_DATE ? null : new Date(msec);
+          offs += 8;
+          break;
+        }
+        case ClassDescriptor.tpFloat:
+          v = new Float(Float.intBitsToFloat(Bytes.unpack4(data, offs)));
+          offs += 4;
+          break;
+        case ClassDescriptor.tpDouble:
+          v = new Double(Double.longBitsToDouble(Bytes.unpack8(data, offs)));
+          offs += 8;
+          break;
+        case ClassDescriptor.tpString: {
+          int len = Bytes.unpack4(data, offs);
+          offs += 4;
+          char[] sval = new char[len];
+          for (int j = 0; j < len; j++) {
+            sval[j] = (char) Bytes.unpack2(data, offs);
+            offs += 2;
+          }
+          v = new String(sval);
+          break;
+        }
+        case ClassDescriptor.tpArrayOfByte: {
+          int len = Bytes.unpack4(data, offs);
+          offs += 4;
+          byte[] bval = new byte[len];
+          System.arraycopy(data, offs, bval, 0, len);
+          offs += len;
+          break;
+        }
+        default:
+          Assert.failed("Invalid type");
+      }
+      values[i] = v;
+    }
+    return values;
   }
 }
 

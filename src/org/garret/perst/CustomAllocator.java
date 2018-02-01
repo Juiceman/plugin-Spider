@@ -13,6 +13,34 @@ package org.garret.perst;
  */
 public interface CustomAllocator extends IPersistent {
   /**
+   * Allocate object
+   * 
+   * @param size allocated object size
+   * @return position of the object in daatbase file, It should not overlap with space covered by
+   *         main database allocation bitmap
+   */
+  long allocate(long size);
+
+  /**
+   * Make it possible to reuse space of all previously deallocated shadow objects.
+   */
+  void commit();
+
+  /**
+   * Deallocate object previously allocated by this allocator. Space used by this object can not be
+   * reused until transaction commit (when commit method is called for this allocator)
+   * 
+   * @param pos position of the object
+   * @param size size of allocated object
+   */
+  void free(long pos, long size);
+
+  /**
+   * Get amount of allocated memory (total memory mapped by allocator)
+   */
+  public long getAllocatedMemory();
+
+  /**
    * Get allocator segment basse address
    */
   long getSegmentBase();
@@ -23,13 +51,9 @@ public interface CustomAllocator extends IPersistent {
   long getSegmentSize();
 
   /**
-   * Allocate object
-   * 
-   * @param size allocated object size
-   * @return position of the object in daatbase file, It should not overlap with space covered by
-   *         main database allocation bitmap
+   * Get amount of used memory
    */
-  long allocate(long size);
+  public long getUsedMemory();
 
   /**
    * Reallocate object previously allocated by this allocator. This method should try to extend or
@@ -42,28 +66,4 @@ public interface CustomAllocator extends IPersistent {
    * @return new position of the object (it can be equal to old position)
    */
   long reallocate(long pos, long oldSize, long newSize);
-
-  /**
-   * Deallocate object previously allocated by this allocator. Space used by this object can not be
-   * reused until transaction commit (when commit method is called for this allocator)
-   * 
-   * @param pos position of the object
-   * @param size size of allocated object
-   */
-  void free(long pos, long size);
-
-  /**
-   * Make it possible to reuse space of all previously deallocated shadow objects.
-   */
-  void commit();
-
-  /**
-   * Get amount of used memory
-   */
-  public long getUsedMemory();
-
-  /**
-   * Get amount of allocated memory (total memory mapped by allocator)
-   */
-  public long getAllocatedMemory();
 }

@@ -8,11 +8,30 @@ import org.garret.perst.StorageError;
 
 
 public class ReplicationStaticSlaveStorageImpl extends ReplicationSlaveStorageImpl {
+  protected ServerSocket acceptor;
+
+  protected int port;
+
   public ReplicationStaticSlaveStorageImpl(int port, String pageTimestampFilePath) {
     super(pageTimestampFilePath);
     this.port = port;
   }
 
+  // Cancel accept
+  @Override
+  void cancelIO() {
+    try {
+      Socket s = new Socket("localhost", port);
+      s.close();
+    } catch (IOException x) {
+    }
+  }
+
+
+  @Override
+  Socket getSocket() throws IOException {
+    return acceptor.accept();
+  }
   @Override
   public void open(IFile file, long pagePoolSize) {
     try {
@@ -32,25 +51,6 @@ public class ReplicationStaticSlaveStorageImpl extends ReplicationSlaveStorageIm
     outOfSync = false;
     super.open(file, pagePoolSize);
   }
-
-  @Override
-  Socket getSocket() throws IOException {
-    return acceptor.accept();
-  }
-
-  // Cancel accept
-  @Override
-  void cancelIO() {
-    try {
-      Socket s = new Socket("localhost", port);
-      s.close();
-    } catch (IOException x) {
-    }
-  }
-
-
-  protected ServerSocket acceptor;
-  protected int port;
 }
 
 

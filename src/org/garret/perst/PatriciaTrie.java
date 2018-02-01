@@ -24,6 +24,13 @@ public interface PatriciaTrie<T> extends IPersistent, IResource, ITable<T> {
   T add(PatriciaTrieKey key, T obj);
 
   /**
+   * Get list of all elements in the Trie
+   * 
+   * @return list of all elements
+   */
+  ArrayList<T> elements();
+
+  /**
    * Find best match with specified key
    * 
    * @param key bit vector
@@ -46,11 +53,4 @@ public interface PatriciaTrie<T> extends IPersistent, IResource, ITable<T> {
    * @return object associated with removed key or <code>null</code> if such key is not found
    */
   T remove(PatriciaTrieKey key);
-
-  /**
-   * Get list of all elements in the Trie
-   * 
-   * @return list of all elements
-   */
-  ArrayList<T> elements();
 }

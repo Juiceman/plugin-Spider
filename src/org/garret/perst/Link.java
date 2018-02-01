@@ -14,20 +14,50 @@ import java.util.RandomAccess;
  */
 public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
   /**
-   * Set number of the linked objects
+   * Add all object members of the other relation to this relation
    * 
-   * @param newSize new number of linked objects (if it is greater than original number, than extra
-   *        elements will be set to null)
+   * @param link another relation
    */
-  public void setSize(int newSize);
+  public boolean addAll(Link<T> link);
 
   /**
-   * Returns <tt>true</tt> if there are no related object
-   *
-   * @return <tt>true</tt> if there are no related object
+   * Add all elements of the array to the relation
+   * 
+   * @param arr array of obects which should be added to the relation
+   */
+  public void addAll(T[] arr);
+
+  /**
+   * Add specified elements of the array to the relation
+   * 
+   * @param arr array of obects which should be added to the relation
+   * @param from index of the first element in the array to be added to the relation
+   * @param length number of elements in the array to be added in the relation
+   */
+  public void addAll(T[] arr, int from, int length);
+
+  /**
+   * Remove all members from the relation
    */
   @Override
-  boolean isEmpty();
+  public void clear();
+
+  /**
+   * Check if i-th element of Link is the same as specified obj
+   * 
+   * @param i element index
+   * @param obj object to compare with
+   * @return <code>true</code> if i-th element of Link reference the same object as "obj"
+   */
+  public boolean containsElement(int i, T obj);
+
+  /**
+   * Checks if relation contains specified object instance
+   * 
+   * @param obj specified object
+   * @return <code>true</code> if object is present in the collection, <code>false</code> otherwise
+   */
+  public boolean containsObject(T obj);
 
   /**
    * Get related object by index
@@ -46,6 +76,65 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
    * @return stub representing referenced object
    */
   public Object getRaw(int i);
+
+  /**
+   * Get index of the specified object instance in the relation. This method use comparison by
+   * object identity (instead of equals() method) and is significantly faster than List.indexOf()
+   * method
+   * 
+   * @param obj specified object instance
+   * @return zero based index of the object or -1 if object is not in the relation
+   */
+  public int indexOfObject(Object obj);
+
+  /**
+   * Insert new object in the relation
+   * 
+   * @param i insert poistion, should be in [0,size()]
+   * @param obj object inserted in the relation
+   */
+  public void insert(int i, T obj);
+
+  /**
+   * Returns <tt>true</tt> if there are no related object
+   *
+   * @return <tt>true</tt> if there are no related object
+   */
+  @Override
+  boolean isEmpty();
+
+  /**
+   * Get iterator through link members This iterator supports remove() method.
+   * 
+   * @return iterator through linked objects
+   */
+  @Override
+  public Iterator<T> iterator();
+
+  /**
+   * Get index of the specified object instance in the relation This method use comparison by object
+   * identity (instead of equals() method) and is significantly faster than List.indexOf() method
+   * 
+   * @param obj specified object instance
+   * @return zero based index of the object or -1 if object is not in the relation
+   */
+  public int lastIndexOfObject(Object obj);
+
+  /**
+   * Replace references to elements with direct references. It will impove spped of manipulations
+   * with links, but it can cause recursive loading in memory large number of objects and as a
+   * result - memory overflow, because garbage collector will not be able to collect them
+   */
+  public void pin();
+
+  /**
+   * Remove object with specified index from the relation Unlike Link.remove methos this method
+   * doesn't return removed element and so is faster if it is not needed (it has not to be fetched
+   * from the database)
+   * 
+   * @param i index in the relartion
+   */
+  public void removeObject(int i);
 
   /**
    * Replace i-th element of the relation
@@ -68,52 +157,12 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
   public void setObject(int i, T obj);
 
   /**
-   * Remove object with specified index from the relation Unlike Link.remove methos this method
-   * doesn't return removed element and so is faster if it is not needed (it has not to be fetched
-   * from the database)
+   * Set number of the linked objects
    * 
-   * @param i index in the relartion
+   * @param newSize new number of linked objects (if it is greater than original number, than extra
+   *        elements will be set to null)
    */
-  public void removeObject(int i);
-
-  /**
-   * Insert new object in the relation
-   * 
-   * @param i insert poistion, should be in [0,size()]
-   * @param obj object inserted in the relation
-   */
-  public void insert(int i, T obj);
-
-  /**
-   * Add all elements of the array to the relation
-   * 
-   * @param arr array of obects which should be added to the relation
-   */
-  public void addAll(T[] arr);
-
-  /**
-   * Add specified elements of the array to the relation
-   * 
-   * @param arr array of obects which should be added to the relation
-   * @param from index of the first element in the array to be added to the relation
-   * @param length number of elements in the array to be added in the relation
-   */
-  public void addAll(T[] arr, int from, int length);
-
-  /**
-   * Add all object members of the other relation to this relation
-   * 
-   * @param link another relation
-   */
-  public boolean addAll(Link<T> link);
-
-  /**
-   * Return array with relation members. Members are not loaded and size of the array can be greater
-   * than actual number of members.
-   * 
-   * @return array of object with relation members used in implementation of Link class
-   */
-  public Object[] toRawArray();
+  public void setSize(int newSize);
 
   /**
    * Get all relation members as array. The runtime type of the returned array is that of the
@@ -133,54 +182,12 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
   public <T> T[] toArray(T[] arr);
 
   /**
-   * Checks if relation contains specified object instance
+   * Return array with relation members. Members are not loaded and size of the array can be greater
+   * than actual number of members.
    * 
-   * @param obj specified object
-   * @return <code>true</code> if object is present in the collection, <code>false</code> otherwise
+   * @return array of object with relation members used in implementation of Link class
    */
-  public boolean containsObject(T obj);
-
-  /**
-   * Check if i-th element of Link is the same as specified obj
-   * 
-   * @param i element index
-   * @param obj object to compare with
-   * @return <code>true</code> if i-th element of Link reference the same object as "obj"
-   */
-  public boolean containsElement(int i, T obj);
-
-  /**
-   * Get index of the specified object instance in the relation. This method use comparison by
-   * object identity (instead of equals() method) and is significantly faster than List.indexOf()
-   * method
-   * 
-   * @param obj specified object instance
-   * @return zero based index of the object or -1 if object is not in the relation
-   */
-  public int indexOfObject(Object obj);
-
-  /**
-   * Get index of the specified object instance in the relation This method use comparison by object
-   * identity (instead of equals() method) and is significantly faster than List.indexOf() method
-   * 
-   * @param obj specified object instance
-   * @return zero based index of the object or -1 if object is not in the relation
-   */
-  public int lastIndexOfObject(Object obj);
-
-  /**
-   * Remove all members from the relation
-   */
-  @Override
-  public void clear();
-
-  /**
-   * Get iterator through link members This iterator supports remove() method.
-   * 
-   * @return iterator through linked objects
-   */
-  @Override
-  public Iterator<T> iterator();
+  public Object[] toRawArray();
 
   /**
    * Replace all direct references to linked objects with stubs. This method is needed tyo avoid
@@ -188,13 +195,6 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
    * refefencing each other (each object can directly or indirectly be accessed from other objects).
    */
   public void unpin();
-
-  /**
-   * Replace references to elements with direct references. It will impove spped of manipulations
-   * with links, but it can cause recursive loading in memory large number of objects and as a
-   * result - memory overflow, because garbage collector will not be able to collect them
-   */
-  public void pin();
 }
 
 

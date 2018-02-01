@@ -77,58 +77,43 @@ public class Config extends Persistent implements Cloneable {
     }
   }
 
-  public synchronized void setIndexTitle(String indexTitle) {
+  public synchronized void debug(boolean debug) {
     assert !isPersistent();
-    this.indexTitle = indexTitle;
+    this.debug = debug;
   }
 
-  public synchronized String getIndexTitle() {
-    return indexTitle;
+  public synchronized String[] getBadlistedExtensions() {
+    return badlistedExtensions;
   }
 
-  public synchronized void setIndexOwner(String indexOwner) {
-    assert !isPersistent();
-    this.indexOwner = indexOwner;
+  public synchronized String[] getBadlistedKeywords() {
+    if (badlistedKeywords == null)
+      return new String[0];
+    // FIXME remove - caused by config errors some time before
+    // 91346024428393592fc971bbcdec5f7ca5b4f055
+    if (badlistedKeywords.length == 1 && badlistedKeywords[0].equals(""))
+      badlistedKeywords = new String[0];
+    return badlistedKeywords;
+  }
+
+  public synchronized int getBeginWorkingPeriod() {
+    return beginWorkingPeriod;
+  }
+
+  public synchronized int getEndWorkingPeriod() {
+    return endWorkingPeriod;
   }
 
   public synchronized String getIndexOwner() {
     return indexOwner;
   }
 
-  public synchronized void setIndexOwnerEmail(String indexOwnerEmail) {
-    assert !isPersistent();
-    this.indexOwnerEmail = indexOwnerEmail;
-  }
-
-  public synchronized void setMaxShownURIs(int maxShownURIs) {
-    assert !isPersistent();
-    this.maxShownURIs = maxShownURIs;
-  }
-
-  public synchronized int getMaxShownURIs() {
-    return maxShownURIs;
-  }
-
   public synchronized String getIndexOwnerEmail() {
     return indexOwnerEmail;
   }
 
-  public synchronized void setMaxParallelRequestsWorking(int maxParallelRequests) {
-    assert !isPersistent();
-    this.maxParallelRequestsWorking = maxParallelRequests;
-  }
-
-  public synchronized int getMaxParallelRequestsWorking() {
-    return maxParallelRequestsWorking;
-  }
-
-  public synchronized void setMaxParallelRequestsNonWorking(int maxParallelRequests) {
-    assert !isPersistent();
-    this.maxParallelRequestsNonWorking = maxParallelRequests;
-  }
-
-  public synchronized int getMaxParallelRequestsNonWorking() {
-    return maxParallelRequestsNonWorking;
+  public synchronized String getIndexTitle() {
+    return indexTitle;
   }
 
   public synchronized int getMaxParallelRequests() {
@@ -156,22 +141,28 @@ public class Config extends Persistent implements Cloneable {
     }
   }
 
-  public synchronized void setBeginWorkingPeriod(int beginWorkingPeriod) {
-    assert !isPersistent();
-    this.beginWorkingPeriod = beginWorkingPeriod;
+  public synchronized int getMaxParallelRequestsNonWorking() {
+    return maxParallelRequestsNonWorking;
   }
 
-  public synchronized int getBeginWorkingPeriod() {
-    return beginWorkingPeriod;
+  public synchronized int getMaxParallelRequestsWorking() {
+    return maxParallelRequestsWorking;
   }
 
-  public synchronized void setEndWorkingPeriod(int endWorkingPeriod) {
-    assert !isPersistent();
-    this.endWorkingPeriod = endWorkingPeriod;
+  public synchronized int getMaxShownURIs() {
+    return maxShownURIs;
   }
 
-  public synchronized int getEndWorkingPeriod() {
-    return endWorkingPeriod;
+  public synchronized int getNewFormatIndexBufferLimit() {
+    return newFormatIndexBufferLimit;
+  }
+
+  public synchronized short getRequestPriority() {
+    return requestPriority;
+  }
+
+  public synchronized boolean isDebug() {
+    return debug;
   }
 
   public synchronized void setBadlistedExtensions(String[] badlistedExtensions) {
@@ -183,43 +174,52 @@ public class Config extends Persistent implements Cloneable {
     this.badlistedKeywords = badlistedKeywords;
   }
 
-  public synchronized String[] getBadlistedKeywords() {
-    if (badlistedKeywords == null)
-      return new String[0];
-    // FIXME remove - caused by config errors some time before
-    // 91346024428393592fc971bbcdec5f7ca5b4f055
-    if (badlistedKeywords.length == 1 && badlistedKeywords[0].equals(""))
-      badlistedKeywords = new String[0];
-    return badlistedKeywords;
+  public synchronized void setBeginWorkingPeriod(int beginWorkingPeriod) {
+    assert !isPersistent();
+    this.beginWorkingPeriod = beginWorkingPeriod;
   }
 
-  public synchronized String[] getBadlistedExtensions() {
-    return badlistedExtensions;
+  public synchronized void setEndWorkingPeriod(int endWorkingPeriod) {
+    assert !isPersistent();
+    this.endWorkingPeriod = endWorkingPeriod;
+  }
+
+  public synchronized void setIndexOwner(String indexOwner) {
+    assert !isPersistent();
+    this.indexOwner = indexOwner;
+  }
+
+  public synchronized void setIndexOwnerEmail(String indexOwnerEmail) {
+    assert !isPersistent();
+    this.indexOwnerEmail = indexOwnerEmail;
+  }
+
+  public synchronized void setIndexTitle(String indexTitle) {
+    assert !isPersistent();
+    this.indexTitle = indexTitle;
+  }
+
+  public synchronized void setMaxParallelRequestsNonWorking(int maxParallelRequests) {
+    assert !isPersistent();
+    this.maxParallelRequestsNonWorking = maxParallelRequests;
+  }
+
+  public synchronized void setMaxParallelRequestsWorking(int maxParallelRequests) {
+    assert !isPersistent();
+    this.maxParallelRequestsWorking = maxParallelRequests;
+  }
+
+  public synchronized void setMaxShownURIs(int maxShownURIs) {
+    assert !isPersistent();
+    this.maxShownURIs = maxShownURIs;
+  }
+
+  public synchronized void setNewFormatIndexBufferLimit(int limit) {
+    newFormatIndexBufferLimit = limit;
   }
 
   public synchronized void setRequestPriority(short requestPriority) {
     assert !isPersistent();
     this.requestPriority = requestPriority;
-  }
-
-  public synchronized short getRequestPriority() {
-    return requestPriority;
-  }
-
-  public synchronized boolean isDebug() {
-    return debug;
-  }
-
-  public synchronized void debug(boolean debug) {
-    assert !isPersistent();
-    this.debug = debug;
-  }
-
-  public synchronized int getNewFormatIndexBufferLimit() {
-    return newFormatIndexBufferLimit;
-  }
-
-  public synchronized void setNewFormatIndexBufferLimit(int limit) {
-    newFormatIndexBufferLimit = limit;
   }
 }

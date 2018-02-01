@@ -28,66 +28,40 @@ import org.garret.perst.fulltext.FullTextSearchable;
 import org.garret.perst.fulltext.Occurrence;
 
 public class FullTextIndexImpl extends PersistentResource implements FullTextIndex {
-  protected Index inverseIndex;
-  protected Index documents;
-  protected FullTextSearchHelper helper;
+  static class Document extends Persistent {
+    Object obj;
+    Link occurrences;
 
-  static final int OCC_KIND_OFFSET = 24;
-  static final int OCC_POSITION_MASK = (1 << OCC_KIND_OFFSET) - 1;
-  static final int COMPRESSION_OVERHEAD = 8;
+    Document() {}
 
-  static class KeywordImpl implements Keyword {
-    Map.Entry entry;
-
-    @Override
-    public String getNormalForm() {
-      return (String) entry.getKey();
-    }
-
-    @Override
-    public long getNumberOfOccurrences() {
-      return ((InverseList) entry.getValue()).size();
-    }
-
-    KeywordImpl(Map.Entry entry) {
-      this.entry = entry;
+    Document(Storage storage, Object obj) {
+      super(storage);
+      this.obj = obj;
+      occurrences = storage.createLink();
     }
   }
-
-  static class KeywordIterator implements Iterator<Keyword> {
-    @Override
-    public boolean hasNext() {
-      return iterator.hasNext();
-    }
-
-    @Override
-    public Keyword next() {
-      return new KeywordImpl((Map.Entry) iterator.next());
-    }
-
-    @Override
-    public void remove() {
-      throw new UnsupportedOperationException();
-    }
-
-    KeywordIterator(Iterator iterator) {
-      this.iterator = iterator;
-    }
-
-    Iterator iterator;
-  }
-
-
-  @Override
-  public Iterator<Keyword> getKeywords(String prefix) {
-    return new KeywordIterator(inverseIndex.entryIterator(new Key(prefix),
-        new Key(prefix + Character.MAX_VALUE, false), GenericIndex.ASCENT_ORDER));
-  }
-
   static class DocumentOccurrences extends Persistent {
     InverseList list;
     int nWordsInDocument;
     byte[] occurrences;
+
+    final int[] getOccurrences() {
+      Compressor compressor = new Compressor(occurrences);
+      int i = 0;
+      compressor.decodeStart();
+      int len = compressor.decode();
+      int[] buf = new int[len];
+      int pos = -1;
+      do {
+        int n = compressor.decode();
+        int kind = (compressor.decode() - 1) << OCC_KIND_OFFSET;
+        do {
+          pos += compressor.decode();
+          buf[i++] = kind | pos;
+        } while (--n != 0);
+      } while (i != len);
+      return buf;
+    }
 
     final void setOccurrences(int[] occ) {
       int i = 0;
@@ -110,321 +84,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
       } while (i != len);
       occurrences = compressor.encodeStop();
     }
-
-    final int[] getOccurrences() {
-      Compressor compressor = new Compressor(occurrences);
-      int i = 0;
-      compressor.decodeStart();
-      int len = compressor.decode();
-      int[] buf = new int[len];
-      int pos = -1;
-      do {
-        int n = compressor.decode();
-        int kind = (compressor.decode() - 1) << OCC_KIND_OFFSET;
-        do {
-          pos += compressor.decode();
-          buf[i++] = kind | pos;
-        } while (--n != 0);
-      } while (i != len);
-      return buf;
-    }
   }
-
-  static class Document extends Persistent {
-    Object obj;
-    Link occurrences;
-
-    Document() {}
-
-    Document(Storage storage, Object obj) {
-      super(storage);
-      this.obj = obj;
-      occurrences = storage.createLink();
-    }
-  }
-
-  static class InverseList extends Btree {
-    int[] oids;
-    Link docs;
-
-    static final int BTREE_THRESHOLD = 500;
-
-    InverseList(Storage db, int oid, DocumentOccurrences doc) {
-      super(int.class, true);
-      docs = db.createLink(1);
-      docs.add(doc);
-      oids = new int[1];
-      oids[0] = oid;
-      assignOid(db, 0, false);
-    }
-
-    InverseList() {}
-
-    @Override
-    public int size() {
-      return oids != null ? oids.length : super.size();
-    }
-
-    int first() {
-      if (oids != null) {
-        return oids[0];
-      }
-      Map.Entry entry = (Map.Entry) entryIterator(null, null, GenericIndex.ASCENT_ORDER).next();
-      return ((Integer) entry.getKey()).intValue();
-    }
-
-    int last() {
-      if (oids != null) {
-        return oids[oids.length - 1];
-      }
-      Map.Entry entry = (Map.Entry) entryIterator(null, null, GenericIndex.DESCENT_ORDER).next();
-      return ((Integer) entry.getKey()).intValue();
-    }
-
-    class InverstListIterator implements Iterator {
-      int i;
-
-      InverstListIterator(int pos) {
-        i = pos;
-      }
-
-      @Override
-      public boolean hasNext() {
-        return i < oids.length;
-      }
-
-      @Override
-      public Object next() {
-        final int j = i++;
-        return new Map.Entry() {
-          @Override
-          public Object getKey() {
-            return new Integer(oids[j]);
-          }
-
-          @Override
-          public Object getValue() {
-            return docs.get(j);
-          }
-
-          @Override
-          public Object setValue(Object value) {
-            return null;
-          }
-
-          public Object setKey(Object key) {
-            return null;
-          }
-        };
-      }
-
-      @Override
-      public void remove() {}
-    }
-
-    Iterator iterator(int oid) {
-      int[] os = oids;
-      if (os != null) {
-        int l = 0, r = os.length;
-        while (l < r) {
-          int m = (l + r) >>> 1;
-          if (os[m] < oid) {
-            l = m + 1;
-          } else {
-            r = m;
-          }
-        }
-        return new InverstListIterator(r);
-      } else {
-        return entryIterator(new Key(oid), null, GenericIndex.ASCENT_ORDER);
-      }
-    }
-
-    void add(int oid, DocumentOccurrences doc) {
-      int[] os = oids;
-      if (os == null || os.length >= BTREE_THRESHOLD) {
-        if (os != null) {
-          for (int i = 0; i < os.length; i++) {
-            super.put(new Key(os[i]), docs.get(i));
-          }
-          oids = null;
-          docs = null;
-        }
-        super.put(new Key(oid), doc);
-      } else {
-        int l = 0, n = os.length, r = n;
-        while (l < r) {
-          int m = (l + r) >>> 1;
-          if (os[m] < oid) {
-            l = m + 1;
-          } else {
-            r = m;
-          }
-        }
-        os = new int[n + 1];
-        System.arraycopy(oids, 0, os, 0, r);
-        os[r] = oid;
-        System.arraycopy(oids, r, os, r + 1, n - r);
-        docs.insert(r, doc);
-        oids = os;
-        modify();
-      }
-    }
-
-    void remove(int oid) {
-      int[] os = oids;
-      if (os != null) {
-        int l = 0, n = os.length, r = n;
-        while (l < r) {
-          int m = (l + r) >>> 1;
-          if (os[m] < oid) {
-            l = m + 1;
-          } else {
-            r = m;
-          }
-        }
-        Assert.that(r < n && os[r] == oid);
-        docs.remove(r);
-        oids = new int[n - 1];
-        System.arraycopy(os, 0, oids, 0, r);
-        System.arraycopy(os, r + 1, oids, r, n - r - 1);
-        modify();
-      } else {
-        super.remove(new Key(oid));
-      }
-    }
-  }
-
-  @Override
-  public void add(FullTextSearchable obj) {
-    add(obj, obj.getText(), obj.getLanguage());
-  }
-
-  @Override
-  public void add(Object obj, Reader text, String language) {
-    Occurrence[] occurrences;
-    try {
-      occurrences = helper.parseText(text);
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FULL_TEXT_INDEX_ERROR, x);
-    }
-    delete(obj);
-    if (occurrences.length > 0) {
-      Document doc = new Document(getStorage(), obj);
-      documents.put(new Key(obj), doc);
-      Arrays.sort(occurrences);
-      String word = occurrences[0].word;
-      int i = 0;
-      for (int j = 1; j < occurrences.length; j++) {
-        Occurrence occ = occurrences[j];
-        if (!occ.word.equals(word)) {
-          addReference(doc, word, occurrences, i, j, language);
-          word = occ.word;
-          i = j;
-        }
-      }
-      addReference(doc, word, occurrences, i, occurrences.length, language);
-    }
-  }
-
-  private final void addReference(Document doc, String word, Occurrence[] occurrences, int from,
-      int till) {
-    DocumentOccurrences d = new DocumentOccurrences();
-    int[] occ = new int[till - from];
-    d.nWordsInDocument = occurrences.length;
-    for (int i = from; i < till; i++) {
-      occ[i - from] = occurrences[i].position | (occurrences[i].kind << OCC_KIND_OFFSET);
-    }
-    d.setOccurrences(occ);
-    int oid = getStorage().getOid(doc.obj);
-    InverseList list = (InverseList) inverseIndex.get(word);
-    if (list == null) {
-      list = new InverseList(getStorage(), oid, d);
-      inverseIndex.put(word, list);
-    } else {
-      list.add(oid, d);
-    }
-    d.list = list;
-    d.modify();
-    doc.occurrences.add(d);
-  }
-
-  private final void addReference(Document doc, String word, Occurrence[] occurrences, int from,
-      int till, String language) {
-    String[] normalForms = helper.getNormalForms(word, language);
-    boolean isNormalForm = false;
-    for (int i = 0; i < normalForms.length; i++) {
-      if (word.equals(normalForms[i])) {
-        isNormalForm = true;
-      }
-      addReference(doc, normalForms[i], occurrences, from, till);
-    }
-    if (!isNormalForm) {
-      addReference(doc, word, occurrences, from, till);
-    }
-  }
-
-  @Override
-  public void delete(Object obj) {
-    Key key = new Key(obj);
-    Document doc = (Document) documents.get(key);
-    if (doc != null) {
-      for (int i = 0, n = doc.occurrences.size(); i < n; i++) {
-        DocumentOccurrences d = (DocumentOccurrences) doc.occurrences.get(i);
-        d.list.remove(getStorage().getOid(obj));
-        d.deallocate();
-      }
-      documents.remove(key);
-      doc.deallocate();
-    }
-  }
-
-  @Override
-  public void deallocate() {
-    clear();
-    super.deallocate();
-  }
-
-  @Override
-  public void clear() {
-    inverseIndex.deallocateMembers();
-    documents.deallocateMembers();
-  }
-
-  @Override
-  public int getNumberOfWords() {
-    return inverseIndex.size();
-  }
-
-  @Override
-  public int getNumberOfDocuments() {
-    return documents.size();
-  }
-
-  @Override
-  public FullTextSearchResult search(String query, String language, int maxResults, int timeLimit) {
-    return search(helper.parseQuery(query, language), maxResults, timeLimit);
-  }
-
-  protected static class KeywordList {
-    InverseList list;
-    int[] occ;
-    String word;
-    int sameAs;
-    int kwdLen;
-    int kwdOffset;
-    int occPos;
-    int currDoc;
-    Map.Entry currEntry;
-    Iterator iterator;
-
-    KeywordList(String word) {
-      this.word = word;
-      kwdLen = word.length();
-      sameAs = -1;
-    }
-  }
-
   static class ExpressionWeight implements Comparable {
     int weight;
     FullTextQuery expr;
@@ -436,21 +96,141 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
   }
 
   protected class FullTextSearchEngine extends FullTextQueryVisitor {
+    static final int STRICT_MATCH_BONUS = 8;
+    static final double DENSITY_MAGIC = 2;
     KeywordList[] kwds;
     ArrayList kwdList;
     int[] occurrences;
+
     int nOccurrences;
+
     float[] occurrenceKindWeight;
 
-    @Override
-    public void visit(FullTextQueryMatchOp q) {
-      q.wno = kwdList.size();
-      KeywordList kwd = new KeywordList(q.word);
-      kwd.list = (InverseList) inverseIndex.get(q.word);
-      kwdList.add(kwd);
+    void buildOccurrenceKindWeightTable() {
+      occurrenceKindWeight = new float[256];
+      float[] weights = helper.getOccurrenceKindWeights();
+      occurrenceKindWeight[0] = 1.0f;
+      for (int i = 1; i < 256; i++) {
+        float weight = 0;
+        for (int j = 0; j < weights.length; j++) {
+          if ((i & (1 << j)) != 0) {
+            weight += weights[j];
+          }
+          occurrenceKindWeight[i] = weight;
+        }
+      }
     }
 
-    static final int STRICT_MATCH_BONUS = 8;
+    int calculateEstimation(FullTextQuery query, int nResults) {
+      switch (query.op) {
+        case FullTextQuery.AND:
+        case FullTextQuery.NEAR: {
+          int left = calculateEstimation(((FullTextQueryBinaryOp) query).left, nResults);
+          int right = calculateEstimation(((FullTextQueryBinaryOp) query).right, nResults);
+          return left < right ? left : right;
+        }
+        case FullTextQuery.OR: {
+          int left = calculateEstimation(((FullTextQueryBinaryOp) query).left, nResults);
+          int right = calculateEstimation(((FullTextQueryBinaryOp) query).right, nResults);
+          return left > right ? left : right;
+        }
+        case FullTextQuery.MATCH:
+        case FullTextQuery.STRICT_MATCH: {
+          KeywordList kwd = kwds[((FullTextQueryMatchOp) query).wno];
+          if (kwd.currDoc == 0) {
+            return 0;
+          } else {
+            int curr = kwd.currDoc;
+            int first = kwd.list.first();
+            int last = kwd.list.last();
+            int estimation = nResults * (last - first + 1) / (curr - first + 1);
+            if (estimation > kwd.list.size()) {
+              estimation = kwd.list.size();
+            }
+            return estimation;
+          }
+        }
+        case FullTextQuery.NOT:
+          return documents.size();
+
+      }
+      return 0;
+    }
+
+    final double calculateKwdRank(InverseList list, DocumentOccurrences d, int[] occ) {
+      int frequency = occ.length;
+      int totalNumberOfDocuments = documents.size();
+      int nRelevantDocuments = list.size();
+      int totalNumberOfWords = inverseIndex.size();
+      double idf = Math.log((double) totalNumberOfDocuments / nRelevantDocuments);
+      double averageWords = (double) totalNumberOfWords / totalNumberOfDocuments;
+      double density =
+          frequency * Math.log(1 + (DENSITY_MAGIC * averageWords / d.nWordsInDocument));
+      double wordWeight = (density * idf);
+      double wordScore = 1;
+      for (int i = 0; i < frequency; i++) {
+        wordScore += wordWeight * occurrenceKindWeight[occ[i] >>> OCC_KIND_OFFSET];
+      }
+      return Math.log(wordScore);
+    }
+
+    double calculateNearness() {
+      KeywordList[] kwds = this.kwds;
+      int nKwds = kwds.length;
+      if (nKwds < 2) {
+        return 0;
+      }
+      for (int i = 0; i < nKwds; i++) {
+        if (kwds[i].occ == null) {
+          int j = kwds[i].sameAs;
+          if (j >= 0 && kwds[j].occ != null) {
+            kwds[i].occ = kwds[j].occ;
+          } else {
+            return 0;
+          }
+        }
+        kwds[i].occPos = 0;
+      }
+      double maxNearness = 0;
+      int swapPenalty = helper.getWordSwapPenalty();
+      while (true) {
+        int minPos = Integer.MAX_VALUE;
+        double nearness = 0;
+        KeywordList first = null;
+        KeywordList prev = null;
+        for (int i = 0; i < nKwds; i++) {
+          KeywordList curr = kwds[i];
+          if (curr.occPos < curr.occ.length) {
+            if (prev != null) {
+              int offset = curr.occ[curr.occPos] - prev.occ[prev.occPos];
+              if (offset < 0) {
+                offset = (-offset - curr.kwdLen) * swapPenalty;
+              } else {
+                offset -= prev.kwdLen;
+              }
+              if (offset <= 2) {
+                offset = 1;
+              }
+              nearness += 1 / Math.sqrt(offset);
+            }
+            if (curr.occ[curr.occPos] < minPos) {
+              minPos = curr.occ[curr.occPos];
+              first = curr;
+            }
+            prev = curr;
+          }
+        }
+        if (first == null) {
+          break;
+        }
+        first.occPos += 1;
+
+        if (nearness > maxNearness) {
+          maxNearness = nearness;
+        }
+      }
+      return maxNearness;
+    }
 
     int calculateWeight(FullTextQuery query) {
       switch (query.op) {
@@ -478,6 +258,144 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         }
         default:
           return Integer.MAX_VALUE;
+      }
+    }
+
+    double evaluate(int doc, FullTextQuery query) {
+      double left, right;
+      switch (query.op) {
+        case FullTextQuery.NEAR:
+        case FullTextQuery.AND:
+          left = evaluate(doc, ((FullTextQueryBinaryOp) query).left);
+          right = evaluate(doc, ((FullTextQueryBinaryOp) query).right);
+          nOccurrences = 0;
+          return left < 0 || right < 0 ? -1 : left + right;
+        case FullTextQuery.OR:
+          left = evaluate(doc, ((FullTextQueryBinaryOp) query).left);
+          right = evaluate(doc, ((FullTextQueryBinaryOp) query).right);
+          return left > right ? left : right;
+        case FullTextQuery.MATCH:
+        case FullTextQuery.STRICT_MATCH: {
+          KeywordList kwd = kwds[((FullTextQueryMatchOp) query).wno];
+          if (kwd.currDoc != doc) {
+            return -1;
+          }
+          DocumentOccurrences d = (DocumentOccurrences) kwd.currEntry.getValue();
+          int[] occ = d.getOccurrences();
+          kwd.occ = occ;
+          int frequency = occ.length;
+          if (query.op == FullTextQuery.STRICT_MATCH) {
+            if (nOccurrences == 0) {
+              nOccurrences = frequency;
+              if (occurrences == null || occurrences.length < frequency) {
+                occurrences = new int[frequency];
+              }
+              for (int i = 0; i < frequency; i++) {
+                occurrences[i] = occ[i] & OCC_POSITION_MASK;
+              }
+            } else {
+              int nPairs = 0;
+              int[] dst = occurrences;
+              int occ1 = dst[0];
+              int occ2 = occ[0] & OCC_POSITION_MASK;
+              int i = 0, j = 0;
+              int offs = kwd.kwdOffset;
+              while (true) {
+                if (occ1 + offs <= occ2) {
+                  if (occ1 + offs + 1 >= occ2) {
+                    dst[nPairs++] = occ2;
+                  }
+                  if (++j == nOccurrences) {
+                    break;
+                  }
+                  occ1 = dst[j];
+                } else {
+                  if (++i == frequency) {
+                    break;
+                  }
+                  occ2 = occ[i] & OCC_POSITION_MASK;
+                }
+              }
+              nOccurrences = nPairs;
+              if (nPairs == 0) {
+                return -1;
+              }
+            }
+          }
+          return calculateKwdRank(kwd.list, d, occ);
+        }
+        case FullTextQuery.NOT: {
+          double rank = evaluate(doc, ((FullTextQueryUnaryOp) query).opd);
+          return (rank >= 0) ? -1 : 0;
+        }
+        default:
+          return -1;
+      }
+    }
+
+    int intersect(int doc, FullTextQuery query) {
+      int left, right;
+
+      switch (query.op) {
+        case FullTextQuery.AND:
+        case FullTextQuery.NEAR:
+          do {
+            left = intersect(doc, ((FullTextQueryBinaryOp) query).left);
+            if (left == Integer.MAX_VALUE) {
+              return left;
+            }
+            doc = intersect(left, ((FullTextQueryBinaryOp) query).right);
+          } while (left != doc && doc != Integer.MAX_VALUE);
+          return doc;
+        case FullTextQuery.OR:
+          left = intersect(doc, ((FullTextQueryBinaryOp) query).left);
+          right = intersect(doc, ((FullTextQueryBinaryOp) query).right);
+          return left < right ? left : right;
+        case FullTextQuery.MATCH:
+        case FullTextQuery.STRICT_MATCH: {
+          KeywordList kwd = kwds[((FullTextQueryMatchOp) query).wno];
+          if (kwd.currDoc >= doc) {
+            return kwd.currDoc;
+          }
+          Iterator iterator = kwd.iterator;
+          if (iterator != null) {
+            if (iterator.hasNext()) {
+              Map.Entry entry = (Map.Entry) iterator.next();
+              int nextDoc = ((Integer) entry.getKey()).intValue();
+              if (nextDoc >= doc) {
+                kwd.currEntry = entry;
+                kwd.currDoc = nextDoc;
+                return nextDoc;
+              }
+            } else {
+              kwd.currEntry = null;
+              kwd.currDoc = 0;
+              return Integer.MAX_VALUE;
+            }
+          }
+          if (kwd.list != null) {
+            kwd.iterator = iterator = kwd.list.iterator(doc);
+            if (iterator.hasNext()) {
+              Map.Entry entry = (Map.Entry) iterator.next();
+              doc = ((Integer) entry.getKey()).intValue();
+              kwd.currEntry = entry;
+              kwd.currDoc = doc;
+              return doc;
+            }
+          }
+          kwd.currEntry = null;
+          kwd.currDoc = 0;
+          return Integer.MAX_VALUE;
+        }
+        case FullTextQuery.NOT: {
+          int nextDoc = intersect(doc, ((FullTextQueryUnaryOp) query).opd);
+          if (nextDoc == doc) {
+            doc += 1;
+          }
+          return doc;
+        }
+        default:
+          return doc;
       }
     }
 
@@ -568,313 +486,11 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
       return query;
     }
 
-    int intersect(int doc, FullTextQuery query) {
-      int left, right;
-
-      switch (query.op) {
-        case FullTextQuery.AND:
-        case FullTextQuery.NEAR:
-          do {
-            left = intersect(doc, ((FullTextQueryBinaryOp) query).left);
-            if (left == Integer.MAX_VALUE) {
-              return left;
-            }
-            doc = intersect(left, ((FullTextQueryBinaryOp) query).right);
-          } while (left != doc && doc != Integer.MAX_VALUE);
-          return doc;
-        case FullTextQuery.OR:
-          left = intersect(doc, ((FullTextQueryBinaryOp) query).left);
-          right = intersect(doc, ((FullTextQueryBinaryOp) query).right);
-          return left < right ? left : right;
-        case FullTextQuery.MATCH:
-        case FullTextQuery.STRICT_MATCH: {
-          KeywordList kwd = kwds[((FullTextQueryMatchOp) query).wno];
-          if (kwd.currDoc >= doc) {
-            return kwd.currDoc;
-          }
-          Iterator iterator = kwd.iterator;
-          if (iterator != null) {
-            if (iterator.hasNext()) {
-              Map.Entry entry = (Map.Entry) iterator.next();
-              int nextDoc = ((Integer) entry.getKey()).intValue();
-              if (nextDoc >= doc) {
-                kwd.currEntry = entry;
-                kwd.currDoc = nextDoc;
-                return nextDoc;
-              }
-            } else {
-              kwd.currEntry = null;
-              kwd.currDoc = 0;
-              return Integer.MAX_VALUE;
-            }
-          }
-          if (kwd.list != null) {
-            kwd.iterator = iterator = kwd.list.iterator(doc);
-            if (iterator.hasNext()) {
-              Map.Entry entry = (Map.Entry) iterator.next();
-              doc = ((Integer) entry.getKey()).intValue();
-              kwd.currEntry = entry;
-              kwd.currDoc = doc;
-              return doc;
-            }
-          }
-          kwd.currEntry = null;
-          kwd.currDoc = 0;
-          return Integer.MAX_VALUE;
-        }
-        case FullTextQuery.NOT: {
-          int nextDoc = intersect(doc, ((FullTextQueryUnaryOp) query).opd);
-          if (nextDoc == doc) {
-            doc += 1;
-          }
-          return doc;
-        }
-        default:
-          return doc;
-      }
-    }
-
-    int calculateEstimation(FullTextQuery query, int nResults) {
-      switch (query.op) {
-        case FullTextQuery.AND:
-        case FullTextQuery.NEAR: {
-          int left = calculateEstimation(((FullTextQueryBinaryOp) query).left, nResults);
-          int right = calculateEstimation(((FullTextQueryBinaryOp) query).right, nResults);
-          return left < right ? left : right;
-        }
-        case FullTextQuery.OR: {
-          int left = calculateEstimation(((FullTextQueryBinaryOp) query).left, nResults);
-          int right = calculateEstimation(((FullTextQueryBinaryOp) query).right, nResults);
-          return left > right ? left : right;
-        }
-        case FullTextQuery.MATCH:
-        case FullTextQuery.STRICT_MATCH: {
-          KeywordList kwd = kwds[((FullTextQueryMatchOp) query).wno];
-          if (kwd.currDoc == 0) {
-            return 0;
-          } else {
-            int curr = kwd.currDoc;
-            int first = kwd.list.first();
-            int last = kwd.list.last();
-            int estimation = nResults * (last - first + 1) / (curr - first + 1);
-            if (estimation > kwd.list.size()) {
-              estimation = kwd.list.size();
-            }
-            return estimation;
-          }
-        }
-        case FullTextQuery.NOT:
-          return documents.size();
-
-      }
-      return 0;
-    }
-
-    static final double DENSITY_MAGIC = 2;
-
-    double evaluate(int doc, FullTextQuery query) {
-      double left, right;
-      switch (query.op) {
-        case FullTextQuery.NEAR:
-        case FullTextQuery.AND:
-          left = evaluate(doc, ((FullTextQueryBinaryOp) query).left);
-          right = evaluate(doc, ((FullTextQueryBinaryOp) query).right);
-          nOccurrences = 0;
-          return left < 0 || right < 0 ? -1 : left + right;
-        case FullTextQuery.OR:
-          left = evaluate(doc, ((FullTextQueryBinaryOp) query).left);
-          right = evaluate(doc, ((FullTextQueryBinaryOp) query).right);
-          return left > right ? left : right;
-        case FullTextQuery.MATCH:
-        case FullTextQuery.STRICT_MATCH: {
-          KeywordList kwd = kwds[((FullTextQueryMatchOp) query).wno];
-          if (kwd.currDoc != doc) {
-            return -1;
-          }
-          DocumentOccurrences d = (DocumentOccurrences) kwd.currEntry.getValue();
-          int[] occ = d.getOccurrences();
-          kwd.occ = occ;
-          int frequency = occ.length;
-          if (query.op == FullTextQuery.STRICT_MATCH) {
-            if (nOccurrences == 0) {
-              nOccurrences = frequency;
-              if (occurrences == null || occurrences.length < frequency) {
-                occurrences = new int[frequency];
-              }
-              for (int i = 0; i < frequency; i++) {
-                occurrences[i] = occ[i] & OCC_POSITION_MASK;
-              }
-            } else {
-              int nPairs = 0;
-              int[] dst = occurrences;
-              int occ1 = dst[0];
-              int occ2 = occ[0] & OCC_POSITION_MASK;
-              int i = 0, j = 0;
-              int offs = kwd.kwdOffset;
-              while (true) {
-                if (occ1 + offs <= occ2) {
-                  if (occ1 + offs + 1 >= occ2) {
-                    dst[nPairs++] = occ2;
-                  }
-                  if (++j == nOccurrences) {
-                    break;
-                  }
-                  occ1 = dst[j];
-                } else {
-                  if (++i == frequency) {
-                    break;
-                  }
-                  occ2 = occ[i] & OCC_POSITION_MASK;
-                }
-              }
-              nOccurrences = nPairs;
-              if (nPairs == 0) {
-                return -1;
-              }
-            }
-          }
-          return calculateKwdRank(kwd.list, d, occ);
-        }
-        case FullTextQuery.NOT: {
-          double rank = evaluate(doc, ((FullTextQueryUnaryOp) query).opd);
-          return (rank >= 0) ? -1 : 0;
-        }
-        default:
-          return -1;
-      }
-    }
-
-    final double calculateKwdRank(InverseList list, DocumentOccurrences d, int[] occ) {
-      int frequency = occ.length;
-      int totalNumberOfDocuments = documents.size();
-      int nRelevantDocuments = list.size();
-      int totalNumberOfWords = inverseIndex.size();
-      double idf = Math.log((double) totalNumberOfDocuments / nRelevantDocuments);
-      double averageWords = (double) totalNumberOfWords / totalNumberOfDocuments;
-      double density =
-          frequency * Math.log(1 + (DENSITY_MAGIC * averageWords / d.nWordsInDocument));
-      double wordWeight = (density * idf);
-      double wordScore = 1;
-      for (int i = 0; i < frequency; i++) {
-        wordScore += wordWeight * occurrenceKindWeight[occ[i] >>> OCC_KIND_OFFSET];
-      }
-      return Math.log(wordScore);
-    }
-
-    void buildOccurrenceKindWeightTable() {
-      occurrenceKindWeight = new float[256];
-      float[] weights = helper.getOccurrenceKindWeights();
-      occurrenceKindWeight[0] = 1.0f;
-      for (int i = 1; i < 256; i++) {
-        float weight = 0;
-        for (int j = 0; j < weights.length; j++) {
-          if ((i & (1 << j)) != 0) {
-            weight += weights[j];
-          }
-          occurrenceKindWeight[i] = weight;
-        }
-      }
-    }
-
-    double calculateNearness() {
-      KeywordList[] kwds = this.kwds;
-      int nKwds = kwds.length;
-      if (nKwds < 2) {
-        return 0;
-      }
-      for (int i = 0; i < nKwds; i++) {
-        if (kwds[i].occ == null) {
-          int j = kwds[i].sameAs;
-          if (j >= 0 && kwds[j].occ != null) {
-            kwds[i].occ = kwds[j].occ;
-          } else {
-            return 0;
-          }
-        }
-        kwds[i].occPos = 0;
-      }
-      double maxNearness = 0;
-      int swapPenalty = helper.getWordSwapPenalty();
-      while (true) {
-        int minPos = Integer.MAX_VALUE;
-        double nearness = 0;
-        KeywordList first = null;
-        KeywordList prev = null;
-        for (int i = 0; i < nKwds; i++) {
-          KeywordList curr = kwds[i];
-          if (curr.occPos < curr.occ.length) {
-            if (prev != null) {
-              int offset = curr.occ[curr.occPos] - prev.occ[prev.occPos];
-              if (offset < 0) {
-                offset = (-offset - curr.kwdLen) * swapPenalty;
-              } else {
-                offset -= prev.kwdLen;
-              }
-              if (offset <= 2) {
-                offset = 1;
-              }
-              nearness += 1 / Math.sqrt(offset);
-            }
-            if (curr.occ[curr.occPos] < minPos) {
-              minPos = curr.occ[curr.occPos];
-              first = curr;
-            }
-            prev = curr;
-          }
-        }
-        if (first == null) {
-          break;
-        }
-        first.occPos += 1;
-
-        if (nearness > maxNearness) {
-          maxNearness = nearness;
-        }
-      }
-      return maxNearness;
-    }
-
     void reset() {
       nOccurrences = 0;
       for (int i = 0; i < kwds.length; i++) {
         kwds[i].occ = null;
       }
-    }
-
-    FullTextSearchResult searchPrefix(String prefix, int maxResults, int timeLimit, boolean sort) {
-      Iterator lists = inverseIndex.prefixIterator(prefix);
-      FullTextSearchHit[] hits = new FullTextSearchHit[maxResults];
-      int nResults = 0;
-      int estimation = 0;
-      long start = System.currentTimeMillis();
-
-      JoinLists: while (lists.hasNext()) {
-        InverseList list = (InverseList) lists.next();
-        Iterator occurrences = list.iterator(0);
-        estimation += list.size();
-        while (occurrences.hasNext()) {
-          Map.Entry entry = (Map.Entry) occurrences.next();
-          int doc = ((Integer) entry.getKey()).intValue();
-          float rank = 1.0f;
-          if (sort) {
-            DocumentOccurrences d = (DocumentOccurrences) entry.getValue();
-            rank = (float) calculateKwdRank(list, d, d.getOccurrences());
-          }
-          hits[nResults] = new FullTextSearchHit(getStorage(), doc, rank);
-          if (++nResults >= maxResults || System.currentTimeMillis() >= start + timeLimit) {
-            break JoinLists;
-          }
-        }
-      }
-      if (nResults < maxResults) {
-        FullTextSearchHit[] realHits = new FullTextSearchHit[nResults];
-        System.arraycopy(hits, 0, realHits, 0, nResults);
-        hits = realHits;
-      }
-      if (sort) {
-        Arrays.sort(hits);
-      }
-      return new FullTextSearchResult(hits, estimation);
     }
 
     FullTextSearchResult search(FullTextQuery query, int maxResults, int timeLimit) {
@@ -926,6 +542,399 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
       Arrays.sort(hits);
       return new FullTextSearchResult(hits, estimation);
     }
+
+    FullTextSearchResult searchPrefix(String prefix, int maxResults, int timeLimit, boolean sort) {
+      Iterator lists = inverseIndex.prefixIterator(prefix);
+      FullTextSearchHit[] hits = new FullTextSearchHit[maxResults];
+      int nResults = 0;
+      int estimation = 0;
+      long start = System.currentTimeMillis();
+
+      JoinLists: while (lists.hasNext()) {
+        InverseList list = (InverseList) lists.next();
+        Iterator occurrences = list.iterator(0);
+        estimation += list.size();
+        while (occurrences.hasNext()) {
+          Map.Entry entry = (Map.Entry) occurrences.next();
+          int doc = ((Integer) entry.getKey()).intValue();
+          float rank = 1.0f;
+          if (sort) {
+            DocumentOccurrences d = (DocumentOccurrences) entry.getValue();
+            rank = (float) calculateKwdRank(list, d, d.getOccurrences());
+          }
+          hits[nResults] = new FullTextSearchHit(getStorage(), doc, rank);
+          if (++nResults >= maxResults || System.currentTimeMillis() >= start + timeLimit) {
+            break JoinLists;
+          }
+        }
+      }
+      if (nResults < maxResults) {
+        FullTextSearchHit[] realHits = new FullTextSearchHit[nResults];
+        System.arraycopy(hits, 0, realHits, 0, nResults);
+        hits = realHits;
+      }
+      if (sort) {
+        Arrays.sort(hits);
+      }
+      return new FullTextSearchResult(hits, estimation);
+    }
+
+    @Override
+    public void visit(FullTextQueryMatchOp q) {
+      q.wno = kwdList.size();
+      KeywordList kwd = new KeywordList(q.word);
+      kwd.list = (InverseList) inverseIndex.get(q.word);
+      kwdList.add(kwd);
+    }
+  }
+  static class InverseList extends Btree {
+    class InverstListIterator implements Iterator {
+      int i;
+
+      InverstListIterator(int pos) {
+        i = pos;
+      }
+
+      @Override
+      public boolean hasNext() {
+        return i < oids.length;
+      }
+
+      @Override
+      public Object next() {
+        final int j = i++;
+        return new Map.Entry() {
+          @Override
+          public Object getKey() {
+            return new Integer(oids[j]);
+          }
+
+          @Override
+          public Object getValue() {
+            return docs.get(j);
+          }
+
+          public Object setKey(Object key) {
+            return null;
+          }
+
+          @Override
+          public Object setValue(Object value) {
+            return null;
+          }
+        };
+      }
+
+      @Override
+      public void remove() {}
+    }
+    static final int BTREE_THRESHOLD = 500;
+
+    int[] oids;
+
+    Link docs;
+
+    InverseList() {}
+
+    InverseList(Storage db, int oid, DocumentOccurrences doc) {
+      super(int.class, true);
+      docs = db.createLink(1);
+      docs.add(doc);
+      oids = new int[1];
+      oids[0] = oid;
+      assignOid(db, 0, false);
+    }
+
+    void add(int oid, DocumentOccurrences doc) {
+      int[] os = oids;
+      if (os == null || os.length >= BTREE_THRESHOLD) {
+        if (os != null) {
+          for (int i = 0; i < os.length; i++) {
+            super.put(new Key(os[i]), docs.get(i));
+          }
+          oids = null;
+          docs = null;
+        }
+        super.put(new Key(oid), doc);
+      } else {
+        int l = 0, n = os.length, r = n;
+        while (l < r) {
+          int m = (l + r) >>> 1;
+          if (os[m] < oid) {
+            l = m + 1;
+          } else {
+            r = m;
+          }
+        }
+        os = new int[n + 1];
+        System.arraycopy(oids, 0, os, 0, r);
+        os[r] = oid;
+        System.arraycopy(oids, r, os, r + 1, n - r);
+        docs.insert(r, doc);
+        oids = os;
+        modify();
+      }
+    }
+
+    int first() {
+      if (oids != null) {
+        return oids[0];
+      }
+      Map.Entry entry = (Map.Entry) entryIterator(null, null, GenericIndex.ASCENT_ORDER).next();
+      return ((Integer) entry.getKey()).intValue();
+    }
+
+    Iterator iterator(int oid) {
+      int[] os = oids;
+      if (os != null) {
+        int l = 0, r = os.length;
+        while (l < r) {
+          int m = (l + r) >>> 1;
+          if (os[m] < oid) {
+            l = m + 1;
+          } else {
+            r = m;
+          }
+        }
+        return new InverstListIterator(r);
+      } else {
+        return entryIterator(new Key(oid), null, GenericIndex.ASCENT_ORDER);
+      }
+    }
+
+    int last() {
+      if (oids != null) {
+        return oids[oids.length - 1];
+      }
+      Map.Entry entry = (Map.Entry) entryIterator(null, null, GenericIndex.DESCENT_ORDER).next();
+      return ((Integer) entry.getKey()).intValue();
+    }
+
+    void remove(int oid) {
+      int[] os = oids;
+      if (os != null) {
+        int l = 0, n = os.length, r = n;
+        while (l < r) {
+          int m = (l + r) >>> 1;
+          if (os[m] < oid) {
+            l = m + 1;
+          } else {
+            r = m;
+          }
+        }
+        Assert.that(r < n && os[r] == oid);
+        docs.remove(r);
+        oids = new int[n - 1];
+        System.arraycopy(os, 0, oids, 0, r);
+        System.arraycopy(os, r + 1, oids, r, n - r - 1);
+        modify();
+      } else {
+        super.remove(new Key(oid));
+      }
+    }
+
+    @Override
+    public int size() {
+      return oids != null ? oids.length : super.size();
+    }
+  }
+  static class KeywordImpl implements Keyword {
+    Map.Entry entry;
+
+    KeywordImpl(Map.Entry entry) {
+      this.entry = entry;
+    }
+
+    @Override
+    public String getNormalForm() {
+      return (String) entry.getKey();
+    }
+
+    @Override
+    public long getNumberOfOccurrences() {
+      return ((InverseList) entry.getValue()).size();
+    }
+  }
+
+  static class KeywordIterator implements Iterator<Keyword> {
+    Iterator iterator;
+
+    KeywordIterator(Iterator iterator) {
+      this.iterator = iterator;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return iterator.hasNext();
+    }
+
+    @Override
+    public Keyword next() {
+      return new KeywordImpl((Map.Entry) iterator.next());
+    }
+
+    @Override
+    public void remove() {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  protected static class KeywordList {
+    InverseList list;
+    int[] occ;
+    String word;
+    int sameAs;
+    int kwdLen;
+    int kwdOffset;
+    int occPos;
+    int currDoc;
+    Map.Entry currEntry;
+    Iterator iterator;
+
+    KeywordList(String word) {
+      this.word = word;
+      kwdLen = word.length();
+      sameAs = -1;
+    }
+  }
+
+
+  static final int OCC_KIND_OFFSET = 24;
+
+  static final int OCC_POSITION_MASK = (1 << OCC_KIND_OFFSET) - 1;
+
+  static final int COMPRESSION_OVERHEAD = 8;
+
+  protected Index inverseIndex;
+
+  protected Index documents;
+
+  protected FullTextSearchHelper helper;
+
+  private FullTextIndexImpl() {}
+
+  public FullTextIndexImpl(Storage storage, FullTextSearchHelper helper) {
+    super(storage);
+    this.helper = helper;
+    inverseIndex = storage.createIndex(String.class, true);
+    documents = storage.createIndex(Object.class, true);
+  }
+
+  @Override
+  public void add(FullTextSearchable obj) {
+    add(obj, obj.getText(), obj.getLanguage());
+  }
+
+  @Override
+  public void add(Object obj, Reader text, String language) {
+    Occurrence[] occurrences;
+    try {
+      occurrences = helper.parseText(text);
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FULL_TEXT_INDEX_ERROR, x);
+    }
+    delete(obj);
+    if (occurrences.length > 0) {
+      Document doc = new Document(getStorage(), obj);
+      documents.put(new Key(obj), doc);
+      Arrays.sort(occurrences);
+      String word = occurrences[0].word;
+      int i = 0;
+      for (int j = 1; j < occurrences.length; j++) {
+        Occurrence occ = occurrences[j];
+        if (!occ.word.equals(word)) {
+          addReference(doc, word, occurrences, i, j, language);
+          word = occ.word;
+          i = j;
+        }
+      }
+      addReference(doc, word, occurrences, i, occurrences.length, language);
+    }
+  }
+
+  private final void addReference(Document doc, String word, Occurrence[] occurrences, int from,
+      int till) {
+    DocumentOccurrences d = new DocumentOccurrences();
+    int[] occ = new int[till - from];
+    d.nWordsInDocument = occurrences.length;
+    for (int i = from; i < till; i++) {
+      occ[i - from] = occurrences[i].position | (occurrences[i].kind << OCC_KIND_OFFSET);
+    }
+    d.setOccurrences(occ);
+    int oid = getStorage().getOid(doc.obj);
+    InverseList list = (InverseList) inverseIndex.get(word);
+    if (list == null) {
+      list = new InverseList(getStorage(), oid, d);
+      inverseIndex.put(word, list);
+    } else {
+      list.add(oid, d);
+    }
+    d.list = list;
+    d.modify();
+    doc.occurrences.add(d);
+  }
+
+  private final void addReference(Document doc, String word, Occurrence[] occurrences, int from,
+      int till, String language) {
+    String[] normalForms = helper.getNormalForms(word, language);
+    boolean isNormalForm = false;
+    for (int i = 0; i < normalForms.length; i++) {
+      if (word.equals(normalForms[i])) {
+        isNormalForm = true;
+      }
+      addReference(doc, normalForms[i], occurrences, from, till);
+    }
+    if (!isNormalForm) {
+      addReference(doc, word, occurrences, from, till);
+    }
+  }
+
+  @Override
+  public void clear() {
+    inverseIndex.deallocateMembers();
+    documents.deallocateMembers();
+  }
+
+  @Override
+  public void deallocate() {
+    clear();
+    super.deallocate();
+  }
+
+  @Override
+  public void delete(Object obj) {
+    Key key = new Key(obj);
+    Document doc = (Document) documents.get(key);
+    if (doc != null) {
+      for (int i = 0, n = doc.occurrences.size(); i < n; i++) {
+        DocumentOccurrences d = (DocumentOccurrences) doc.occurrences.get(i);
+        d.list.remove(getStorage().getOid(obj));
+        d.deallocate();
+      }
+      documents.remove(key);
+      doc.deallocate();
+    }
+  }
+
+  @Override
+  public FullTextSearchHelper getHelper() {
+    return helper;
+  }
+
+  @Override
+  public Iterator<Keyword> getKeywords(String prefix) {
+    return new KeywordIterator(inverseIndex.entryIterator(new Key(prefix),
+        new Key(prefix + Character.MAX_VALUE, false), GenericIndex.ASCENT_ORDER));
+  }
+
+  @Override
+  public int getNumberOfDocuments() {
+    return documents.size();
+  }
+
+  @Override
+  public int getNumberOfWords() {
+    return inverseIndex.size();
   }
 
   @Override
@@ -935,23 +944,14 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
   }
 
   @Override
+  public FullTextSearchResult search(String query, String language, int maxResults, int timeLimit) {
+    return search(helper.parseQuery(query, language), maxResults, timeLimit);
+  }
+
+  @Override
   public FullTextSearchResult searchPrefix(String prefix, int maxResults, int timeLimit,
       boolean sort) {
     FullTextSearchEngine engine = new FullTextSearchEngine();
     return engine.searchPrefix(prefix, maxResults, timeLimit, sort);
   }
-
-  @Override
-  public FullTextSearchHelper getHelper() {
-    return helper;
-  }
-
-  public FullTextIndexImpl(Storage storage, FullTextSearchHelper helper) {
-    super(storage);
-    this.helper = helper;
-    inverseIndex = storage.createIndex(String.class, true);
-    documents = storage.createIndex(Object.class, true);
-  }
-
-  private FullTextIndexImpl() {}
 }

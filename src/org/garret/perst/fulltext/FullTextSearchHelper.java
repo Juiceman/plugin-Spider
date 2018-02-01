@@ -12,141 +12,7 @@ import org.garret.perst.Storage;
  * query and tuning document rank calculation
  */
 public class FullTextSearchHelper extends Persistent {
-  /**
-   * Weight of nearness criteria in rank formula
-   */
-  public float nearnessWeight = 10.0f;
-
-  /**
-   * Penalty of locating search keywords in reverse order
-   */
-  public int wordSwapPenalty = 10;
-
-  /**
-   * Maximal word length
-   */
-  public int maxWordLength = 100;
-
-  /**
-   * Keyword for logical AND in query
-   */
-  public String AND = "AND";
-
-  /**
-   * Keyword for logical OR in query
-   */
-  public String OR = "OR";
-
-  /**
-   * Keyword for logical NOT in query
-   */
-  public String NOT = "NOT";
-
-  /**
-   * List of stop words ignored in parsed text and query
-   */
-  public String[] stopWords = new String[] {"a", "the", "at", "on", "of", "to", "an"};
-
-  /**
-   * Perform stemming of the word
-   * 
-   * @param word word to be stemmed
-   * @param language language of the word (null if unknown)
-   * @return normal forms of the word (some words belongs to more than one part of the speech, so
-   *         there are can be more than one normal form)
-   */
-  public String[] getNormalForms(String word, String language) {
-    return new String[] {word};
-  }
-
-  /**
-   * Check of character is part of the word
-   */
-  public boolean isWordChar(char ch) {
-    return Character.isLetter(ch) || Character.isDigit(ch);
-  }
-
-  /**
-   * Split text of the documents into tokens
-   * 
-   * @param reader stream with document text
-   * @return array of occurrences of words in thedocument
-   */
-  public Occurrence[] parseText(Reader reader) throws IOException {
-    int pos = 0;
-    ArrayList list = new ArrayList();
-    int ch = reader.read();
-
-    while (ch > 0) {
-      if (isWordChar((char) ch)) {
-        StringBuffer buf = new StringBuffer();
-        int wordPos = pos;
-        do {
-          pos += 1;
-          buf.append((char) ch);
-          ch = reader.read();
-        } while (ch > 0 && isWordChar((char) ch));
-        String word = buf.toString().toLowerCase();
-        if (word.length() <= maxWordLength && !isStopWord(word)) {
-          list.add(new Occurrence(word, wordPos, 0));
-        }
-      } else {
-        pos += 1;
-        ch = reader.read();
-      }
-    }
-    return (Occurrence[]) list.toArray(new Occurrence[list.size()]);
-  }
-
-  protected transient HashSet stopList;
-
-  protected void fillStopList() {
-    stopList = new HashSet();
-    for (int i = 0; i < stopWords.length; i++) {
-      stopList.add(stopWords[i]);
-    }
-  }
-
-  @Override
-  public void onLoad() {
-    fillStopList();
-  }
-
-  /**
-   * Check if word is stop word and should bw not included in index
-   * 
-   * @param word lowercased word
-   * @return true if word is in stop list, false otherwize
-   */
-  public boolean isStopWord(String word) {
-    return stopList.contains(word);
-  }
-
-  /*
-   * Full text search helper constructor
-   */
-  public FullTextSearchHelper(Storage storage) {
-    super(storage);
-    fillStopList();
-  }
-
-  protected FullTextSearchHelper() {}
-
   protected class QueryScanner {
-    String query;
-    int pos;
-    boolean inQuotes;
-    boolean unget;
-    String word;
-    int wordPos;
-    int token;
-    String language;
-
-    QueryScanner(String query, String language) {
-      this.query = query;
-      this.language = language;
-    }
-
     static final int TKN_EOQ = 0;
     static final int TKN_WORD = 1;
     static final int TKN_AND = 2;
@@ -154,6 +20,20 @@ public class FullTextSearchHelper extends Persistent {
     static final int TKN_NOT = 4;
     static final int TKN_LPAR = 5;
     static final int TKN_RPAR = 6;
+    String query;
+
+    int pos;
+
+    boolean inQuotes;
+    boolean unget;
+    String word;
+    int wordPos;
+    int token;
+    String language;
+    QueryScanner(String query, String language) {
+      this.query = query;
+      this.language = language;
+    }
 
     int scan() {
       if (unget) {
@@ -205,17 +85,53 @@ public class FullTextSearchHelper extends Persistent {
     }
   }
 
-  protected FullTextQuery disjunction(QueryScanner scanner) {
-    FullTextQuery left = conjunction(scanner);
-    if (scanner.token == QueryScanner.TKN_OR) {
-      FullTextQuery right = disjunction(scanner);
-      if (left != null && right != null) {
-        return new FullTextQueryBinaryOp(FullTextQuery.OR, left, right);
-      } else if (right != null) {
-        return right;
-      }
-    }
-    return left;
+  static final float[] OCCURRENCE_KIND_WEIGHTS = new float[0];
+
+  /**
+   * Weight of nearness criteria in rank formula
+   */
+  public float nearnessWeight = 10.0f;
+
+  /**
+   * Penalty of locating search keywords in reverse order
+   */
+  public int wordSwapPenalty = 10;
+
+  /**
+   * Maximal word length
+   */
+  public int maxWordLength = 100;
+
+  /**
+   * Keyword for logical AND in query
+   */
+  public String AND = "AND";
+
+  /**
+   * Keyword for logical OR in query
+   */
+  public String OR = "OR";
+
+  /**
+   * Keyword for logical NOT in query
+   */
+  public String NOT = "NOT";
+
+  /**
+   * List of stop words ignored in parsed text and query
+   */
+  public String[] stopWords = new String[] {"a", "the", "at", "on", "of", "to", "an"};
+
+  protected transient HashSet stopList;
+
+  protected FullTextSearchHelper() {}
+
+  /*
+   * Full text search helper constructor
+   */
+  public FullTextSearchHelper(Storage storage) {
+    super(storage);
+    fillStopList();
   }
 
   protected FullTextQuery conjunction(QueryScanner scanner) {
@@ -233,6 +149,130 @@ public class FullTextSearchHelper extends Persistent {
       }
     }
     return left;
+  }
+
+  protected FullTextQuery disjunction(QueryScanner scanner) {
+    FullTextQuery left = conjunction(scanner);
+    if (scanner.token == QueryScanner.TKN_OR) {
+      FullTextQuery right = disjunction(scanner);
+      if (left != null && right != null) {
+        return new FullTextQueryBinaryOp(FullTextQuery.OR, left, right);
+      } else if (right != null) {
+        return right;
+      }
+    }
+    return left;
+  }
+
+  protected void fillStopList() {
+    stopList = new HashSet();
+    for (int i = 0; i < stopWords.length; i++) {
+      stopList.add(stopWords[i]);
+    }
+  }
+
+  /**
+   * Get weight of nearness criteria in document rank. Document rank is calculated as
+   * (keywordRank*(1 + nearness*nearnessWeight))
+   * 
+   * @return weight of nearness criteria
+   */
+  public float getNearnessWeight() {
+    return 10.0f;
+  }
+
+  /**
+   * Perform stemming of the word
+   * 
+   * @param word word to be stemmed
+   * @param language language of the word (null if unknown)
+   * @return normal forms of the word (some words belongs to more than one part of the speech, so
+   *         there are can be more than one normal form)
+   */
+  public String[] getNormalForms(String word, String language) {
+    return new String[] {word};
+  }
+
+  /**
+   * Get occurrence kind weight. Occurrence kinds can be: in-title, in-header, emphased,... It is up
+   * to the document scanner implementation how to enumerate occurence kinds. These is only one
+   * limitation - number of difference kinds should not exceed 8.
+   * 
+   * @return array with weights of each occurrence kind
+   */
+  public float[] getOccurrenceKindWeights() {
+    return OCCURRENCE_KIND_WEIGHTS;
+  }
+
+  /**
+   * Get penalty of inverse word order in the text. Assume that document text contains phrase "ah oh
+   * ugh". And query "ugh ah" is executed. The distance between "ugh" and "ah" in the document text
+   * is 6. But as far as them are in difference order than in query, this distance will be
+   * multiplied on "swap penalty", so if swap penalty is 10, then distance between these two word is
+   * considered to be 60.
+   * 
+   * @return swap penalty
+   */
+  public int getWordSwapPenalty() {
+    return 10;
+  }
+
+  /**
+   * Check if word is stop word and should bw not included in index
+   * 
+   * @param word lowercased word
+   * @return true if word is in stop list, false otherwize
+   */
+  public boolean isStopWord(String word) {
+    return stopList.contains(word);
+  }
+
+  /**
+   * Check of character is part of the word
+   */
+  public boolean isWordChar(char ch) {
+    return Character.isLetter(ch) || Character.isDigit(ch);
+  }
+
+  @Override
+  public void onLoad() {
+    fillStopList();
+  }
+
+  public FullTextQuery parseQuery(String query, String language) {
+    return disjunction(new QueryScanner(query, language));
+  }
+
+  /**
+   * Split text of the documents into tokens
+   * 
+   * @param reader stream with document text
+   * @return array of occurrences of words in thedocument
+   */
+  public Occurrence[] parseText(Reader reader) throws IOException {
+    int pos = 0;
+    ArrayList list = new ArrayList();
+    int ch = reader.read();
+
+    while (ch > 0) {
+      if (isWordChar((char) ch)) {
+        StringBuffer buf = new StringBuffer();
+        int wordPos = pos;
+        do {
+          pos += 1;
+          buf.append((char) ch);
+          ch = reader.read();
+        } while (ch > 0 && isWordChar((char) ch));
+        String word = buf.toString().toLowerCase();
+        if (word.length() <= maxWordLength && !isStopWord(word)) {
+          list.add(new Occurrence(word, wordPos, 0));
+        }
+      } else {
+        pos += 1;
+        ch = reader.read();
+      }
+    }
+    return (Occurrence[]) list.toArray(new Occurrence[list.size()]);
   }
 
   protected FullTextQuery term(QueryScanner scanner) {
@@ -254,46 +294,6 @@ public class FullTextSearchHelper extends Persistent {
     }
     scanner.scan();
     return q;
-  }
-
-  public FullTextQuery parseQuery(String query, String language) {
-    return disjunction(new QueryScanner(query, language));
-  }
-
-  static final float[] OCCURRENCE_KIND_WEIGHTS = new float[0];
-
-  /**
-   * Get occurrence kind weight. Occurrence kinds can be: in-title, in-header, emphased,... It is up
-   * to the document scanner implementation how to enumerate occurence kinds. These is only one
-   * limitation - number of difference kinds should not exceed 8.
-   * 
-   * @return array with weights of each occurrence kind
-   */
-  public float[] getOccurrenceKindWeights() {
-    return OCCURRENCE_KIND_WEIGHTS;
-  }
-
-  /**
-   * Get weight of nearness criteria in document rank. Document rank is calculated as
-   * (keywordRank*(1 + nearness*nearnessWeight))
-   * 
-   * @return weight of nearness criteria
-   */
-  public float getNearnessWeight() {
-    return 10.0f;
-  }
-
-  /**
-   * Get penalty of inverse word order in the text. Assume that document text contains phrase "ah oh
-   * ugh". And query "ugh ah" is executed. The distance between "ugh" and "ah" in the document text
-   * is 6. But as far as them are in difference order than in query, this distance will be
-   * multiplied on "swap penalty", so if swap penalty is 10, then distance between these two word is
-   * considered to be 60.
-   * 
-   * @return swap penalty
-   */
-  public int getWordSwapPenalty() {
-    return 10;
   }
 }
 

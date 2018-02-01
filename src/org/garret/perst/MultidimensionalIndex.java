@@ -18,6 +18,14 @@ public interface MultidimensionalIndex<T> extends IPersistent, IResource, ITable
   public MultidimensionalComparator<T> getComparator();
 
   /**
+   * Get height of the tree. Height of the tree can be used by application to determine when tree
+   * structure is no optimal and tree should be reconstructed using optimize method.
+   * 
+   * @return height of the tree
+   */
+  public int getHeight();
+
+  /**
    * Get iterator for traversing all objects in the index. Objects are iterated in the ascent key
    * order. This iterator supports remove() method.
    * 
@@ -56,6 +64,14 @@ public interface MultidimensionalIndex<T> extends IPersistent, IResource, ITable
   public IterableIterator<T> iterator(T low, T high);
 
   /**
+   * Optimize index to make search more efficient. This operation cause complete reconstruction of
+   * the index and so may take a long time. Also please notice that this method doesn't build the
+   * ideally balanced tree - it just reinserts elements in the tree in random order
+   */
+  public void optimize();
+
+
+  /**
    * Get array of index members matching specified pattern object. All fields which are part of
    * multidimensional index and which values in pattern object is not null are used as filter for
    * index members.
@@ -83,20 +99,4 @@ public interface MultidimensionalIndex<T> extends IPersistent, IResource, ITable
    *         correspondent fields of low and high objects
    */
   public ArrayList<T> queryByExample(T low, T high);
-
-
-  /**
-   * Optimize index to make search more efficient. This operation cause complete reconstruction of
-   * the index and so may take a long time. Also please notice that this method doesn't build the
-   * ideally balanced tree - it just reinserts elements in the tree in random order
-   */
-  public void optimize();
-
-  /**
-   * Get height of the tree. Height of the tree can be used by application to determine when tree
-   * structure is no optimal and tree should be reconstructed using optimize method.
-   * 
-   * @return height of the tree
-   */
-  public int getHeight();
 }

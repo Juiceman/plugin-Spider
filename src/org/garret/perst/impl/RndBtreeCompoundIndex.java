@@ -10,16 +10,24 @@ import org.garret.perst.Key;
 import org.garret.perst.StorageError;
 
 class RndBtreeCompoundIndex<T> extends RndBtree<T> implements Index<T> {
-  int[] types;
+  static class CompoundKey implements Comparable, IValue {
+    Object[] keys;
 
-  RndBtreeCompoundIndex() {}
+    CompoundKey(Object[] keys) {
+      this.keys = keys;
+    }
 
-  RndBtreeCompoundIndex(Class[] keyTypes, boolean unique) {
-    this.unique = unique;
-    type = ClassDescriptor.tpValue;
-    types = new int[keyTypes.length];
-    for (int i = 0; i < keyTypes.length; i++) {
-      types[i] = getCompoundKeyComponentType(keyTypes[i]);
+    @Override
+    public int compareTo(Object o) {
+      CompoundKey c = (CompoundKey) o;
+      int n = keys.length < c.keys.length ? keys.length : c.keys.length;
+      for (int i = 0; i < n; i++) {
+        int diff = ((Comparable) keys[i]).compareTo(c.keys[i]);
+        if (diff != 0) {
+          return diff;
+        }
+      }
+      return 0; // allow to compare part of the compound key
     }
   }
 
@@ -51,33 +59,16 @@ class RndBtreeCompoundIndex<T> extends RndBtree<T> implements Index<T> {
     }
   }
 
-  @Override
-  public Class[] getKeyTypes() {
-    Class[] keyTypes = new Class[types.length];
+  int[] types;
+
+  RndBtreeCompoundIndex() {}
+
+  RndBtreeCompoundIndex(Class[] keyTypes, boolean unique) {
+    this.unique = unique;
+    type = ClassDescriptor.tpValue;
+    types = new int[keyTypes.length];
     for (int i = 0; i < keyTypes.length; i++) {
-      keyTypes[i] = mapKeyType(types[i]);
-    }
-    return keyTypes;
-  }
-
-  static class CompoundKey implements Comparable, IValue {
-    Object[] keys;
-
-    @Override
-    public int compareTo(Object o) {
-      CompoundKey c = (CompoundKey) o;
-      int n = keys.length < c.keys.length ? keys.length : c.keys.length;
-      for (int i = 0; i < n; i++) {
-        int diff = ((Comparable) keys[i]).compareTo(c.keys[i]);
-        if (diff != 0) {
-          return diff;
-        }
-      }
-      return 0; // allow to compare part of the compound key
-    }
-
-    CompoundKey(Object[] keys) {
-      this.keys = keys;
+      types[i] = getCompoundKeyComponentType(keyTypes[i]);
     }
   }
 
@@ -100,8 +91,8 @@ class RndBtreeCompoundIndex<T> extends RndBtree<T> implements Index<T> {
   }
 
   @Override
-  public ArrayList<T> getList(Key from, Key till) {
-    return super.getList(convertKey(from), convertKey(till));
+  public IterableIterator<Map.Entry<Object, T>> entryIterator(Key from, Key till, int order) {
+    return super.entryIterator(convertKey(from), convertKey(till), order);
   }
 
   @Override
@@ -110,8 +101,32 @@ class RndBtreeCompoundIndex<T> extends RndBtree<T> implements Index<T> {
   }
 
   @Override
-  public boolean unlink(Key key, T obj) {
-    return super.unlink(convertKey(key, false), obj);
+  public Class[] getKeyTypes() {
+    Class[] keyTypes = new Class[types.length];
+    for (int i = 0; i < keyTypes.length; i++) {
+      keyTypes[i] = mapKeyType(types[i]);
+    }
+    return keyTypes;
+  }
+
+  @Override
+  public ArrayList<T> getList(Key from, Key till) {
+    return super.getList(convertKey(from), convertKey(till));
+  }
+
+  @Override
+  public int indexOf(Key key) {
+    return super.indexOf(convertKey(key));
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Key from, Key till, int order) {
+    return super.iterator(convertKey(from), convertKey(till), order);
+  }
+
+  @Override
+  public boolean put(Key key, T obj) {
+    return super.put(convertKey(key, false), obj);
   }
 
   @Override
@@ -130,23 +145,8 @@ class RndBtreeCompoundIndex<T> extends RndBtree<T> implements Index<T> {
   }
 
   @Override
-  public boolean put(Key key, T obj) {
-    return super.put(convertKey(key, false), obj);
-  }
-
-  @Override
-  public IterableIterator<T> iterator(Key from, Key till, int order) {
-    return super.iterator(convertKey(from), convertKey(till), order);
-  }
-
-  @Override
-  public IterableIterator<Map.Entry<Object, T>> entryIterator(Key from, Key till, int order) {
-    return super.entryIterator(convertKey(from), convertKey(till), order);
-  }
-
-  @Override
-  public int indexOf(Key key) {
-    return super.indexOf(convertKey(key));
+  public boolean unlink(Key key, T obj) {
+    return super.unlink(convertKey(key, false), obj);
   }
 }
 

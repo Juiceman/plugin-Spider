@@ -63,28 +63,11 @@ class JoinSetIterator<T> extends IterableIterator<T> implements PersistentIterat
 
 
 class PersistentSet<T> extends Btree<T> implements IPersistentSet<T> {
+  PersistentSet() {}
+
   PersistentSet(boolean unique) {
     type = ClassDescriptor.tpObject;
     this.unique = unique;
-  }
-
-  PersistentSet() {}
-
-  @Override
-  public boolean isEmpty() {
-    return nElems == 0;
-  }
-
-  @Override
-  public boolean contains(Object o) {
-    Key key = new Key(o);
-    Iterator i = iterator(key, key, ASCENT_ORDER);
-    return i.hasNext();
-  }
-
-  @Override
-  public <E> E[] toArray(E[] arr) {
-    return (E[]) super.toArray((T[]) arr);
   }
 
   @Override
@@ -93,9 +76,10 @@ class PersistentSet<T> extends Btree<T> implements IPersistentSet<T> {
   }
 
   @Override
-  public boolean remove(Object o) {
-    T obj = (T) o;
-    return removeIfExists(new BtreeKey(checkKey(new Key(obj)), getStorage().getOid(obj)));
+  public boolean contains(Object o) {
+    Key key = new Key(o);
+    Iterator i = iterator(key, key, ASCENT_ORDER);
+    return i.hasNext();
   }
 
   @Override
@@ -124,8 +108,24 @@ class PersistentSet<T> extends Btree<T> implements IPersistentSet<T> {
   }
 
   @Override
+  public boolean isEmpty() {
+    return nElems == 0;
+  }
+
+  @Override
   public IterableIterator<T> join(Iterator<T> with) {
     return with == null ? (IterableIterator<T>) iterator()
         : new JoinSetIterator<T>(getStorage(), iterator(), with);
+  }
+
+  @Override
+  public boolean remove(Object o) {
+    T obj = (T) o;
+    return removeIfExists(new BtreeKey(checkKey(new Key(obj)), getStorage().getOid(obj)));
+  }
+
+  @Override
+  public <E> E[] toArray(E[] arr) {
+    return (E[]) super.toArray((T[]) arr);
   }
 }

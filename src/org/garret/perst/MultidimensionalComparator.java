@@ -12,6 +12,21 @@ public abstract class MultidimensionalComparator<T> extends Persistent {
   public static final int RIGHT_UNDEFINED = 2;
   public static final int NE = 3;
 
+  protected MultidimensionalComparator() {}
+
+  protected MultidimensionalComparator(Storage storage) {
+    super(storage);
+  }
+
+  /**
+   * Create clone of the specified object contining copy of the specified field
+   * 
+   * @param obj original object
+   * @param i component index
+   * @return clone of the object
+   */
+  public abstract T cloneField(T obj, int i);
+
   /**
    * Compare i-th component of two objects
    * 
@@ -31,20 +46,5 @@ public abstract class MultidimensionalComparator<T> extends Persistent {
    * @return number of dimensions
    */
   public abstract int getNumberOfDimensions();
-
-  /**
-   * Create clone of the specified object contining copy of the specified field
-   * 
-   * @param obj original object
-   * @param i component index
-   * @return clone of the object
-   */
-  public abstract T cloneField(T obj, int i);
-
-  protected MultidimensionalComparator(Storage storage) {
-    super(storage);
-  }
-
-  protected MultidimensionalComparator() {}
 }
 

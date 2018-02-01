@@ -10,11 +10,11 @@ public class FullTextQueryVisitor {
     visit((FullTextQuery) q);
   }
 
-  public void visit(FullTextQueryUnaryOp q) {
+  public void visit(FullTextQueryMatchOp q) {
     visit((FullTextQuery) q);
   }
 
-  public void visit(FullTextQueryMatchOp q) {
+  public void visit(FullTextQueryUnaryOp q) {
     visit((FullTextQuery) q);
   }
 }

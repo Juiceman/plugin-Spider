@@ -18,95 +18,6 @@ class ArrayPos {
 // Class for packing/unpacking data
 //
 public class Bytes {
-  public static short unpack2(byte[] arr, int offs) {
-    return (short) ((arr[offs] << 8) | (arr[offs + 1] & 0xFF));
-  }
-
-  public static int unpack4(byte[] arr, int offs) {
-    return (arr[offs] << 24) | ((arr[offs + 1] & 0xFF) << 16) | ((arr[offs + 2] & 0xFF) << 8)
-        | (arr[offs + 3] & 0xFF);
-  }
-
-  public static long unpack8(byte[] arr, int offs) {
-    return ((long) unpack4(arr, offs) << 32) | (unpack4(arr, offs + 4) & 0xFFFFFFFFL);
-  }
-
-  public static float unpackF4(byte[] arr, int offs) {
-    return Float.intBitsToFloat(Bytes.unpack4(arr, offs));
-  }
-
-  public static double unpackF8(byte[] arr, int offs) {
-    return Double.longBitsToDouble(Bytes.unpack8(arr, offs));
-  }
-
-  public static int skipString(byte[] arr, int offs) {
-    int len = unpack4(arr, offs);
-    offs += 4;
-    if (len > 0) {
-      offs += len * 2;
-    } else if (len < -1) {
-      offs -= len + 2;
-    }
-    return offs;
-  }
-
-  public static String unpackString(byte[] arr, int offs, String encoding) {
-    int len = unpack4(arr, offs);
-    offs += 4;
-    String str = null;
-    if (len >= 0) {
-      char[] chars = new char[len];
-      for (int i = 0; i < len; i++) {
-        chars[i] = (char) unpack2(arr, offs);
-        offs += 2;
-      }
-      str = new String(chars);
-    } else if (len < -1) {
-      len = -len - 2;
-      if (encoding != null) {
-        try {
-          str = new String(arr, offs, len, encoding);
-        } catch (UnsupportedEncodingException x) {
-          throw new StorageError(StorageError.UNSUPPORTED_ENCODING);
-        }
-      } else {
-        str = new String(arr, offs, len);
-      }
-      offs += len;
-    }
-    return str;
-  }
-
-  public static String unpackString(ArrayPos pos, String encoding) {
-    int offs = pos.offs;
-    byte[] arr = pos.body;
-    int len = unpack4(arr, offs);
-    offs += 4;
-    String str = null;
-    if (len >= 0) {
-      char[] chars = new char[len];
-      for (int i = 0; i < len; i++) {
-        chars[i] = (char) unpack2(arr, offs);
-        offs += 2;
-      }
-      str = new String(chars);
-    } else if (len < -1) {
-      len = -len - 2;
-      if (encoding != null) {
-        try {
-          str = new String(arr, offs, len, encoding);
-        } catch (UnsupportedEncodingException x) {
-          throw new StorageError(StorageError.UNSUPPORTED_ENCODING);
-        }
-      } else {
-        str = new String(arr, offs, len);
-      }
-      offs += len;
-    }
-    pos.offs = offs;
-    return str;
-  }
-
   public static void pack2(byte[] arr, int offs, short val) {
     arr[offs] = (byte) (val >> 8);
     arr[offs + 1] = (byte) val;
@@ -157,15 +68,6 @@ public class Bytes {
     return offs;
   }
 
-  public static int sizeof(String str, String encoding) {
-    try {
-      return str == null ? 4
-          : encoding == null ? 4 + str.length() * 2 : 4 + new String(str).getBytes(encoding).length;
-    } catch (UnsupportedEncodingException x) {
-      throw new StorageError(StorageError.UNSUPPORTED_ENCODING);
-    }
-  }
-
   public static int sizeof(byte[] arr, int offs) {
     int len = unpack4(arr, offs);
     if (len >= 0) {
@@ -175,6 +77,104 @@ public class Bytes {
     } else {
       return 4;
     }
+  }
+
+  public static int sizeof(String str, String encoding) {
+    try {
+      return str == null ? 4
+          : encoding == null ? 4 + str.length() * 2 : 4 + new String(str).getBytes(encoding).length;
+    } catch (UnsupportedEncodingException x) {
+      throw new StorageError(StorageError.UNSUPPORTED_ENCODING);
+    }
+  }
+
+  public static int skipString(byte[] arr, int offs) {
+    int len = unpack4(arr, offs);
+    offs += 4;
+    if (len > 0) {
+      offs += len * 2;
+    } else if (len < -1) {
+      offs -= len + 2;
+    }
+    return offs;
+  }
+
+  public static short unpack2(byte[] arr, int offs) {
+    return (short) ((arr[offs] << 8) | (arr[offs + 1] & 0xFF));
+  }
+
+  public static int unpack4(byte[] arr, int offs) {
+    return (arr[offs] << 24) | ((arr[offs + 1] & 0xFF) << 16) | ((arr[offs + 2] & 0xFF) << 8)
+        | (arr[offs + 3] & 0xFF);
+  }
+
+  public static long unpack8(byte[] arr, int offs) {
+    return ((long) unpack4(arr, offs) << 32) | (unpack4(arr, offs + 4) & 0xFFFFFFFFL);
+  }
+
+  public static float unpackF4(byte[] arr, int offs) {
+    return Float.intBitsToFloat(Bytes.unpack4(arr, offs));
+  }
+
+  public static double unpackF8(byte[] arr, int offs) {
+    return Double.longBitsToDouble(Bytes.unpack8(arr, offs));
+  }
+
+  public static String unpackString(ArrayPos pos, String encoding) {
+    int offs = pos.offs;
+    byte[] arr = pos.body;
+    int len = unpack4(arr, offs);
+    offs += 4;
+    String str = null;
+    if (len >= 0) {
+      char[] chars = new char[len];
+      for (int i = 0; i < len; i++) {
+        chars[i] = (char) unpack2(arr, offs);
+        offs += 2;
+      }
+      str = new String(chars);
+    } else if (len < -1) {
+      len = -len - 2;
+      if (encoding != null) {
+        try {
+          str = new String(arr, offs, len, encoding);
+        } catch (UnsupportedEncodingException x) {
+          throw new StorageError(StorageError.UNSUPPORTED_ENCODING);
+        }
+      } else {
+        str = new String(arr, offs, len);
+      }
+      offs += len;
+    }
+    pos.offs = offs;
+    return str;
+  }
+
+  public static String unpackString(byte[] arr, int offs, String encoding) {
+    int len = unpack4(arr, offs);
+    offs += 4;
+    String str = null;
+    if (len >= 0) {
+      char[] chars = new char[len];
+      for (int i = 0; i < len; i++) {
+        chars[i] = (char) unpack2(arr, offs);
+        offs += 2;
+      }
+      str = new String(chars);
+    } else if (len < -1) {
+      len = -len - 2;
+      if (encoding != null) {
+        try {
+          str = new String(arr, offs, len, encoding);
+        } catch (UnsupportedEncodingException x) {
+          throw new StorageError(StorageError.UNSUPPORTED_ENCODING);
+        }
+      } else {
+        str = new String(arr, offs, len);
+      }
+      offs += len;
+    }
+    return str;
   }
 }
 

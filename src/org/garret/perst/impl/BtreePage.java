@@ -10,64 +10,170 @@ class BtreePage {
   static final int strKeySize = 8;
   static final int maxItems = keySpace / 4;
 
-  static int getnItems(Page pg) {
-    return Bytes.unpack2(pg.data, 0);
-  }
-
-  static int getSize(Page pg) {
-    return Bytes.unpack2(pg.data, 2);
-  }
-
-  static int getKeyStrOid(Page pg, int index) {
-    return Bytes.unpack4(pg.data, firstKeyOffs + index * 8);
-  }
-
-  static int getKeyStrSize(Page pg, int index) {
-    return Bytes.unpack2(pg.data, firstKeyOffs + index * 8 + 4);
-  }
-
-  static int getKeyStrOffs(Page pg, int index) {
-    return Bytes.unpack2(pg.data, firstKeyOffs + index * 8 + 6);
-  }
-
-  static int getReference(Page pg, int index) {
-    return Bytes.unpack4(pg.data, firstKeyOffs + index * 4);
-  }
-
-  static void setnItems(Page pg, int nItems) {
-    Bytes.pack2(pg.data, 0, (short) nItems);
-  }
-
-  static void setSize(Page pg, int size) {
-    Bytes.pack2(pg.data, 2, (short) size);
-  }
-
-  static void setKeyStrOid(Page pg, int index, int oid) {
-    Bytes.pack4(pg.data, firstKeyOffs + index * 8, oid);
-  }
-
-  static void setKeyStrSize(Page pg, int index, int size) {
-    Bytes.pack2(pg.data, firstKeyOffs + index * 8 + 4, (short) size);
-  }
-
-  static void setKeyStrOffs(Page pg, int index, int offs) {
-    Bytes.pack2(pg.data, firstKeyOffs + index * 8 + 6, (short) offs);
-  }
-
-  static void setKeyStrChars(Page pg, int offs, char[] str) {
-    int len = str.length;
-    for (int i = 0; i < len; i++) {
-      Bytes.pack2(pg.data, firstKeyOffs + offs, (short) str[i]);
-      offs += 2;
+  static int allocate(StorageImpl db, int root, int type, BtreeKey ins) {
+    int pageId = db.allocatePage();
+    Page pg = db.putPage(pageId);
+    setnItems(pg, 1);
+    if (type == ClassDescriptor.tpString) {
+      char[] sval = (char[]) ins.key.oval;
+      int len = sval.length;
+      setSize(pg, len * 2);
+      setKeyStrOffs(pg, 0, keySpace - len * 2);
+      setKeyStrSize(pg, 0, len);
+      setKeyStrOid(pg, 0, ins.oid);
+      setKeyStrOid(pg, 1, root);
+      setKeyStrChars(pg, keySpace - len * 2, sval);
+    } else if (type == ClassDescriptor.tpArrayOfByte) {
+      byte[] bval = (byte[]) ins.key.oval;
+      int len = bval.length;
+      setSize(pg, len);
+      setKeyStrOffs(pg, 0, keySpace - len);
+      setKeyStrSize(pg, 0, len);
+      setKeyStrOid(pg, 0, ins.oid);
+      setKeyStrOid(pg, 1, root);
+      setKeyBytes(pg, keySpace - len, bval);
+    } else {
+      ins.pack(pg, 0);
+      setReference(pg, maxItems - 2, root);
     }
+    db.pool.unfix(pg);
+    return pageId;
   }
 
-  static void setKeyBytes(Page pg, int offs, byte[] bytes) {
-    System.arraycopy(bytes, 0, pg.data, firstKeyOffs + offs, bytes.length);
+  static int compactifyByteArrays(Page pg, int m) {
+    int i, j, offs, len, n = getnItems(pg);
+    int[] size = new int[keySpace + 1];
+    int[] index = new int[keySpace + 1];
+    if (m == 0) {
+      return n;
+    }
+    int nZeroLengthArrays = 0;
+    if (m < 0) {
+      m = -m;
+      for (i = 0; i < n - m; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i);
+          size[offs + len] = len;
+          index[offs + len] = i;
+        } else {
+          nZeroLengthArrays += 1;
+        }
+      }
+      for (; i < n; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i);
+          size[offs + len] = len;
+          index[offs + len] = -1;
+        }
+      }
+    } else {
+      for (i = 0; i < m; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i);
+          size[offs + len] = len;
+          index[offs + len] = -1;
+        }
+      }
+      for (; i < n; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i);
+          size[offs + len] = len;
+          index[offs + len] = i - m;
+        } else {
+          nZeroLengthArrays += 1;
+        }
+        setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
+        setKeyStrSize(pg, i - m, len);
+      }
+      setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
+    }
+    int nItems = n -= m;
+    n -= nZeroLengthArrays;
+    for (offs = keySpace, i = offs; n != 0; i -= len) {
+      len = size[i];
+      j = index[i];
+      if (j >= 0) {
+        offs -= len;
+        n -= 1;
+        setKeyStrOffs(pg, j, offs);
+        if (offs != i - len) {
+          memcpy(pg, offs, pg, i - len, len, 1);
+        }
+      }
+    }
+    return nItems;
   }
 
-  static void setReference(Page pg, int index, int oid) {
-    Bytes.pack4(pg.data, firstKeyOffs + index * 4, oid);
+  static int compactifyStrings(Page pg, int m) {
+    int i, j, offs, len, n = getnItems(pg);
+    int[] size = new int[keySpace / 2 + 1];
+    int[] index = new int[keySpace / 2 + 1];
+    if (m == 0) {
+      return n;
+    }
+    int nZeroLengthStrings = 0;
+    if (m < 0) {
+      m = -m;
+      for (i = 0; i < n - m; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i) >>> 1;
+          size[offs + len] = len;
+          index[offs + len] = i;
+        } else {
+          nZeroLengthStrings += 1;
+        }
+      }
+      for (; i < n; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i) >>> 1;
+          size[offs + len] = len;
+          index[offs + len] = -1;
+        }
+      }
+    } else {
+      for (i = 0; i < m; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i) >>> 1;
+          size[offs + len] = len;
+          index[offs + len] = -1;
+        }
+      }
+      for (; i < n; i++) {
+        len = getKeyStrSize(pg, i);
+        if (len != 0) {
+          offs = getKeyStrOffs(pg, i) >>> 1;
+          size[offs + len] = len;
+          index[offs + len] = i - m;
+        } else {
+          nZeroLengthStrings += 1;
+        }
+        setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
+        setKeyStrSize(pg, i - m, len);
+      }
+      setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
+    }
+    int nItems = n -= m;
+    n -= nZeroLengthStrings;
+    for (offs = keySpace / 2, i = offs; n != 0; i -= len) {
+      len = size[i];
+      j = index[i];
+      if (j >= 0) {
+        offs -= len;
+        n -= 1;
+        setKeyStrOffs(pg, j, offs * 2);
+        if (offs != i - len) {
+          memcpy(pg, offs, pg, i - len, len, 2);
+        }
+      }
+    }
+    return nItems;
   }
 
   final static int compare(Key key, Page pg, int i) {
@@ -103,6 +209,21 @@ class BtreePage {
     return 0;
   }
 
+  final static int comparePrefix(char[] key, Page pg, int i) {
+    int alen = key.length;
+    int blen = BtreePage.getKeyStrSize(pg, i);
+    int minlen = alen < blen ? alen : blen;
+    int offs = BtreePage.getKeyStrOffs(pg, i) + BtreePage.firstKeyOffs;
+    byte[] b = pg.data;
+    for (int j = 0; j < minlen; j++) {
+      int diff = key[j] - (char) Bytes.unpack2(b, offs);
+      if (diff != 0) {
+        return diff;
+      }
+      offs += 2;
+    }
+    return minlen - blen;
+  }
 
   final static int compareStr(Key key, Page pg, int i) {
     char[] chars = (char[]) key.oval;
@@ -121,22 +242,43 @@ class BtreePage {
     return alen - blen;
   }
 
-  final static int comparePrefix(char[] key, Page pg, int i) {
-    int alen = key.length;
-    int blen = BtreePage.getKeyStrSize(pg, i);
-    int minlen = alen < blen ? alen : blen;
-    int offs = BtreePage.getKeyStrOffs(pg, i) + BtreePage.firstKeyOffs;
-    byte[] b = pg.data;
-    for (int j = 0; j < minlen; j++) {
-      int diff = key[j] - (char) Bytes.unpack2(b, offs);
-      if (diff != 0) {
-        return diff;
-      }
-      offs += 2;
-    }
-    return minlen - blen;
-  }
+  static void exportPage(StorageImpl db, XMLExporter exporter, int pageId, int type, int height)
+      throws java.io.IOException {
+    Page pg = db.getPage(pageId);
+    try {
+      int i, n = getnItems(pg);
+      if (--height != 0) {
+        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
+                                                                                         // strings
+          for (i = 0; i <= n; i++) {
+            exportPage(db, exporter, getKeyStrOid(pg, i), type, height);
+          }
+        } else {
+          for (i = 0; i <= n; i++) {
+            exportPage(db, exporter, getReference(pg, maxItems - i - 1), type, height);
+          }
+        }
+      } else {
+        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
+                                                                                         // strings
+          for (i = 0; i < n; i++) {
+            exporter.exportAssoc(getKeyStrOid(pg, i), pg.data,
+                BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, i),
+                BtreePage.getKeyStrSize(pg, i), type);
+          }
+        } else {
+          for (i = 0; i < n; i++) {
+            exporter.exportAssoc(getReference(pg, maxItems - 1 - i), pg.data,
+                BtreePage.firstKeyOffs + i * ClassDescriptor.sizeof[type],
+                ClassDescriptor.sizeof[type], type);
 
+          }
+        }
+      }
+    } finally {
+      db.pool.unfix(pg);
+    }
+  }
 
   static boolean find(StorageImpl db, int pageId, Key firstKey, Key lastKey, Btree tree, int height,
       ArrayList result) {
@@ -298,643 +440,28 @@ class BtreePage {
     return true;
   }
 
-
-  static boolean prefixSearch(StorageImpl db, int pageId, char[] key, int height,
-      ArrayList result) {
-    Page pg = db.getPage(pageId);
-    int l = 0, n = getnItems(pg), r = n;
-    int oid;
-    height -= 1;
-    try {
-      while (l < r) {
-        int i = (l + r) >> 1;
-        if (comparePrefix(key, pg, i) > 0) {
-          l = i + 1;
-        } else {
-          r = i;
-        }
-      }
-      Assert.that(r == l);
-      if (height == 0) {
-        while (l < n) {
-          if (comparePrefix(key, pg, l) < 0) {
-            return false;
-          }
-          oid = getKeyStrOid(pg, l);
-          result.add(db.lookupObject(oid, null));
-          l += 1;
-        }
-      } else {
-        do {
-          if (!prefixSearch(db, getKeyStrOid(pg, l), key, height, result)) {
-            return false;
-          }
-          if (l == n) {
-            return true;
-          }
-        } while (comparePrefix(key, pg, l++) >= 0);
-        return false;
-      }
-    } finally {
-      db.pool.unfix(pg);
-    }
-    return true;
+  static int getKeyStrOffs(Page pg, int index) {
+    return Bytes.unpack2(pg.data, firstKeyOffs + index * 8 + 6);
   }
 
-
-  static int allocate(StorageImpl db, int root, int type, BtreeKey ins) {
-    int pageId = db.allocatePage();
-    Page pg = db.putPage(pageId);
-    setnItems(pg, 1);
-    if (type == ClassDescriptor.tpString) {
-      char[] sval = (char[]) ins.key.oval;
-      int len = sval.length;
-      setSize(pg, len * 2);
-      setKeyStrOffs(pg, 0, keySpace - len * 2);
-      setKeyStrSize(pg, 0, len);
-      setKeyStrOid(pg, 0, ins.oid);
-      setKeyStrOid(pg, 1, root);
-      setKeyStrChars(pg, keySpace - len * 2, sval);
-    } else if (type == ClassDescriptor.tpArrayOfByte) {
-      byte[] bval = (byte[]) ins.key.oval;
-      int len = bval.length;
-      setSize(pg, len);
-      setKeyStrOffs(pg, 0, keySpace - len);
-      setKeyStrSize(pg, 0, len);
-      setKeyStrOid(pg, 0, ins.oid);
-      setKeyStrOid(pg, 1, root);
-      setKeyBytes(pg, keySpace - len, bval);
-    } else {
-      ins.pack(pg, 0);
-      setReference(pg, maxItems - 2, root);
-    }
-    db.pool.unfix(pg);
-    return pageId;
+  static int getKeyStrOid(Page pg, int index) {
+    return Bytes.unpack4(pg.data, firstKeyOffs + index * 8);
   }
 
-  static void memcpy(Page dst_pg, int dst_idx, Page src_pg, int src_idx, int len, int itemSize) {
-    System.arraycopy(src_pg.data, firstKeyOffs + src_idx * itemSize, dst_pg.data,
-        firstKeyOffs + dst_idx * itemSize, len * itemSize);
+  static int getKeyStrSize(Page pg, int index) {
+    return Bytes.unpack2(pg.data, firstKeyOffs + index * 8 + 4);
   }
 
-  static int insert(StorageImpl db, int pageId, Btree tree, BtreeKey ins, int height,
-      boolean unique, boolean overwrite) {
-    Page pg = db.getPage(pageId);
-    int result;
-    int l = 0, n = getnItems(pg), r = n;
-    int ahead = unique ? 1 : 0;
-    try {
-      if (tree.type == ClassDescriptor.tpString) {
-        while (l < r) {
-          int i = (l + r) >> 1;
-          if (compareStr(ins.key, pg, i) >= ahead) {
-            l = i + 1;
-          } else {
-            r = i;
-          }
-        }
-        Assert.that(l == r);
-        if (--height != 0) {
-          result = insert(db, getKeyStrOid(pg, r), tree, ins, height, unique, overwrite);
-          Assert.that(result != Btree.op_not_found);
-          if (result != Btree.op_overflow) {
-            return result;
-          }
-        } else if (r < n && compareStr(ins.key, pg, r) == 0) {
-          if (overwrite) {
-            db.pool.unfix(pg);
-            pg = null;
-            pg = db.putPage(pageId);
-            ins.oldOid = getKeyStrOid(pg, r);
-            setKeyStrOid(pg, r, ins.oid);
-            return Btree.op_overwrite;
-          } else if (unique) {
-            return Btree.op_duplicate;
-          }
-        }
-        db.pool.unfix(pg);
-        pg = null;
-        pg = db.putPage(pageId);
-        return insertStrKey(db, pg, r, ins, height);
-      } else if (tree.type == ClassDescriptor.tpArrayOfByte) {
-        while (l < r) {
-          int i = (l + r) >> 1;
-          if (tree.compareByteArrays(ins.key, pg, i) >= ahead) {
-            l = i + 1;
-          } else {
-            r = i;
-          }
-        }
-        Assert.that(l == r);
-        if (--height != 0) {
-          result = insert(db, getKeyStrOid(pg, r), tree, ins, height, unique, overwrite);
-          Assert.that(result != Btree.op_not_found);
-          if (result != Btree.op_overflow) {
-            return result;
-          }
-        } else if (r < n && tree.compareByteArrays(ins.key, pg, r) == 0) {
-          if (overwrite) {
-            db.pool.unfix(pg);
-            pg = null;
-            pg = db.putPage(pageId);
-            ins.oldOid = getKeyStrOid(pg, r);
-            setKeyStrOid(pg, r, ins.oid);
-            return Btree.op_overwrite;
-          } else if (unique) {
-            return Btree.op_duplicate;
-          }
-        }
-        db.pool.unfix(pg);
-        pg = null;
-        pg = db.putPage(pageId);
-        return insertByteArrayKey(db, pg, r, ins, height);
-      } else {
-        while (l < r) {
-          int i = (l + r) >> 1;
-          if (compare(ins.key, pg, i) >= ahead)
-            l = i + 1;
-          else
-            r = i;
-        }
-        Assert.that(l == r);
-        /* insert before e[r] */
-        if (--height != 0) {
-          result =
-              insert(db, getReference(pg, maxItems - r - 1), tree, ins, height, unique, overwrite);
-          Assert.that(result != Btree.op_not_found);
-          if (result != Btree.op_overflow) {
-            return result;
-          }
-          n += 1;
-        } else if (r < n && compare(ins.key, pg, r) == 0) {
-          if (overwrite) {
-            db.pool.unfix(pg);
-            pg = null;
-            pg = db.putPage(pageId);
-            ins.oldOid = getReference(pg, maxItems - r - 1);
-            setReference(pg, maxItems - r - 1, ins.oid);
-            return Btree.op_overwrite;
-          } else if (unique) {
-            return Btree.op_duplicate;
-          }
-        }
-        db.pool.unfix(pg);
-        pg = null;
-        pg = db.putPage(pageId);
-        int itemSize = ClassDescriptor.sizeof[tree.type];
-        int max = keySpace / (4 + itemSize);
-        if (n < max) {
-          memcpy(pg, r + 1, pg, r, n - r, itemSize);
-          memcpy(pg, maxItems - n - 1, pg, maxItems - n, n - r, 4);
-          ins.pack(pg, r);
-          setnItems(pg, getnItems(pg) + 1);
-          return Btree.op_done;
-        } else { /* page is full then divide page */
-          pageId = db.allocatePage();
-          Page b = db.putPage(pageId);
-          Assert.that(n == max);
-          int m = (max + 1) / 2;
-          if (r < m) {
-            memcpy(b, 0, pg, 0, r, itemSize);
-            memcpy(b, r + 1, pg, r, m - r - 1, itemSize);
-            memcpy(pg, 0, pg, m - 1, max - m + 1, itemSize);
-            memcpy(b, maxItems - r, pg, maxItems - r, r, 4);
-            ins.pack(b, r);
-            memcpy(b, maxItems - m, pg, maxItems - m + 1, m - r - 1, 4);
-            memcpy(pg, maxItems - max + m - 1, pg, maxItems - max, max - m + 1, 4);
-          } else {
-            memcpy(b, 0, pg, 0, m, itemSize);
-            memcpy(pg, 0, pg, m, r - m, itemSize);
-            memcpy(pg, r - m + 1, pg, r, max - r, itemSize);
-            memcpy(b, maxItems - m, pg, maxItems - m, m, 4);
-            memcpy(pg, maxItems - r + m, pg, maxItems - r, r - m, 4);
-            ins.pack(pg, r - m);
-            memcpy(pg, maxItems - max + m - 1, pg, maxItems - max, max - r, 4);
-          }
-          ins.oid = pageId;
-          ins.extract(b, firstKeyOffs + (m - 1) * itemSize, tree.type);
-          if (height == 0) {
-            setnItems(pg, max - m + 1);
-            setnItems(b, m);
-          } else {
-            setnItems(pg, max - m);
-            setnItems(b, m - 1);
-          }
-          db.pool.unfix(b);
-          return Btree.op_overflow;
-        }
-      }
-    } finally {
-      if (pg != null) {
-        db.pool.unfix(pg);
-      }
-    }
+  static int getnItems(Page pg) {
+    return Bytes.unpack2(pg.data, 0);
   }
 
-  static int insertStrKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
-    int nItems = getnItems(pg);
-    int size = getSize(pg);
-    int n = (height != 0) ? nItems + 1 : nItems;
-    // insert before e[r]
-    char[] sval = (char[]) ins.key.oval;
-    int len = sval.length;
-    if (size + len * 2 + (n + 1) * strKeySize <= keySpace) {
-      memcpy(pg, r + 1, pg, r, n - r, strKeySize);
-      size += len * 2;
-      setKeyStrOffs(pg, r, keySpace - size);
-      setKeyStrSize(pg, r, len);
-      setKeyStrOid(pg, r, ins.oid);
-      setKeyStrChars(pg, keySpace - size, sval);
-      nItems += 1;
-    } else { // page is full then divide page
-      int pageId = db.allocatePage();
-      Page b = db.putPage(pageId);
-      int moved = 0;
-      int inserted = len * 2 + strKeySize;
-      int prevDelta = (1 << 31) + 1;
-
-      for (int bn = 0, i = 0;; bn += 1) {
-        int addSize, subSize;
-        int j = nItems - i - 1;
-        int keyLen = getKeyStrSize(pg, i);
-        if (bn == r) {
-          keyLen = len;
-          inserted = 0;
-          addSize = len;
-          if (height == 0) {
-            subSize = 0;
-            j += 1;
-          } else {
-            subSize = getKeyStrSize(pg, i);
-          }
-        } else {
-          addSize = subSize = keyLen;
-          if (height != 0) {
-            if (i + 1 != r) {
-              subSize += getKeyStrSize(pg, i + 1);
-              j -= 1;
-            } else {
-              inserted = 0;
-            }
-          }
-        }
-        int delta = (moved + addSize * 2 + (bn + 1) * strKeySize)
-            - (j * strKeySize + size - subSize * 2 + inserted);
-        if (delta >= -prevDelta) {
-          if (height == 0) {
-            ins.getStr(b, bn - 1);
-          } else {
-            Assert.that("String fits in the B-Tree page",
-                moved + (bn + 1) * strKeySize <= keySpace);
-            if (bn != r) {
-              ins.getStr(pg, i);
-              setKeyStrOid(b, bn, getKeyStrOid(pg, i));
-              size -= keyLen * 2;
-              i += 1;
-            } else {
-              setKeyStrOid(b, bn, ins.oid);
-            }
-          }
-          nItems = compactifyStrings(pg, i);
-          if (bn < r || (bn == r && height == 0)) {
-            memcpy(pg, r - i + 1, pg, r - i, n - r, strKeySize);
-            size += len * 2;
-            nItems += 1;
-            Assert.that("String fits in the B-Tree page",
-                size + (n - i + 1) * strKeySize <= keySpace);
-            setKeyStrOffs(pg, r - i, keySpace - size);
-            setKeyStrSize(pg, r - i, len);
-            setKeyStrOid(pg, r - i, ins.oid);
-            setKeyStrChars(pg, keySpace - size, sval);
-          }
-          setnItems(b, bn);
-          setSize(b, moved);
-          setSize(pg, size);
-          setnItems(pg, nItems);
-          ins.oid = pageId;
-          db.pool.unfix(b);
-          return Btree.op_overflow;
-        }
-        moved += keyLen * 2;
-        prevDelta = delta;
-        Assert.that("String fits in the B-Tree page", moved + (bn + 1) * strKeySize <= keySpace);
-        setKeyStrSize(b, bn, keyLen);
-        setKeyStrOffs(b, bn, keySpace - moved);
-        if (bn == r) {
-          setKeyStrOid(b, bn, ins.oid);
-          setKeyStrChars(b, keySpace - moved, sval);
-        } else {
-          setKeyStrOid(b, bn, getKeyStrOid(pg, i));
-          memcpy(b, keySpace - moved, pg, getKeyStrOffs(pg, i), keyLen * 2, 1);
-          size -= keyLen * 2;
-          i += 1;
-        }
-      }
-    }
-    setnItems(pg, nItems);
-    setSize(pg, size);
-    return size + strKeySize * (nItems + 1) < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
+  static int getReference(Page pg, int index) {
+    return Bytes.unpack4(pg.data, firstKeyOffs + index * 4);
   }
 
-  static int insertByteArrayKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
-    int nItems = getnItems(pg);
-    int size = getSize(pg);
-    int n = (height != 0) ? nItems + 1 : nItems;
-    byte[] bval = (byte[]) ins.key.oval;
-    // insert before e[r]
-    int len = bval.length;
-    if (size + len + (n + 1) * strKeySize <= keySpace) {
-      memcpy(pg, r + 1, pg, r, n - r, strKeySize);
-      size += len;
-      setKeyStrOffs(pg, r, keySpace - size);
-      setKeyStrSize(pg, r, len);
-      setKeyStrOid(pg, r, ins.oid);
-      setKeyBytes(pg, keySpace - size, bval);
-      nItems += 1;
-    } else { // page is full then divide page
-      int pageId = db.allocatePage();
-      Page b = db.putPage(pageId);
-      int moved = 0;
-      int inserted = len + strKeySize;
-      int prevDelta = (1 << 31) + 1;
-
-      for (int bn = 0, i = 0;; bn += 1) {
-        int addSize, subSize;
-        int j = nItems - i - 1;
-        int keyLen = getKeyStrSize(pg, i);
-        if (bn == r) {
-          keyLen = len;
-          inserted = 0;
-          addSize = len;
-          if (height == 0) {
-            subSize = 0;
-            j += 1;
-          } else {
-            subSize = getKeyStrSize(pg, i);
-          }
-        } else {
-          addSize = subSize = keyLen;
-          if (height != 0) {
-            if (i + 1 != r) {
-              subSize += getKeyStrSize(pg, i + 1);
-              j -= 1;
-            } else {
-              inserted = 0;
-            }
-          }
-        }
-        int delta = (moved + addSize + (bn + 1) * strKeySize)
-            - (j * strKeySize + size - subSize + inserted);
-        if (delta >= -prevDelta) {
-          if (height == 0) {
-            ins.getByteArray(b, bn - 1);
-          } else {
-            Assert.that("String fits in the B-Tree page",
-                moved + (bn + 1) * strKeySize <= keySpace);
-            if (bn != r) {
-              ins.getByteArray(pg, i);
-              setKeyStrOid(b, bn, getKeyStrOid(pg, i));
-              size -= keyLen;
-              i += 1;
-            } else {
-              setKeyStrOid(b, bn, ins.oid);
-            }
-          }
-          nItems = compactifyByteArrays(pg, i);
-          if (bn < r || (bn == r && height == 0)) {
-            memcpy(pg, r - i + 1, pg, r - i, n - r, strKeySize);
-            size += len;
-            nItems += 1;
-            Assert.that("String fits in the B-Tree page",
-                size + (n - i + 1) * strKeySize <= keySpace);
-            setKeyStrOffs(pg, r - i, keySpace - size);
-            setKeyStrSize(pg, r - i, len);
-            setKeyStrOid(pg, r - i, ins.oid);
-            setKeyBytes(pg, keySpace - size, bval);
-          }
-          setnItems(b, bn);
-          setSize(b, moved);
-          setSize(pg, size);
-          setnItems(pg, nItems);
-          ins.oid = pageId;
-          db.pool.unfix(b);
-          return Btree.op_overflow;
-        }
-        moved += keyLen;
-        prevDelta = delta;
-        Assert.that("String fits in the B-Tree page", moved + (bn + 1) * strKeySize <= keySpace);
-        setKeyStrSize(b, bn, keyLen);
-        setKeyStrOffs(b, bn, keySpace - moved);
-        if (bn == r) {
-          setKeyStrOid(b, bn, ins.oid);
-          setKeyBytes(b, keySpace - moved, bval);
-        } else {
-          setKeyStrOid(b, bn, getKeyStrOid(pg, i));
-          memcpy(b, keySpace - moved, pg, getKeyStrOffs(pg, i), keyLen, 1);
-          size -= keyLen;
-          i += 1;
-        }
-      }
-    }
-    setnItems(pg, nItems);
-    setSize(pg, size);
-    return size + strKeySize * (nItems + 1) < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
-  }
-
-
-  static int compactifyStrings(Page pg, int m) {
-    int i, j, offs, len, n = getnItems(pg);
-    int[] size = new int[keySpace / 2 + 1];
-    int[] index = new int[keySpace / 2 + 1];
-    if (m == 0) {
-      return n;
-    }
-    int nZeroLengthStrings = 0;
-    if (m < 0) {
-      m = -m;
-      for (i = 0; i < n - m; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i) >>> 1;
-          size[offs + len] = len;
-          index[offs + len] = i;
-        } else {
-          nZeroLengthStrings += 1;
-        }
-      }
-      for (; i < n; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i) >>> 1;
-          size[offs + len] = len;
-          index[offs + len] = -1;
-        }
-      }
-    } else {
-      for (i = 0; i < m; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i) >>> 1;
-          size[offs + len] = len;
-          index[offs + len] = -1;
-        }
-      }
-      for (; i < n; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i) >>> 1;
-          size[offs + len] = len;
-          index[offs + len] = i - m;
-        } else {
-          nZeroLengthStrings += 1;
-        }
-        setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
-        setKeyStrSize(pg, i - m, len);
-      }
-      setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
-    }
-    int nItems = n -= m;
-    n -= nZeroLengthStrings;
-    for (offs = keySpace / 2, i = offs; n != 0; i -= len) {
-      len = size[i];
-      j = index[i];
-      if (j >= 0) {
-        offs -= len;
-        n -= 1;
-        setKeyStrOffs(pg, j, offs * 2);
-        if (offs != i - len) {
-          memcpy(pg, offs, pg, i - len, len, 2);
-        }
-      }
-    }
-    return nItems;
-  }
-
-  static int compactifyByteArrays(Page pg, int m) {
-    int i, j, offs, len, n = getnItems(pg);
-    int[] size = new int[keySpace + 1];
-    int[] index = new int[keySpace + 1];
-    if (m == 0) {
-      return n;
-    }
-    int nZeroLengthArrays = 0;
-    if (m < 0) {
-      m = -m;
-      for (i = 0; i < n - m; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i);
-          size[offs + len] = len;
-          index[offs + len] = i;
-        } else {
-          nZeroLengthArrays += 1;
-        }
-      }
-      for (; i < n; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i);
-          size[offs + len] = len;
-          index[offs + len] = -1;
-        }
-      }
-    } else {
-      for (i = 0; i < m; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i);
-          size[offs + len] = len;
-          index[offs + len] = -1;
-        }
-      }
-      for (; i < n; i++) {
-        len = getKeyStrSize(pg, i);
-        if (len != 0) {
-          offs = getKeyStrOffs(pg, i);
-          size[offs + len] = len;
-          index[offs + len] = i - m;
-        } else {
-          nZeroLengthArrays += 1;
-        }
-        setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
-        setKeyStrSize(pg, i - m, len);
-      }
-      setKeyStrOid(pg, i - m, getKeyStrOid(pg, i));
-    }
-    int nItems = n -= m;
-    n -= nZeroLengthArrays;
-    for (offs = keySpace, i = offs; n != 0; i -= len) {
-      len = size[i];
-      j = index[i];
-      if (j >= 0) {
-        offs -= len;
-        n -= 1;
-        setKeyStrOffs(pg, j, offs);
-        if (offs != i - len) {
-          memcpy(pg, offs, pg, i - len, len, 1);
-        }
-      }
-    }
-    return nItems;
-  }
-
-  static int removeStrKey(Page pg, int r) {
-    int len = getKeyStrSize(pg, r) * 2;
-    int offs = getKeyStrOffs(pg, r);
-    int size = getSize(pg);
-    int nItems = getnItems(pg);
-    if ((nItems + 1) * strKeySize >= keySpace) {
-      memcpy(pg, r, pg, r + 1, nItems - r - 1, strKeySize);
-    } else {
-      memcpy(pg, r, pg, r + 1, nItems - r, strKeySize);
-    }
-    if (len != 0) {
-      memcpy(pg, keySpace - size + len, pg, keySpace - size, size - keySpace + offs, 1);
-      for (int i = nItems; --i >= 0;) {
-        if (getKeyStrOffs(pg, i) < offs) {
-          setKeyStrOffs(pg, i, getKeyStrOffs(pg, i) + len);
-        }
-      }
-      setSize(pg, size -= len);
-    }
-    setnItems(pg, nItems - 1);
-    return size + strKeySize * nItems < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
-  }
-
-  static int removeByteArrayKey(Page pg, int r) {
-    int len = getKeyStrSize(pg, r);
-    int offs = getKeyStrOffs(pg, r);
-    int size = getSize(pg);
-    int nItems = getnItems(pg);
-    if ((nItems + 1) * strKeySize >= keySpace) {
-      memcpy(pg, r, pg, r + 1, nItems - r - 1, strKeySize);
-    } else {
-      memcpy(pg, r, pg, r + 1, nItems - r, strKeySize);
-    }
-    if (len != 0) {
-      memcpy(pg, keySpace - size + len, pg, keySpace - size, size - keySpace + offs, 1);
-      for (int i = nItems; --i >= 0;) {
-        if (getKeyStrOffs(pg, i) < offs) {
-          setKeyStrOffs(pg, i, getKeyStrOffs(pg, i) + len);
-        }
-      }
-      setSize(pg, size -= len);
-    }
-    setnItems(pg, nItems - 1);
-    return size + strKeySize * nItems < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
-  }
-
-
-  static int replaceStrKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
-    ins.oid = getKeyStrOid(pg, r);
-    removeStrKey(pg, r);
-    return insertStrKey(db, pg, r, ins, height);
-  }
-
-  static int replaceByteArrayKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
-    ins.oid = getKeyStrOid(pg, r);
-    removeByteArrayKey(pg, r);
-    return insertByteArrayKey(db, pg, r, ins, height);
+  static int getSize(Page pg) {
+    return Bytes.unpack2(pg.data, 2);
   }
 
   static int handlePageUnderflow(StorageImpl db, Page pg, int r, int type, BtreeKey rem,
@@ -1444,6 +971,474 @@ class BtreePage {
     }
   }
 
+
+  static int insert(StorageImpl db, int pageId, Btree tree, BtreeKey ins, int height,
+      boolean unique, boolean overwrite) {
+    Page pg = db.getPage(pageId);
+    int result;
+    int l = 0, n = getnItems(pg), r = n;
+    int ahead = unique ? 1 : 0;
+    try {
+      if (tree.type == ClassDescriptor.tpString) {
+        while (l < r) {
+          int i = (l + r) >> 1;
+          if (compareStr(ins.key, pg, i) >= ahead) {
+            l = i + 1;
+          } else {
+            r = i;
+          }
+        }
+        Assert.that(l == r);
+        if (--height != 0) {
+          result = insert(db, getKeyStrOid(pg, r), tree, ins, height, unique, overwrite);
+          Assert.that(result != Btree.op_not_found);
+          if (result != Btree.op_overflow) {
+            return result;
+          }
+        } else if (r < n && compareStr(ins.key, pg, r) == 0) {
+          if (overwrite) {
+            db.pool.unfix(pg);
+            pg = null;
+            pg = db.putPage(pageId);
+            ins.oldOid = getKeyStrOid(pg, r);
+            setKeyStrOid(pg, r, ins.oid);
+            return Btree.op_overwrite;
+          } else if (unique) {
+            return Btree.op_duplicate;
+          }
+        }
+        db.pool.unfix(pg);
+        pg = null;
+        pg = db.putPage(pageId);
+        return insertStrKey(db, pg, r, ins, height);
+      } else if (tree.type == ClassDescriptor.tpArrayOfByte) {
+        while (l < r) {
+          int i = (l + r) >> 1;
+          if (tree.compareByteArrays(ins.key, pg, i) >= ahead) {
+            l = i + 1;
+          } else {
+            r = i;
+          }
+        }
+        Assert.that(l == r);
+        if (--height != 0) {
+          result = insert(db, getKeyStrOid(pg, r), tree, ins, height, unique, overwrite);
+          Assert.that(result != Btree.op_not_found);
+          if (result != Btree.op_overflow) {
+            return result;
+          }
+        } else if (r < n && tree.compareByteArrays(ins.key, pg, r) == 0) {
+          if (overwrite) {
+            db.pool.unfix(pg);
+            pg = null;
+            pg = db.putPage(pageId);
+            ins.oldOid = getKeyStrOid(pg, r);
+            setKeyStrOid(pg, r, ins.oid);
+            return Btree.op_overwrite;
+          } else if (unique) {
+            return Btree.op_duplicate;
+          }
+        }
+        db.pool.unfix(pg);
+        pg = null;
+        pg = db.putPage(pageId);
+        return insertByteArrayKey(db, pg, r, ins, height);
+      } else {
+        while (l < r) {
+          int i = (l + r) >> 1;
+          if (compare(ins.key, pg, i) >= ahead)
+            l = i + 1;
+          else
+            r = i;
+        }
+        Assert.that(l == r);
+        /* insert before e[r] */
+        if (--height != 0) {
+          result =
+              insert(db, getReference(pg, maxItems - r - 1), tree, ins, height, unique, overwrite);
+          Assert.that(result != Btree.op_not_found);
+          if (result != Btree.op_overflow) {
+            return result;
+          }
+          n += 1;
+        } else if (r < n && compare(ins.key, pg, r) == 0) {
+          if (overwrite) {
+            db.pool.unfix(pg);
+            pg = null;
+            pg = db.putPage(pageId);
+            ins.oldOid = getReference(pg, maxItems - r - 1);
+            setReference(pg, maxItems - r - 1, ins.oid);
+            return Btree.op_overwrite;
+          } else if (unique) {
+            return Btree.op_duplicate;
+          }
+        }
+        db.pool.unfix(pg);
+        pg = null;
+        pg = db.putPage(pageId);
+        int itemSize = ClassDescriptor.sizeof[tree.type];
+        int max = keySpace / (4 + itemSize);
+        if (n < max) {
+          memcpy(pg, r + 1, pg, r, n - r, itemSize);
+          memcpy(pg, maxItems - n - 1, pg, maxItems - n, n - r, 4);
+          ins.pack(pg, r);
+          setnItems(pg, getnItems(pg) + 1);
+          return Btree.op_done;
+        } else { /* page is full then divide page */
+          pageId = db.allocatePage();
+          Page b = db.putPage(pageId);
+          Assert.that(n == max);
+          int m = (max + 1) / 2;
+          if (r < m) {
+            memcpy(b, 0, pg, 0, r, itemSize);
+            memcpy(b, r + 1, pg, r, m - r - 1, itemSize);
+            memcpy(pg, 0, pg, m - 1, max - m + 1, itemSize);
+            memcpy(b, maxItems - r, pg, maxItems - r, r, 4);
+            ins.pack(b, r);
+            memcpy(b, maxItems - m, pg, maxItems - m + 1, m - r - 1, 4);
+            memcpy(pg, maxItems - max + m - 1, pg, maxItems - max, max - m + 1, 4);
+          } else {
+            memcpy(b, 0, pg, 0, m, itemSize);
+            memcpy(pg, 0, pg, m, r - m, itemSize);
+            memcpy(pg, r - m + 1, pg, r, max - r, itemSize);
+            memcpy(b, maxItems - m, pg, maxItems - m, m, 4);
+            memcpy(pg, maxItems - r + m, pg, maxItems - r, r - m, 4);
+            ins.pack(pg, r - m);
+            memcpy(pg, maxItems - max + m - 1, pg, maxItems - max, max - r, 4);
+          }
+          ins.oid = pageId;
+          ins.extract(b, firstKeyOffs + (m - 1) * itemSize, tree.type);
+          if (height == 0) {
+            setnItems(pg, max - m + 1);
+            setnItems(b, m);
+          } else {
+            setnItems(pg, max - m);
+            setnItems(b, m - 1);
+          }
+          db.pool.unfix(b);
+          return Btree.op_overflow;
+        }
+      }
+    } finally {
+      if (pg != null) {
+        db.pool.unfix(pg);
+      }
+    }
+  }
+
+  static int insertByteArrayKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
+    int nItems = getnItems(pg);
+    int size = getSize(pg);
+    int n = (height != 0) ? nItems + 1 : nItems;
+    byte[] bval = (byte[]) ins.key.oval;
+    // insert before e[r]
+    int len = bval.length;
+    if (size + len + (n + 1) * strKeySize <= keySpace) {
+      memcpy(pg, r + 1, pg, r, n - r, strKeySize);
+      size += len;
+      setKeyStrOffs(pg, r, keySpace - size);
+      setKeyStrSize(pg, r, len);
+      setKeyStrOid(pg, r, ins.oid);
+      setKeyBytes(pg, keySpace - size, bval);
+      nItems += 1;
+    } else { // page is full then divide page
+      int pageId = db.allocatePage();
+      Page b = db.putPage(pageId);
+      int moved = 0;
+      int inserted = len + strKeySize;
+      int prevDelta = (1 << 31) + 1;
+
+      for (int bn = 0, i = 0;; bn += 1) {
+        int addSize, subSize;
+        int j = nItems - i - 1;
+        int keyLen = getKeyStrSize(pg, i);
+        if (bn == r) {
+          keyLen = len;
+          inserted = 0;
+          addSize = len;
+          if (height == 0) {
+            subSize = 0;
+            j += 1;
+          } else {
+            subSize = getKeyStrSize(pg, i);
+          }
+        } else {
+          addSize = subSize = keyLen;
+          if (height != 0) {
+            if (i + 1 != r) {
+              subSize += getKeyStrSize(pg, i + 1);
+              j -= 1;
+            } else {
+              inserted = 0;
+            }
+          }
+        }
+        int delta = (moved + addSize + (bn + 1) * strKeySize)
+            - (j * strKeySize + size - subSize + inserted);
+        if (delta >= -prevDelta) {
+          if (height == 0) {
+            ins.getByteArray(b, bn - 1);
+          } else {
+            Assert.that("String fits in the B-Tree page",
+                moved + (bn + 1) * strKeySize <= keySpace);
+            if (bn != r) {
+              ins.getByteArray(pg, i);
+              setKeyStrOid(b, bn, getKeyStrOid(pg, i));
+              size -= keyLen;
+              i += 1;
+            } else {
+              setKeyStrOid(b, bn, ins.oid);
+            }
+          }
+          nItems = compactifyByteArrays(pg, i);
+          if (bn < r || (bn == r && height == 0)) {
+            memcpy(pg, r - i + 1, pg, r - i, n - r, strKeySize);
+            size += len;
+            nItems += 1;
+            Assert.that("String fits in the B-Tree page",
+                size + (n - i + 1) * strKeySize <= keySpace);
+            setKeyStrOffs(pg, r - i, keySpace - size);
+            setKeyStrSize(pg, r - i, len);
+            setKeyStrOid(pg, r - i, ins.oid);
+            setKeyBytes(pg, keySpace - size, bval);
+          }
+          setnItems(b, bn);
+          setSize(b, moved);
+          setSize(pg, size);
+          setnItems(pg, nItems);
+          ins.oid = pageId;
+          db.pool.unfix(b);
+          return Btree.op_overflow;
+        }
+        moved += keyLen;
+        prevDelta = delta;
+        Assert.that("String fits in the B-Tree page", moved + (bn + 1) * strKeySize <= keySpace);
+        setKeyStrSize(b, bn, keyLen);
+        setKeyStrOffs(b, bn, keySpace - moved);
+        if (bn == r) {
+          setKeyStrOid(b, bn, ins.oid);
+          setKeyBytes(b, keySpace - moved, bval);
+        } else {
+          setKeyStrOid(b, bn, getKeyStrOid(pg, i));
+          memcpy(b, keySpace - moved, pg, getKeyStrOffs(pg, i), keyLen, 1);
+          size -= keyLen;
+          i += 1;
+        }
+      }
+    }
+    setnItems(pg, nItems);
+    setSize(pg, size);
+    return size + strKeySize * (nItems + 1) < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
+  }
+
+
+  static int insertStrKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
+    int nItems = getnItems(pg);
+    int size = getSize(pg);
+    int n = (height != 0) ? nItems + 1 : nItems;
+    // insert before e[r]
+    char[] sval = (char[]) ins.key.oval;
+    int len = sval.length;
+    if (size + len * 2 + (n + 1) * strKeySize <= keySpace) {
+      memcpy(pg, r + 1, pg, r, n - r, strKeySize);
+      size += len * 2;
+      setKeyStrOffs(pg, r, keySpace - size);
+      setKeyStrSize(pg, r, len);
+      setKeyStrOid(pg, r, ins.oid);
+      setKeyStrChars(pg, keySpace - size, sval);
+      nItems += 1;
+    } else { // page is full then divide page
+      int pageId = db.allocatePage();
+      Page b = db.putPage(pageId);
+      int moved = 0;
+      int inserted = len * 2 + strKeySize;
+      int prevDelta = (1 << 31) + 1;
+
+      for (int bn = 0, i = 0;; bn += 1) {
+        int addSize, subSize;
+        int j = nItems - i - 1;
+        int keyLen = getKeyStrSize(pg, i);
+        if (bn == r) {
+          keyLen = len;
+          inserted = 0;
+          addSize = len;
+          if (height == 0) {
+            subSize = 0;
+            j += 1;
+          } else {
+            subSize = getKeyStrSize(pg, i);
+          }
+        } else {
+          addSize = subSize = keyLen;
+          if (height != 0) {
+            if (i + 1 != r) {
+              subSize += getKeyStrSize(pg, i + 1);
+              j -= 1;
+            } else {
+              inserted = 0;
+            }
+          }
+        }
+        int delta = (moved + addSize * 2 + (bn + 1) * strKeySize)
+            - (j * strKeySize + size - subSize * 2 + inserted);
+        if (delta >= -prevDelta) {
+          if (height == 0) {
+            ins.getStr(b, bn - 1);
+          } else {
+            Assert.that("String fits in the B-Tree page",
+                moved + (bn + 1) * strKeySize <= keySpace);
+            if (bn != r) {
+              ins.getStr(pg, i);
+              setKeyStrOid(b, bn, getKeyStrOid(pg, i));
+              size -= keyLen * 2;
+              i += 1;
+            } else {
+              setKeyStrOid(b, bn, ins.oid);
+            }
+          }
+          nItems = compactifyStrings(pg, i);
+          if (bn < r || (bn == r && height == 0)) {
+            memcpy(pg, r - i + 1, pg, r - i, n - r, strKeySize);
+            size += len * 2;
+            nItems += 1;
+            Assert.that("String fits in the B-Tree page",
+                size + (n - i + 1) * strKeySize <= keySpace);
+            setKeyStrOffs(pg, r - i, keySpace - size);
+            setKeyStrSize(pg, r - i, len);
+            setKeyStrOid(pg, r - i, ins.oid);
+            setKeyStrChars(pg, keySpace - size, sval);
+          }
+          setnItems(b, bn);
+          setSize(b, moved);
+          setSize(pg, size);
+          setnItems(pg, nItems);
+          ins.oid = pageId;
+          db.pool.unfix(b);
+          return Btree.op_overflow;
+        }
+        moved += keyLen * 2;
+        prevDelta = delta;
+        Assert.that("String fits in the B-Tree page", moved + (bn + 1) * strKeySize <= keySpace);
+        setKeyStrSize(b, bn, keyLen);
+        setKeyStrOffs(b, bn, keySpace - moved);
+        if (bn == r) {
+          setKeyStrOid(b, bn, ins.oid);
+          setKeyStrChars(b, keySpace - moved, sval);
+        } else {
+          setKeyStrOid(b, bn, getKeyStrOid(pg, i));
+          memcpy(b, keySpace - moved, pg, getKeyStrOffs(pg, i), keyLen * 2, 1);
+          size -= keyLen * 2;
+          i += 1;
+        }
+      }
+    }
+    setnItems(pg, nItems);
+    setSize(pg, size);
+    return size + strKeySize * (nItems + 1) < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
+  }
+
+
+  static int markPage(StorageImpl db, int pageId, int type, int height) {
+    int nPages = 1;
+    Page pg = db.getGCPage(pageId);
+    try {
+      int i, n = getnItems(pg);
+      if (--height != 0) {
+        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
+                                                                                         // strings
+          for (i = 0; i <= n; i++) {
+            nPages += markPage(db, getKeyStrOid(pg, i), type, height);
+          }
+        } else {
+          for (i = 0; i <= n; i++) {
+            nPages += markPage(db, getReference(pg, maxItems - i - 1), type, height);
+          }
+        }
+      } else {
+        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
+                                                                                         // strings
+          for (i = 0; i < n; i++) {
+            db.markOid(getKeyStrOid(pg, i));
+          }
+        } else { // page of scalars
+          for (i = 0; i < n; i++) {
+            db.markOid(getReference(pg, maxItems - 1 - i));
+          }
+        }
+      }
+    } finally {
+      db.pool.unfix(pg);
+    }
+    return nPages;
+  }
+
+
+  static void memcpy(Page dst_pg, int dst_idx, Page src_pg, int src_idx, int len, int itemSize) {
+    System.arraycopy(src_pg.data, firstKeyOffs + src_idx * itemSize, dst_pg.data,
+        firstKeyOffs + dst_idx * itemSize, len * itemSize);
+  }
+
+  static boolean prefixSearch(StorageImpl db, int pageId, char[] key, int height,
+      ArrayList result) {
+    Page pg = db.getPage(pageId);
+    int l = 0, n = getnItems(pg), r = n;
+    int oid;
+    height -= 1;
+    try {
+      while (l < r) {
+        int i = (l + r) >> 1;
+        if (comparePrefix(key, pg, i) > 0) {
+          l = i + 1;
+        } else {
+          r = i;
+        }
+      }
+      Assert.that(r == l);
+      if (height == 0) {
+        while (l < n) {
+          if (comparePrefix(key, pg, l) < 0) {
+            return false;
+          }
+          oid = getKeyStrOid(pg, l);
+          result.add(db.lookupObject(oid, null));
+          l += 1;
+        }
+      } else {
+        do {
+          if (!prefixSearch(db, getKeyStrOid(pg, l), key, height, result)) {
+            return false;
+          }
+          if (l == n) {
+            return true;
+          }
+        } while (comparePrefix(key, pg, l++) >= 0);
+        return false;
+      }
+    } finally {
+      db.pool.unfix(pg);
+    }
+    return true;
+  }
+
+  static void purge(StorageImpl db, int pageId, int type, int height) {
+    if (--height != 0) {
+      Page pg = db.getPage(pageId);
+      int n = getnItems(pg) + 1;
+      if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
+                                                                                       // strings
+        while (--n >= 0) {
+          purge(db, getKeyStrOid(pg, n), type, height);
+        }
+      } else {
+        while (--n >= 0) {
+          purge(db, getReference(pg, maxItems - n - 1), type, height);
+        }
+      }
+      db.pool.unfix(pg);
+    }
+    db.freePage(pageId);
+  }
+
   static int remove(StorageImpl db, int pageId, Btree tree, BtreeKey rem, int height) {
     Page pg = db.getPage(pageId);
     try {
@@ -1586,23 +1581,100 @@ class BtreePage {
     }
   }
 
-  static void purge(StorageImpl db, int pageId, int type, int height) {
-    if (--height != 0) {
-      Page pg = db.getPage(pageId);
-      int n = getnItems(pg) + 1;
-      if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
-                                                                                       // strings
-        while (--n >= 0) {
-          purge(db, getKeyStrOid(pg, n), type, height);
-        }
-      } else {
-        while (--n >= 0) {
-          purge(db, getReference(pg, maxItems - n - 1), type, height);
+  static int removeByteArrayKey(Page pg, int r) {
+    int len = getKeyStrSize(pg, r);
+    int offs = getKeyStrOffs(pg, r);
+    int size = getSize(pg);
+    int nItems = getnItems(pg);
+    if ((nItems + 1) * strKeySize >= keySpace) {
+      memcpy(pg, r, pg, r + 1, nItems - r - 1, strKeySize);
+    } else {
+      memcpy(pg, r, pg, r + 1, nItems - r, strKeySize);
+    }
+    if (len != 0) {
+      memcpy(pg, keySpace - size + len, pg, keySpace - size, size - keySpace + offs, 1);
+      for (int i = nItems; --i >= 0;) {
+        if (getKeyStrOffs(pg, i) < offs) {
+          setKeyStrOffs(pg, i, getKeyStrOffs(pg, i) + len);
         }
       }
-      db.pool.unfix(pg);
+      setSize(pg, size -= len);
     }
-    db.freePage(pageId);
+    setnItems(pg, nItems - 1);
+    return size + strKeySize * nItems < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
+  }
+
+
+  static int removeStrKey(Page pg, int r) {
+    int len = getKeyStrSize(pg, r) * 2;
+    int offs = getKeyStrOffs(pg, r);
+    int size = getSize(pg);
+    int nItems = getnItems(pg);
+    if ((nItems + 1) * strKeySize >= keySpace) {
+      memcpy(pg, r, pg, r + 1, nItems - r - 1, strKeySize);
+    } else {
+      memcpy(pg, r, pg, r + 1, nItems - r, strKeySize);
+    }
+    if (len != 0) {
+      memcpy(pg, keySpace - size + len, pg, keySpace - size, size - keySpace + offs, 1);
+      for (int i = nItems; --i >= 0;) {
+        if (getKeyStrOffs(pg, i) < offs) {
+          setKeyStrOffs(pg, i, getKeyStrOffs(pg, i) + len);
+        }
+      }
+      setSize(pg, size -= len);
+    }
+    setnItems(pg, nItems - 1);
+    return size + strKeySize * nItems < keySpace / 3 ? Btree.op_underflow : Btree.op_done;
+  }
+
+  static int replaceByteArrayKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
+    ins.oid = getKeyStrOid(pg, r);
+    removeByteArrayKey(pg, r);
+    return insertByteArrayKey(db, pg, r, ins, height);
+  }
+
+  static int replaceStrKey(StorageImpl db, Page pg, int r, BtreeKey ins, int height) {
+    ins.oid = getKeyStrOid(pg, r);
+    removeStrKey(pg, r);
+    return insertStrKey(db, pg, r, ins, height);
+  }
+
+  static void setKeyBytes(Page pg, int offs, byte[] bytes) {
+    System.arraycopy(bytes, 0, pg.data, firstKeyOffs + offs, bytes.length);
+  }
+
+
+  static void setKeyStrChars(Page pg, int offs, char[] str) {
+    int len = str.length;
+    for (int i = 0; i < len; i++) {
+      Bytes.pack2(pg.data, firstKeyOffs + offs, (short) str[i]);
+      offs += 2;
+    }
+  }
+
+  static void setKeyStrOffs(Page pg, int index, int offs) {
+    Bytes.pack2(pg.data, firstKeyOffs + index * 8 + 6, (short) offs);
+  }
+
+  static void setKeyStrOid(Page pg, int index, int oid) {
+    Bytes.pack4(pg.data, firstKeyOffs + index * 8, oid);
+  }
+
+  static void setKeyStrSize(Page pg, int index, int size) {
+    Bytes.pack2(pg.data, firstKeyOffs + index * 8 + 4, (short) size);
+  }
+
+  static void setnItems(Page pg, int nItems) {
+    Bytes.pack2(pg.data, 0, (short) nItems);
+  }
+
+  static void setReference(Page pg, int index, int oid) {
+    Bytes.pack4(pg.data, firstKeyOffs + index * 4, oid);
+  }
+
+  static void setSize(Page pg, int size) {
+    Bytes.pack2(pg.data, 2, (short) size);
   }
 
   static int traverseForward(StorageImpl db, int pageId, int type, int height, Object[] result,
@@ -1638,78 +1710,6 @@ class BtreePage {
         }
       }
       return pos;
-    } finally {
-      db.pool.unfix(pg);
-    }
-  }
-
-  static int markPage(StorageImpl db, int pageId, int type, int height) {
-    int nPages = 1;
-    Page pg = db.getGCPage(pageId);
-    try {
-      int i, n = getnItems(pg);
-      if (--height != 0) {
-        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
-                                                                                         // strings
-          for (i = 0; i <= n; i++) {
-            nPages += markPage(db, getKeyStrOid(pg, i), type, height);
-          }
-        } else {
-          for (i = 0; i <= n; i++) {
-            nPages += markPage(db, getReference(pg, maxItems - i - 1), type, height);
-          }
-        }
-      } else {
-        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
-                                                                                         // strings
-          for (i = 0; i < n; i++) {
-            db.markOid(getKeyStrOid(pg, i));
-          }
-        } else { // page of scalars
-          for (i = 0; i < n; i++) {
-            db.markOid(getReference(pg, maxItems - 1 - i));
-          }
-        }
-      }
-    } finally {
-      db.pool.unfix(pg);
-    }
-    return nPages;
-  }
-
-  static void exportPage(StorageImpl db, XMLExporter exporter, int pageId, int type, int height)
-      throws java.io.IOException {
-    Page pg = db.getPage(pageId);
-    try {
-      int i, n = getnItems(pg);
-      if (--height != 0) {
-        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
-                                                                                         // strings
-          for (i = 0; i <= n; i++) {
-            exportPage(db, exporter, getKeyStrOid(pg, i), type, height);
-          }
-        } else {
-          for (i = 0; i <= n; i++) {
-            exportPage(db, exporter, getReference(pg, maxItems - i - 1), type, height);
-          }
-        }
-      } else {
-        if (type == ClassDescriptor.tpString || type == ClassDescriptor.tpArrayOfByte) { // page of
-                                                                                         // strings
-          for (i = 0; i < n; i++) {
-            exporter.exportAssoc(getKeyStrOid(pg, i), pg.data,
-                BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, i),
-                BtreePage.getKeyStrSize(pg, i), type);
-          }
-        } else {
-          for (i = 0; i < n; i++) {
-            exporter.exportAssoc(getReference(pg, maxItems - 1 - i), pg.data,
-                BtreePage.firstKeyOffs + i * ClassDescriptor.sizeof[type],
-                ClassDescriptor.sizeof[type], type);
-
-          }
-        }
-      }
     } finally {
       db.pool.unfix(pg);
     }

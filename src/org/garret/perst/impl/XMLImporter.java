@@ -16,92 +16,36 @@ import org.garret.perst.Storage;
 import org.garret.perst.XMLImportException;
 
 public class XMLImporter {
-  public XMLImporter(StorageImpl storage, Reader reader) {
-    this.storage = storage;
-    scanner = new XMLScanner(reader);
-    httpFormatter = new SimpleDateFormat(storage.xmlDateFormat, Locale.ENGLISH);
-  }
-
-  public void importDatabase() throws XMLImportException {
-    XMLElement elem;
-    int tkn;
-    if (scanner.scan() != XMLScanner.XML_LT || scanner.scan() != XMLScanner.XML_IDENT
-        || !scanner.getIdentifier().equals("database")) {
-      throwException("No root element");
-    }
-    if (scanner.scan() != XMLScanner.XML_IDENT || !scanner.getIdentifier().equals("root")
-        || scanner.scan() != XMLScanner.XML_EQ || scanner.scan() != XMLScanner.XML_SCONST) {
-      throwException("Database element should have \"root\" attribute");
-    }
-    int rootId = 0;
-    try {
-      rootId = Integer.parseInt(scanner.getString());
-    } catch (NumberFormatException x) {
-      throwException("Incorrect root object specification");
-    }
-    reuseOids = false;
-    int maxoids = 0;
-    while ((tkn = scanner.scan()) != XMLScanner.XML_GT) {
-      if (storage.xmlImportReuseOid && tkn == XMLScanner.XML_IDENT
-          && scanner.getIdentifier().equals("maxoids") && scanner.scan() == XMLScanner.XML_EQ
-          && scanner.scan() == XMLScanner.XML_SCONST) {
-        maxoids = Integer.parseInt(scanner.getString());
-        storage.reserveIds(maxoids);
-        reuseOids = true;
-      }
-    }
-    idMap = new int[rootId * 2];
-    idMap[rootId] = reuseOids ? rootId : storage.allocateId();
-    storage.header.root[1 - storage.currIndex].rootObject = idMap[rootId];
-
-    while ((tkn = scanner.scan()) == XMLScanner.XML_LT) {
-      if (scanner.scan() != XMLScanner.XML_IDENT) {
-        throwException("Element name expected");
-      }
-      String elemName = scanner.getIdentifier();
-      if (elemName.equals("org.garret.perst.impl.Btree")
-          || elemName.equals("org.garret.perst.impl.BitIndexImpl")
-          || elemName.equals("org.garret.perst.impl.PersistentSet")
-          || elemName.equals("org.garret.perst.impl.BtreeFieldIndex")
-          || elemName.equals("org.garret.perst.impl.BtreeCaseInsensitiveFieldIndex")
-          || elemName.equals("org.garret.perst.impl.BtreeCompoundIndex")
-          || elemName.equals("org.garret.perst.impl.BtreeMultiFieldIndex")
-          || elemName.equals("org.garret.perst.impl.BtreeCaseInsensitiveMultiFieldIndex")) {
-        createIndex(elemName);
-      } else {
-        createObject(readElement(elemName));
-      }
-    }
-    if (reuseOids) {
-      storage.collectFreeIds(idMap, maxoids);
-    }
-    if (tkn != XMLScanner.XML_LTS || scanner.scan() != XMLScanner.XML_IDENT
-        || !scanner.getIdentifier().equals("database") || scanner.scan() != XMLScanner.XML_GT) {
-      throwException("Root element is not closed");
-    }
-  }
-
   static class XMLElement {
-    private XMLElement next;
-    private XMLElement prev;
-    private String name;
-    private HashMap<String, XMLElement> siblings;
-    private HashMap<String, String> attributes;
-    private String svalue;
-    private long ivalue;
-    private double rvalue;
-    private int valueType;
-    private int counter;
-
     static final int NO_VALUE = 0;
     static final int STRING_VALUE = 1;
     static final int INT_VALUE = 2;
     static final int REAL_VALUE = 3;
     static final int NULL_VALUE = 4;
+    final static Collection<XMLElement> EMPTY_COLLECTION = new ArrayList<XMLElement>();
+    private XMLElement next;
+    private XMLElement prev;
+    private String name;
+    private HashMap<String, XMLElement> siblings;
+
+    private HashMap<String, String> attributes;
+    private String svalue;
+    private long ivalue;
+    private double rvalue;
+    private int valueType;
+
+    private int counter;
 
     XMLElement(String name) {
       this.name = name;
       valueType = NO_VALUE;
+    }
+
+    final void addAttribute(String name, String value) {
+      if (attributes == null) {
+        attributes = new HashMap();
+      }
+      attributes.put(name, value);
     }
 
     final void addSibling(XMLElement elem) {
@@ -122,24 +66,12 @@ public class XMLImporter {
       }
     }
 
-    final void addAttribute(String name, String value) {
-      if (attributes == null) {
-        attributes = new HashMap();
-      }
-      attributes.put(name, value);
+    final String getAttribute(String name) {
+      return attributes != null ? attributes.get(name) : null;
     }
 
-    final XMLElement getSibling(String name) {
-      if (siblings != null) {
-        return siblings.get(name);
-      }
-      return null;
-    }
-
-    final static Collection<XMLElement> EMPTY_COLLECTION = new ArrayList<XMLElement>();
-
-    final Collection<XMLElement> getSiblings() {
-      return (siblings != null) ? siblings.values() : EMPTY_COLLECTION;
+    final int getCounter() {
+      return counter;
     }
 
     final XMLElement getFirstSibling() {
@@ -149,25 +81,61 @@ public class XMLImporter {
       return null;
     }
 
-    final XMLElement getNextSibling() {
-      return next;
+    final long getIntValue() {
+      return ivalue;
     }
 
     final String getName() {
       return name;
     }
 
-    final int getCounter() {
-      return counter;
+    final XMLElement getNextSibling() {
+      return next;
     }
 
-    final String getAttribute(String name) {
-      return attributes != null ? attributes.get(name) : null;
+    final double getRealValue() {
+      return rvalue;
+    }
+
+    final XMLElement getSibling(String name) {
+      if (siblings != null) {
+        return siblings.get(name);
+      }
+      return null;
+    }
+
+    final Collection<XMLElement> getSiblings() {
+      return (siblings != null) ? siblings.values() : EMPTY_COLLECTION;
+    }
+
+    final String getStringValue() {
+      return svalue;
+    }
+
+    final boolean isIntValue() {
+      return valueType == INT_VALUE;
+    }
+
+
+    final boolean isNullValue() {
+      return valueType == NULL_VALUE;
+    }
+
+    final boolean isRealValue() {
+      return valueType == REAL_VALUE;
+    }
+
+    final boolean isStringValue() {
+      return valueType == STRING_VALUE;
     }
 
     final void setIntValue(long val) {
       ivalue = val;
       valueType = INT_VALUE;
+    }
+
+    final void setNullValue() {
+      valueType = NULL_VALUE;
     }
 
     final void setRealValue(double val) {
@@ -179,89 +147,268 @@ public class XMLImporter {
       svalue = val;
       valueType = STRING_VALUE;
     }
-
-    final void setNullValue() {
-      valueType = NULL_VALUE;
-    }
-
-
-    final String getStringValue() {
-      return svalue;
-    }
-
-    final long getIntValue() {
-      return ivalue;
-    }
-
-    final double getRealValue() {
-      return rvalue;
-    }
-
-    final boolean isIntValue() {
-      return valueType == INT_VALUE;
-    }
-
-    final boolean isRealValue() {
-      return valueType == REAL_VALUE;
-    }
-
-    final boolean isStringValue() {
-      return valueType == STRING_VALUE;
-    }
-
-    final boolean isNullValue() {
-      return valueType == NULL_VALUE;
-    }
   }
 
-  final String getAttribute(XMLElement elem, String name) throws XMLImportException {
-    String value = elem.getAttribute(name);
-    if (value == null) {
-      throwException("Attribute " + name + " is not set");
-    }
-    return value;
-  }
+  static class XMLScanner {
+    static final int XML_IDENT = 0;
+    static final int XML_SCONST = 1;
+    static final int XML_ICONST = 2;
+    static final int XML_FCONST = 3;
+    static final int XML_LT = 4;
+    static final int XML_GT = 5;
+    static final int XML_LTS = 6;
+    static final int XML_GTS = 7;
+    static final int XML_EQ = 8;
+    static final int XML_EOF = 9;
 
+    Reader reader;
+    int line;
+    int column;
+    char[] sconst;
+    long iconst;
+    double fconst;
+    int slen;
+    String ident;
+    int size;
+    int ungetChar;
+    boolean hasUngetChar;
 
-  final int getIntAttribute(XMLElement elem, String name) throws XMLImportException {
-    String value = elem.getAttribute(name);
-    if (value == null) {
-      throwException("Attribute " + name + " is not set");
+    XMLScanner(Reader in) {
+      reader = in;
+      sconst = new char[size = 1024];
+      line = 1;
+      column = 0;
+      hasUngetChar = false;
     }
-    try {
-      return Integer.parseInt(value);
-    } catch (NumberFormatException x) {
-      throwException("Attribute " + name + " should has integer value");
-    }
-    return -1;
-  }
 
-  final int mapId(int id) {
-    int oid = 0;
-    if (id != 0) {
-      if (id >= idMap.length) {
-        int[] newMap = new int[id * 2];
-        System.arraycopy(idMap, 0, newMap, 0, idMap.length);
-        idMap = newMap;
-        idMap[id] = oid = reuseOids ? id : storage.allocateId();
-      } else {
-        oid = idMap[id];
-        if (oid == 0) {
-          idMap[id] = oid = reuseOids ? id : storage.allocateId();
+    final int get() throws XMLImportException {
+      if (hasUngetChar) {
+        hasUngetChar = false;
+        return ungetChar;
+      }
+      try {
+        int ch = reader.read();
+        if (ch == '\n') {
+          line += 1;
+          column = 0;
+        } else if (ch == '\t') {
+          column += (column + 8) & ~7;
+        } else {
+          column += 1;
+        }
+        return ch;
+      } catch (IOException x) {
+        throw new XMLImportException(line, column, x.getMessage());
+      }
+    }
+
+    final int getColumn() {
+      return column;
+    }
+
+    final String getIdentifier() {
+      return ident;
+    }
+
+    final long getInt() {
+      return iconst;
+    }
+
+    final int getLine() {
+      return line;
+    }
+
+    final double getReal() {
+      return fconst;
+    }
+
+    final String getString() {
+      return new String(sconst, 0, slen);
+    }
+
+    final int scan() throws XMLImportException {
+      int i, ch, quote;
+      boolean floatingPoint;
+
+      while (true) {
+        do {
+          if ((ch = get()) < 0) {
+            return XML_EOF;
+          }
+        } while (ch <= ' ');
+
+        switch (ch) {
+          case '<':
+            ch = get();
+            if (ch == '?') {
+              while ((ch = get()) != '?') {
+                if (ch < 0) {
+                  throw new XMLImportException(line, column, "Bad XML file format");
+                }
+              }
+              if ((ch = get()) != '>') {
+                throw new XMLImportException(line, column, "Bad XML file format");
+              }
+              continue;
+            }
+            if (ch != '/') {
+              unget(ch);
+              return XML_LT;
+            }
+            return XML_LTS;
+          case '>':
+            return XML_GT;
+          case '/':
+            ch = get();
+            if (ch != '>') {
+              unget(ch);
+              throw new XMLImportException(line, column, "Bad XML file format");
+            }
+            return XML_GTS;
+          case '=':
+            return XML_EQ;
+          case '"':
+          case '\'':
+            quote = ch;
+            i = 0;
+            while (true) {
+              ch = get();
+              if (ch < 0) {
+                throw new XMLImportException(line, column, "Bad XML file format");
+              } else if (ch == '&') {
+                switch (get()) {
+                  case 'a':
+                    ch = get();
+                    if (ch == 'm') {
+                      if (get() == 'p' && get() == ';') {
+                        ch = '&';
+                        break;
+                      }
+                    } else if (ch == 'p' && get() == 'o' && get() == 's' && get() == ';') {
+                      ch = '\'';
+                      break;
+                    }
+                    throw new XMLImportException(line, column, "Bad XML file format");
+                  case 'l':
+                    if (get() != 't' || get() != ';') {
+                      throw new XMLImportException(line, column, "Bad XML file format");
+                    }
+                    ch = '<';
+                    break;
+                  case 'g':
+                    if (get() != 't' || get() != ';') {
+                      throw new XMLImportException(line, column, "Bad XML file format");
+                    }
+                    ch = '>';
+                    break;
+                  case 'q':
+                    if (get() != 'u' || get() != 'o' || get() != 't' || get() != ';') {
+                      throw new XMLImportException(line, column, "Bad XML file format");
+                    }
+                    ch = '"';
+                    break;
+                  default:
+                    throw new XMLImportException(line, column, "Bad XML file format");
+                }
+              } else if (ch == quote) {
+                slen = i;
+                return XML_SCONST;
+              }
+              if (i == size) {
+                char[] newBuf = new char[size *= 2];
+                System.arraycopy(sconst, 0, newBuf, 0, i);
+                sconst = newBuf;
+              }
+              sconst[i++] = (char) ch;
+            }
+          case '-':
+          case '+':
+          case '0':
+          case '1':
+          case '2':
+          case '3':
+          case '4':
+          case '5':
+          case '6':
+          case '7':
+          case '8':
+          case '9':
+            i = 0;
+            floatingPoint = false;
+            while (true) {
+              if (!Character.isDigit((char) ch) && ch != '-' && ch != '+' && ch != '.'
+                  && ch != 'E') {
+                unget(ch);
+                try {
+                  if (floatingPoint) {
+                    fconst = Double.parseDouble(new String(sconst, 0, i));
+                    return XML_FCONST;
+                  } else {
+                    iconst = Long.parseLong(new String(sconst, 0, i));
+                    return XML_ICONST;
+                  }
+                } catch (NumberFormatException x) {
+                  throw new XMLImportException(line, column, "Bad XML file format");
+                }
+              }
+              if (i == size) {
+                throw new XMLImportException(line, column, "Bad XML file format");
+              }
+              sconst[i++] = (char) ch;
+              if (ch == '.') {
+                floatingPoint = true;
+              }
+              ch = get();
+            }
+          default:
+            i = 0;
+            while (Character.isLetterOrDigit((char) ch) || ch == '-' || ch == ':' || ch == '_'
+                || ch == '.') {
+              if (i == size) {
+                throw new XMLImportException(line, column, "Bad XML file format");
+              }
+              if (ch == '-') {
+                ch = '$';
+              }
+              sconst[i++] = (char) ch;
+              ch = get();
+            }
+            unget(ch);
+            if (i == 0) {
+              throw new XMLImportException(line, column, "Bad XML file format");
+            }
+            ident = new String(sconst, 0, i);
+            return XML_IDENT;
         }
       }
     }
-    return oid;
+
+    final void unget(int ch) {
+      if (ch == '\n') {
+        line -= 1;
+      } else {
+        column -= 1;
+      }
+      ungetChar = ch;
+      hasUngetChar = true;
+    }
   }
 
-  final int mapType(String signature) throws XMLImportException {
-    for (int i = 0; i < ClassDescriptor.signature.length; i++) {
-      if (ClassDescriptor.signature[i].equals(signature)) {
-        return i;
-      }
-    }
-    throwException("Bad type");
-    return -1;
+  StorageImpl storage;
+
+  XMLScanner scanner;
+
+
+  int[] idMap;
+
+  boolean reuseOids;
+
+  DateFormat httpFormatter;
+
+  public XMLImporter(StorageImpl storage, Reader reader) {
+    this.storage = storage;
+    scanner = new XMLScanner(reader);
+    httpFormatter = new SimpleDateFormat(storage.xmlDateFormat, Locale.ENGLISH);
   }
 
   final Key createCompoundKey(int[] types, String[] values) throws XMLImportException {
@@ -340,67 +487,6 @@ public class XMLImporter {
       throwException("Failed to convert key value");
     }
     return new Key(buf.toArray());
-  }
-
-  final Key createKey(int type, String value) throws XMLImportException {
-    try {
-      Date date;
-      switch (type) {
-        case ClassDescriptor.tpBoolean:
-          return new Key(Integer.parseInt(value) != 0);
-        case ClassDescriptor.tpByte:
-          return new Key(Byte.parseByte(value));
-        case ClassDescriptor.tpChar:
-          return new Key((char) Integer.parseInt(value));
-        case ClassDescriptor.tpShort:
-          return new Key(Short.parseShort(value));
-        case ClassDescriptor.tpInt:
-        case ClassDescriptor.tpEnum:
-          return new Key(Integer.parseInt(value));
-        case ClassDescriptor.tpObject:
-          return new Key(new PersistentStub(storage, mapId(Integer.parseInt(value))));
-        case ClassDescriptor.tpLong:
-          return new Key(Long.parseLong(value));
-        case ClassDescriptor.tpFloat:
-          return new Key(Float.parseFloat(value));
-        case ClassDescriptor.tpDouble:
-          return new Key(Double.parseDouble(value));
-        case ClassDescriptor.tpString:
-          return new Key(value);
-        case ClassDescriptor.tpArrayOfByte: {
-          byte[] buf = new byte[value.length() >> 1];
-          for (int i = 0; i < buf.length; i++) {
-            buf[i] = (byte) ((getHexValue(value.charAt(i * 2)) << 4)
-                | getHexValue(value.charAt(i * 2 + 1)));
-          }
-          return new Key(buf);
-        }
-        case ClassDescriptor.tpDate:
-          if (value.equals("null")) {
-            date = null;
-          } else {
-            date = httpFormatter.parse(value, new ParsePosition(0));
-            if (date == null) {
-              throwException("Invalid date");
-            }
-          }
-          return new Key(date);
-        default:
-          throwException("Bad key type");
-      }
-    } catch (NumberFormatException x) {
-      throwException("Failed to convert key value");
-    }
-    return null;
-  }
-
-  final int parseInt(String str) throws XMLImportException {
-    try {
-      return Integer.parseInt(str);
-    } catch (NumberFormatException x) {
-      throwException("Bad integer constant");
-    }
-    return -1;
   }
 
   final void createIndex(String indexType) throws XMLImportException {
@@ -541,6 +627,58 @@ public class XMLImporter {
     storage.pool.put(pos & ~StorageImpl.dbFlagsMask, data, size);
   }
 
+  final Key createKey(int type, String value) throws XMLImportException {
+    try {
+      Date date;
+      switch (type) {
+        case ClassDescriptor.tpBoolean:
+          return new Key(Integer.parseInt(value) != 0);
+        case ClassDescriptor.tpByte:
+          return new Key(Byte.parseByte(value));
+        case ClassDescriptor.tpChar:
+          return new Key((char) Integer.parseInt(value));
+        case ClassDescriptor.tpShort:
+          return new Key(Short.parseShort(value));
+        case ClassDescriptor.tpInt:
+        case ClassDescriptor.tpEnum:
+          return new Key(Integer.parseInt(value));
+        case ClassDescriptor.tpObject:
+          return new Key(new PersistentStub(storage, mapId(Integer.parseInt(value))));
+        case ClassDescriptor.tpLong:
+          return new Key(Long.parseLong(value));
+        case ClassDescriptor.tpFloat:
+          return new Key(Float.parseFloat(value));
+        case ClassDescriptor.tpDouble:
+          return new Key(Double.parseDouble(value));
+        case ClassDescriptor.tpString:
+          return new Key(value);
+        case ClassDescriptor.tpArrayOfByte: {
+          byte[] buf = new byte[value.length() >> 1];
+          for (int i = 0; i < buf.length; i++) {
+            buf[i] = (byte) ((getHexValue(value.charAt(i * 2)) << 4)
+                | getHexValue(value.charAt(i * 2 + 1)));
+          }
+          return new Key(buf);
+        }
+        case ClassDescriptor.tpDate:
+          if (value.equals("null")) {
+            date = null;
+          } else {
+            date = httpFormatter.parse(value, new ParsePosition(0));
+            if (date == null) {
+              throwException("Invalid date");
+            }
+          }
+          return new Key(date);
+        default:
+          throwException("Bad key type");
+      }
+    } catch (NumberFormatException x) {
+      throwException("Failed to convert key value");
+    }
+    return null;
+  }
+
   final void createObject(XMLElement elem) throws XMLImportException {
     Class cls = ClassDescriptor.loadClass(storage, elem.name);
     ClassDescriptor desc = storage.getClassDescriptor(cls);
@@ -559,6 +697,14 @@ public class XMLImporter {
     storage.pool.put(pos, buf.arr, offs);
   }
 
+  final String getAttribute(XMLElement elem, String name) throws XMLImportException {
+    String value = elem.getAttribute(name);
+    if (value == null) {
+      throwException("Attribute " + name + " is not set");
+    }
+    return value;
+  }
+
   final int getHexValue(char ch) throws XMLImportException {
     if (ch >= '0' && ch <= '9') {
       return ch - '0';
@@ -568,6 +714,19 @@ public class XMLImporter {
       return ch - 'a' + 10;
     } else {
       throwException("Bad hexadecimal constant");
+    }
+    return -1;
+  }
+
+  final int getIntAttribute(XMLElement elem, String name) throws XMLImportException {
+    String value = elem.getAttribute(name);
+    if (value == null) {
+      throwException("Attribute " + name + " is not set");
+    }
+    try {
+      return Integer.parseInt(value);
+    } catch (NumberFormatException x) {
+      throwException("Attribute " + name + " should has integer value");
     }
     return -1;
   }
@@ -612,6 +771,65 @@ public class XMLImporter {
       }
     }
     return offs;
+  }
+
+  public void importDatabase() throws XMLImportException {
+    XMLElement elem;
+    int tkn;
+    if (scanner.scan() != XMLScanner.XML_LT || scanner.scan() != XMLScanner.XML_IDENT
+        || !scanner.getIdentifier().equals("database")) {
+      throwException("No root element");
+    }
+    if (scanner.scan() != XMLScanner.XML_IDENT || !scanner.getIdentifier().equals("root")
+        || scanner.scan() != XMLScanner.XML_EQ || scanner.scan() != XMLScanner.XML_SCONST) {
+      throwException("Database element should have \"root\" attribute");
+    }
+    int rootId = 0;
+    try {
+      rootId = Integer.parseInt(scanner.getString());
+    } catch (NumberFormatException x) {
+      throwException("Incorrect root object specification");
+    }
+    reuseOids = false;
+    int maxoids = 0;
+    while ((tkn = scanner.scan()) != XMLScanner.XML_GT) {
+      if (storage.xmlImportReuseOid && tkn == XMLScanner.XML_IDENT
+          && scanner.getIdentifier().equals("maxoids") && scanner.scan() == XMLScanner.XML_EQ
+          && scanner.scan() == XMLScanner.XML_SCONST) {
+        maxoids = Integer.parseInt(scanner.getString());
+        storage.reserveIds(maxoids);
+        reuseOids = true;
+      }
+    }
+    idMap = new int[rootId * 2];
+    idMap[rootId] = reuseOids ? rootId : storage.allocateId();
+    storage.header.root[1 - storage.currIndex].rootObject = idMap[rootId];
+
+    while ((tkn = scanner.scan()) == XMLScanner.XML_LT) {
+      if (scanner.scan() != XMLScanner.XML_IDENT) {
+        throwException("Element name expected");
+      }
+      String elemName = scanner.getIdentifier();
+      if (elemName.equals("org.garret.perst.impl.Btree")
+          || elemName.equals("org.garret.perst.impl.BitIndexImpl")
+          || elemName.equals("org.garret.perst.impl.PersistentSet")
+          || elemName.equals("org.garret.perst.impl.BtreeFieldIndex")
+          || elemName.equals("org.garret.perst.impl.BtreeCaseInsensitiveFieldIndex")
+          || elemName.equals("org.garret.perst.impl.BtreeCompoundIndex")
+          || elemName.equals("org.garret.perst.impl.BtreeMultiFieldIndex")
+          || elemName.equals("org.garret.perst.impl.BtreeCaseInsensitiveMultiFieldIndex")) {
+        createIndex(elemName);
+      } else {
+        createObject(readElement(elemName));
+      }
+    }
+    if (reuseOids) {
+      storage.collectFreeIds(idMap, maxoids);
+    }
+    if (tkn != XMLScanner.XML_LTS || scanner.scan() != XMLScanner.XML_IDENT
+        || !scanner.getIdentifier().equals("database") || scanner.scan() != XMLScanner.XML_GT) {
+      throwException("Root element is not closed");
+    }
   }
 
   int importRef(XMLElement elem, int offs, ByteBuffer buf) throws XMLImportException {
@@ -677,6 +895,32 @@ public class XMLImporter {
     return buf.packI4(offs, oid);
   }
 
+  final int mapId(int id) {
+    int oid = 0;
+    if (id != 0) {
+      if (id >= idMap.length) {
+        int[] newMap = new int[id * 2];
+        System.arraycopy(idMap, 0, newMap, 0, idMap.length);
+        idMap = newMap;
+        idMap[id] = oid = reuseOids ? id : storage.allocateId();
+      } else {
+        oid = idMap[id];
+        if (oid == 0) {
+          idMap[id] = oid = reuseOids ? id : storage.allocateId();
+        }
+      }
+    }
+    return oid;
+  }
+  final int mapType(String signature) throws XMLImportException {
+    for (int i = 0; i < ClassDescriptor.signature.length; i++) {
+      if (ClassDescriptor.signature[i].equals(signature)) {
+        return i;
+      }
+    }
+    throwException("Bad type");
+    return -1;
+  }
   final int packObject(XMLElement objElem, ClassDescriptor desc, int offs, ByteBuffer buf)
       throws XMLImportException {
     ClassDescriptor.FieldDescriptor[] flds = desc.allFields;
@@ -1104,7 +1348,14 @@ public class XMLImporter {
     }
     return offs;
   }
-
+  final int parseInt(String str) throws XMLImportException {
+    try {
+      return Integer.parseInt(str);
+    } catch (NumberFormatException x) {
+      throwException("Bad integer constant");
+    }
+    return -1;
+  }
   final XMLElement readElement(String name) throws XMLImportException {
     XMLElement elem = new XMLElement(name);
     String attribute;
@@ -1161,259 +1412,8 @@ public class XMLImporter {
     }
   }
 
+
   final void throwException(String message) throws XMLImportException {
     throw new XMLImportException(scanner.getLine(), scanner.getColumn(), message);
-  }
-
-  StorageImpl storage;
-  XMLScanner scanner;
-  int[] idMap;
-  boolean reuseOids;
-  DateFormat httpFormatter;
-
-
-  static class XMLScanner {
-    static final int XML_IDENT = 0;
-    static final int XML_SCONST = 1;
-    static final int XML_ICONST = 2;
-    static final int XML_FCONST = 3;
-    static final int XML_LT = 4;
-    static final int XML_GT = 5;
-    static final int XML_LTS = 6;
-    static final int XML_GTS = 7;
-    static final int XML_EQ = 8;
-    static final int XML_EOF = 9;
-
-    Reader reader;
-    int line;
-    int column;
-    char[] sconst;
-    long iconst;
-    double fconst;
-    int slen;
-    String ident;
-    int size;
-    int ungetChar;
-    boolean hasUngetChar;
-
-    XMLScanner(Reader in) {
-      reader = in;
-      sconst = new char[size = 1024];
-      line = 1;
-      column = 0;
-      hasUngetChar = false;
-    }
-
-    final int get() throws XMLImportException {
-      if (hasUngetChar) {
-        hasUngetChar = false;
-        return ungetChar;
-      }
-      try {
-        int ch = reader.read();
-        if (ch == '\n') {
-          line += 1;
-          column = 0;
-        } else if (ch == '\t') {
-          column += (column + 8) & ~7;
-        } else {
-          column += 1;
-        }
-        return ch;
-      } catch (IOException x) {
-        throw new XMLImportException(line, column, x.getMessage());
-      }
-    }
-
-    final void unget(int ch) {
-      if (ch == '\n') {
-        line -= 1;
-      } else {
-        column -= 1;
-      }
-      ungetChar = ch;
-      hasUngetChar = true;
-    }
-
-    final int scan() throws XMLImportException {
-      int i, ch, quote;
-      boolean floatingPoint;
-
-      while (true) {
-        do {
-          if ((ch = get()) < 0) {
-            return XML_EOF;
-          }
-        } while (ch <= ' ');
-
-        switch (ch) {
-          case '<':
-            ch = get();
-            if (ch == '?') {
-              while ((ch = get()) != '?') {
-                if (ch < 0) {
-                  throw new XMLImportException(line, column, "Bad XML file format");
-                }
-              }
-              if ((ch = get()) != '>') {
-                throw new XMLImportException(line, column, "Bad XML file format");
-              }
-              continue;
-            }
-            if (ch != '/') {
-              unget(ch);
-              return XML_LT;
-            }
-            return XML_LTS;
-          case '>':
-            return XML_GT;
-          case '/':
-            ch = get();
-            if (ch != '>') {
-              unget(ch);
-              throw new XMLImportException(line, column, "Bad XML file format");
-            }
-            return XML_GTS;
-          case '=':
-            return XML_EQ;
-          case '"':
-          case '\'':
-            quote = ch;
-            i = 0;
-            while (true) {
-              ch = get();
-              if (ch < 0) {
-                throw new XMLImportException(line, column, "Bad XML file format");
-              } else if (ch == '&') {
-                switch (get()) {
-                  case 'a':
-                    ch = get();
-                    if (ch == 'm') {
-                      if (get() == 'p' && get() == ';') {
-                        ch = '&';
-                        break;
-                      }
-                    } else if (ch == 'p' && get() == 'o' && get() == 's' && get() == ';') {
-                      ch = '\'';
-                      break;
-                    }
-                    throw new XMLImportException(line, column, "Bad XML file format");
-                  case 'l':
-                    if (get() != 't' || get() != ';') {
-                      throw new XMLImportException(line, column, "Bad XML file format");
-                    }
-                    ch = '<';
-                    break;
-                  case 'g':
-                    if (get() != 't' || get() != ';') {
-                      throw new XMLImportException(line, column, "Bad XML file format");
-                    }
-                    ch = '>';
-                    break;
-                  case 'q':
-                    if (get() != 'u' || get() != 'o' || get() != 't' || get() != ';') {
-                      throw new XMLImportException(line, column, "Bad XML file format");
-                    }
-                    ch = '"';
-                    break;
-                  default:
-                    throw new XMLImportException(line, column, "Bad XML file format");
-                }
-              } else if (ch == quote) {
-                slen = i;
-                return XML_SCONST;
-              }
-              if (i == size) {
-                char[] newBuf = new char[size *= 2];
-                System.arraycopy(sconst, 0, newBuf, 0, i);
-                sconst = newBuf;
-              }
-              sconst[i++] = (char) ch;
-            }
-          case '-':
-          case '+':
-          case '0':
-          case '1':
-          case '2':
-          case '3':
-          case '4':
-          case '5':
-          case '6':
-          case '7':
-          case '8':
-          case '9':
-            i = 0;
-            floatingPoint = false;
-            while (true) {
-              if (!Character.isDigit((char) ch) && ch != '-' && ch != '+' && ch != '.'
-                  && ch != 'E') {
-                unget(ch);
-                try {
-                  if (floatingPoint) {
-                    fconst = Double.parseDouble(new String(sconst, 0, i));
-                    return XML_FCONST;
-                  } else {
-                    iconst = Long.parseLong(new String(sconst, 0, i));
-                    return XML_ICONST;
-                  }
-                } catch (NumberFormatException x) {
-                  throw new XMLImportException(line, column, "Bad XML file format");
-                }
-              }
-              if (i == size) {
-                throw new XMLImportException(line, column, "Bad XML file format");
-              }
-              sconst[i++] = (char) ch;
-              if (ch == '.') {
-                floatingPoint = true;
-              }
-              ch = get();
-            }
-          default:
-            i = 0;
-            while (Character.isLetterOrDigit((char) ch) || ch == '-' || ch == ':' || ch == '_'
-                || ch == '.') {
-              if (i == size) {
-                throw new XMLImportException(line, column, "Bad XML file format");
-              }
-              if (ch == '-') {
-                ch = '$';
-              }
-              sconst[i++] = (char) ch;
-              ch = get();
-            }
-            unget(ch);
-            if (i == 0) {
-              throw new XMLImportException(line, column, "Bad XML file format");
-            }
-            ident = new String(sconst, 0, i);
-            return XML_IDENT;
-        }
-      }
-    }
-
-    final String getIdentifier() {
-      return ident;
-    }
-
-    final String getString() {
-      return new String(sconst, 0, slen);
-    }
-
-    final long getInt() {
-      return iconst;
-    }
-
-    final double getReal() {
-      return fconst;
-    }
-
-    final int getLine() {
-      return line;
-    }
-
-    final int getColumn() {
-      return column;
-    }
   }
 }

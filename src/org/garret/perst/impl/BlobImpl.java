@@ -7,27 +7,39 @@ import org.garret.perst.RandomAccessOutputStream;
 import org.garret.perst.Storage;
 
 public class BlobImpl extends PersistentResource implements Blob {
-  int size;
-  BlobImpl next;
-  byte[] body;
-  transient int used;
-
-  static final int headerSize = ObjectHeader.sizeof + 3 * 4;
-
-  void discard(int flags) {
-    if (--used == 0 && (flags & ENABLE_SEGMENT_CACHING) == 0) {
-      invalidate();
-      next = null;
-    }
-  }
-
-
   static class BlobInputStream extends RandomAccessInputStream {
     protected BlobImpl curr;
     protected BlobImpl first;
     protected int pos;
     protected int blobOffs;
     protected int flags;
+
+    protected BlobInputStream(BlobImpl first, int flags) {
+      this.flags = flags;
+      this.first = first;
+      first.load();
+      curr = first;
+      first.used += 1;
+    }
+
+    @Override
+    public int available() {
+      return first.size - pos;
+    }
+
+    @Override
+    public void close() {
+      curr.discard(flags);
+      if (first != curr) {
+        first.discard(flags);
+      }
+      curr = first = null;
+    }
+
+    @Override
+    public long getPosition() {
+      return pos;
+    }
 
     @Override
     public int read() {
@@ -66,6 +78,7 @@ public class BlobImpl extends PersistentResource implements Blob {
       return rc;
     }
 
+
     @Override
     public long setPosition(long newPos) {
       if (newPos < pos) {
@@ -81,11 +94,6 @@ public class BlobImpl extends PersistentResource implements Blob {
         blobOffs = 0;
       }
       skip(newPos - pos);
-      return pos;
-    }
-
-    @Override
-    public long getPosition() {
       return pos;
     }
 
@@ -119,31 +127,7 @@ public class BlobImpl extends PersistentResource implements Blob {
       }
       return offs;
     }
-
-
-    @Override
-    public int available() {
-      return first.size - pos;
-    }
-
-    @Override
-    public void close() {
-      curr.discard(flags);
-      if (first != curr) {
-        first.discard(flags);
-      }
-      curr = first = null;
-    }
-
-    protected BlobInputStream(BlobImpl first, int flags) {
-      this.flags = flags;
-      this.first = first;
-      first.load();
-      curr = first;
-      first.used += 1;
-    }
   }
-
   static class BlobOutputStream extends RandomAccessOutputStream {
     protected BlobImpl first;
     protected BlobImpl curr;
@@ -152,11 +136,93 @@ public class BlobImpl extends PersistentResource implements Blob {
     protected int flags;
     protected boolean modified;
 
+    BlobOutputStream(BlobImpl first, int flags) {
+      this.flags = flags;
+      this.first = first;
+      first.load();
+      first.used += 1;
+      curr = first;
+      if ((flags & APPEND) != 0) {
+        skip(first.size);
+      }
+    }
+
     @Override
-    public void write(int b) {
-      byte[] buf = new byte[1];
-      buf[0] = (byte) b;
-      write(buf, 0, 1);
+    public void close() {
+      if ((flags & TRUNCATE_LAST_SEGMENT) != 0 && blobOffs < curr.body.length
+          && curr.next == null) {
+        byte[] tmp = new byte[blobOffs];
+        System.arraycopy(curr.body, 0, tmp, 0, blobOffs);
+        curr.body = tmp;
+      }
+      curr.store();
+      curr.discard(flags);
+      if (curr != first) {
+        first.store();
+        first.discard(flags);
+      }
+      first = curr = null;
+    }
+
+    @Override
+    public long getPosition() {
+      return pos;
+    }
+
+    @Override
+    public long setPosition(long newPos) {
+      if (newPos < pos) {
+        if (newPos >= pos - blobOffs) {
+          blobOffs -= pos - newPos;
+          return pos = (int) newPos;
+        }
+        if (first != curr) {
+          if (modified) {
+            curr.store();
+            modified = false;
+          }
+          curr.discard(flags);
+          curr = first;
+        }
+        pos = 0;
+        blobOffs = 0;
+      }
+      skip(newPos - pos);
+      return pos;
+    }
+
+    @Override
+    public long size() {
+      return first.size;
+    }
+
+    public long skip(long offs) {
+      int rest = first.size - pos;
+      if (offs > rest) {
+        offs = rest;
+      }
+      int len = (int) offs;
+      while (len > 0) {
+        if (blobOffs == curr.body.length) {
+          BlobImpl prev = curr;
+          curr = prev.next;
+          curr.load();
+          curr.used += 1;
+          if (prev != first) {
+            if (modified) {
+              prev.store();
+              modified = false;
+            }
+            prev.discard(flags);
+          }
+          blobOffs = 0;
+        }
+        int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;
+        pos += n;
+        len -= n;
+        blobOffs += n;
+      }
+      return offs;
     }
 
     @Override
@@ -198,100 +264,51 @@ public class BlobImpl extends PersistentResource implements Blob {
       }
     }
 
-    @Override
-    public void close() {
-      if ((flags & TRUNCATE_LAST_SEGMENT) != 0 && blobOffs < curr.body.length
-          && curr.next == null) {
-        byte[] tmp = new byte[blobOffs];
-        System.arraycopy(curr.body, 0, tmp, 0, blobOffs);
-        curr.body = tmp;
-      }
-      curr.store();
-      curr.discard(flags);
-      if (curr != first) {
-        first.store();
-        first.discard(flags);
-      }
-      first = curr = null;
-    }
 
     @Override
-    public long setPosition(long newPos) {
-      if (newPos < pos) {
-        if (newPos >= pos - blobOffs) {
-          blobOffs -= pos - newPos;
-          return pos = (int) newPos;
-        }
-        if (first != curr) {
-          if (modified) {
-            curr.store();
-            modified = false;
-          }
-          curr.discard(flags);
-          curr = first;
-        }
-        pos = 0;
-        blobOffs = 0;
-      }
-      skip(newPos - pos);
-      return pos;
+    public void write(int b) {
+      byte[] buf = new byte[1];
+      buf[0] = (byte) b;
+      write(buf, 0, 1);
     }
+  }
+  static final int headerSize = ObjectHeader.sizeof + 3 * 4;
+  int size;
 
-    @Override
-    public long getPosition() {
-      return pos;
-    }
+  BlobImpl next;
 
-    @Override
-    public long size() {
-      return first.size;
-    }
-
-    public long skip(long offs) {
-      int rest = first.size - pos;
-      if (offs > rest) {
-        offs = rest;
-      }
-      int len = (int) offs;
-      while (len > 0) {
-        if (blobOffs == curr.body.length) {
-          BlobImpl prev = curr;
-          curr = prev.next;
-          curr.load();
-          curr.used += 1;
-          if (prev != first) {
-            if (modified) {
-              prev.store();
-              modified = false;
-            }
-            prev.discard(flags);
-          }
-          blobOffs = 0;
-        }
-        int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;
-        pos += n;
-        len -= n;
-        blobOffs += n;
-      }
-      return offs;
-    }
+  byte[] body;
 
 
-    BlobOutputStream(BlobImpl first, int flags) {
-      this.flags = flags;
-      this.first = first;
-      first.load();
-      first.used += 1;
-      curr = first;
-      if ((flags & APPEND) != 0) {
-        skip(first.size);
-      }
-    }
+  transient int used;
+
+  BlobImpl() {}
+
+  BlobImpl(Storage storage, int size) {
+    super(storage);
+    body = new byte[size];
   }
 
   @Override
-  public boolean recursiveLoading() {
-    return false;
+  public void deallocate() {
+    load();
+    if (size > 0) {
+      BlobImpl curr = next;
+      while (curr != null) {
+        curr.load();
+        BlobImpl tail = curr.next;
+        curr.deallocate();
+        curr = tail;
+      }
+    }
+    super.deallocate();
+  }
+
+  void discard(int flags) {
+    if (--used == 0 && (flags & ENABLE_SEGMENT_CACHING) == 0) {
+      invalidate();
+      next = null;
+    }
   }
 
   @Override
@@ -315,6 +332,11 @@ public class BlobImpl extends PersistentResource implements Blob {
   }
 
   @Override
+  public RandomAccessOutputStream getOutputStream(int flags) {
+    return new BlobOutputStream(this, flags);
+  }
+
+  @Override
   public RandomAccessOutputStream getOutputStream(long position, boolean multisession) {
     RandomAccessOutputStream stream = getOutputStream(multisession);
     stream.setPosition(position);
@@ -322,29 +344,7 @@ public class BlobImpl extends PersistentResource implements Blob {
   }
 
   @Override
-  public RandomAccessOutputStream getOutputStream(int flags) {
-    return new BlobOutputStream(this, flags);
+  public boolean recursiveLoading() {
+    return false;
   }
-
-  @Override
-  public void deallocate() {
-    load();
-    if (size > 0) {
-      BlobImpl curr = next;
-      while (curr != null) {
-        curr.load();
-        BlobImpl tail = curr.next;
-        curr.deallocate();
-        curr = tail;
-      }
-    }
-    super.deallocate();
-  }
-
-  BlobImpl(Storage storage, int size) {
-    super(storage);
-    body = new byte[size];
-  }
-
-  BlobImpl() {}
 }

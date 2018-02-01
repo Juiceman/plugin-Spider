@@ -9,6 +9,20 @@ package org.garret.perst;
  */
 public class Assert {
   /**
+   * Throw assertion failed exception.
+   */
+  public static final void failed() {
+    throw new AssertionFailed();
+  }
+
+  /**
+   * Throw assertion failed exception with given description.
+   */
+  public static final void failed(String description) {
+    throw new AssertionFailed(description);
+  }
+
+  /**
    * Check specified condition and raise <code>AssertionFailed</code> exception if it is not true.
    * 
    * @param cond result of checked condition
@@ -29,20 +43,6 @@ public class Assert {
     if (!cond) {
       throw new AssertionFailed(description);
     }
-  }
-
-  /**
-   * Throw assertion failed exception.
-   */
-  public static final void failed() {
-    throw new AssertionFailed();
-  }
-
-  /**
-   * Throw assertion failed exception with given description.
-   */
-  public static final void failed(String description) {
-    throw new AssertionFailed(description);
   }
 }
 

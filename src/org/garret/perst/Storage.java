@@ -20,108 +20,59 @@ public interface Storage {
   public static final int DEFAULT_PAGE_POOL_SIZE = 4 * 1024 * 1024;
 
   /**
-   * Get Perst version (for example 435 for release 4.35)
+   * Exclusive per-thread transaction: each thread access database in exclusive mode
    */
-  public int getPerstVersion();
+  public static final int EXCLUSIVE_TRANSACTION = 0;
 
 
   /**
-   * Open the storage
-   * 
-   * @param filePath path to the database file
-   * @param pagePoolSize size of page pool (in bytes). Page pool should contain at least ten 4kb
-   *        pages, so minimal page pool size should be at least 40Kb. But larger page pool usually
-   *        leads to better performance (unless it could not fit in memory and cause swapping).
-   *        Value 0 of this paremeter corresponds to infinite page pool (all pages are cashed in
-   *        memory). It is especially useful for in-memory database, when storage is created with
-   *        NullFile.
-   * 
+   * Alias for EXCLUSIVE_TRANSACTION. In case of multiclient access, any transaction modifying
+   * database should be exclusive.
    */
-  public void open(String filePath, long pagePoolSize);
+  public static final int READ_WRITE_TRANSACTION = EXCLUSIVE_TRANSACTION;
 
   /**
-   * Open the storage
-   * 
-   * @param file user specific implementation of IFile interface
-   * @param pagePoolSize size of page pool (in bytes). Page pool should contain at least ten 4kb
-   *        pages, so minimal page pool size should be at least 40Kb. But larger page pool ussually
-   *        leads to better performance (unless it could not fit in memory and cause swapping).
+   * Cooperative mode; all threads share the same transaction. Commit will commit changes made by
+   * all threads. To make this schema work correctly, it is necessary to ensure (using locking) that
+   * no thread is performing update of the database while another one tries to perform commit. Also
+   * please notice that rollback will undo the work of all threads.
    */
-  public void open(IFile file, long pagePoolSize);
+  public static final int COOPERATIVE_TRANSACTION = 1;
 
   /**
-   * Open the storage with default page pool size
-   * 
-   * @param file user specific implementation of IFile interface
+   * Alias for COOPERATIVE_TRANSACTION. In case of multiclient access, only read-only transactions
+   * can be executed in parallel.
    */
-  public void open(IFile file);
+  public static final int READ_ONLY_TRANSACTION = COOPERATIVE_TRANSACTION;
 
   /**
-   * Open the storage with default page pool size
-   * 
-   * @param filePath path to the database file
+   * Serializable per-thread transaction. Unlike exclusive mode, threads can concurrently access
+   * database, but effect will be the same as them work exclusively. To provide such behavior,
+   * programmer should lock all access objects (or use hierarchical locking). When object is
+   * updated, exclusive lock should be set, otherwise shared lock is enough. Lock should be
+   * preserved until the end of transaction.
    */
-  public void open(String filePath);
+  public static final int SERIALIZABLE_TRANSACTION = 2;
 
   /**
-   * Open the encrypted storage
-   * 
-   * @param filePath path to the database file
-   * @param pagePoolSize size of page pool (in bytes). Page pool should contain at least then 4kb
-   *        pages, so minimal page pool size should be at least 40Kb. But larger page pool usually
-   *        leads to better performance (unless it could not fit in memory and cause swapping).
-   * @param cipherKey cipher key
+   * Read only transaction which can be started at replicastion slave node. It runs concurrently
+   * with receiving updates from master node.
    */
-  public void open(String filePath, long pagePoolSize, String cipherKey);
+  public static final int REPLICATION_SLAVE_TRANSACTION = 3;
 
   /**
-   * Check if database is opened
-   * 
-   * @return <code>true</code> if database was opened by <code>open</code> method,
-   *         <code>false</code> otherwise
+   * Compatibility with databases created by Perst prior to 2.73 release by IBM Java5 VM
    */
-  public boolean isOpened();
+  public static final int IBM_JAVA5_COMPATIBILITY_MODE = 1;
 
   /**
-   * Get storage root. Storage can have exactly one root object. If you need to have several root
-   * object and access them by name (as is is possible in many other OODBMSes), you should create
-   * index and use it as root object.
-   * 
-   * @return root object or <code>null</code> if root is not specified (storage is not yet
-   *         initialized)
+   * Do not store information about class loaders when serialising objects with custime class
+   * loaders
    */
-  public <T> T getRoot();
+  public static final int CLASS_LOADER_SERIALIZATION_COMPATIBILITY_MODE = 2;
 
-  /**
-   * Set new storage root object. Previous reference to the root object is rewritten but old root is
-   * not automatically deallocated.
-   * 
-   * @param root object to become new storage root. If it is not persistent yet, it is made
-   *        persistent and stored in the storage
-   */
-  public void setRoot(Object root);
+  static final long INVALID_DATE = Long.MIN_VALUE;
 
-
-
-  /**
-   * Commit changes done by the last transaction. Transaction is started implcitlely with forst
-   * update opertation.
-   */
-  public void commit();
-
-  /**
-   * Rollback changes made by the last transaction. By default, Perst doesn't reload modified
-   * objects after a transaction rollback. In this case, the programmer should not use references to
-   * the persistent objects stored in program variables. Instead, the application should fetch the
-   * object tree from the beginning, starting from obtaining the root object using the
-   * Storage.getRoot method. Setting the "perst.reload.objects.on.rollback" property instructs Perst
-   * to reload all objects modified by the aborted (rolled back) transaction. It takes additional
-   * processing time, but in this case it is not necessary to ignore references stored in variables,
-   * unless they point to the objects created by this transactions (which were invalidated when the
-   * transaction was rolled back). Unfortunately, there is no way to prohibit access to such objects
-   * or somehow invalidate references to them. So this option should be used with care.
-   */
-  public void rollback();
 
 
   /**
@@ -139,42 +90,12 @@ public interface Storage {
    */
   public void backup(String filePath, String cipherKey) throws java.io.IOException;
 
-  /**
-   * Exclusive per-thread transaction: each thread access database in exclusive mode
-   */
-  public static final int EXCLUSIVE_TRANSACTION = 0;
-  /**
-   * Alias for EXCLUSIVE_TRANSACTION. In case of multiclient access, any transaction modifying
-   * database should be exclusive.
-   */
-  public static final int READ_WRITE_TRANSACTION = EXCLUSIVE_TRANSACTION;
-  /**
-   * Cooperative mode; all threads share the same transaction. Commit will commit changes made by
-   * all threads. To make this schema work correctly, it is necessary to ensure (using locking) that
-   * no thread is performing update of the database while another one tries to perform commit. Also
-   * please notice that rollback will undo the work of all threads.
-   */
-  public static final int COOPERATIVE_TRANSACTION = 1;
-  /**
-   * Alias for COOPERATIVE_TRANSACTION. In case of multiclient access, only read-only transactions
-   * can be executed in parallel.
-   */
-  public static final int READ_ONLY_TRANSACTION = COOPERATIVE_TRANSACTION;
-  /**
-   * Serializable per-thread transaction. Unlike exclusive mode, threads can concurrently access
-   * database, but effect will be the same as them work exclusively. To provide such behavior,
-   * programmer should lock all access objects (or use hierarchical locking). When object is
-   * updated, exclusive lock should be set, otherwise shared lock is enough. Lock should be
-   * preserved until the end of transaction.
-   */
-  public static final int SERIALIZABLE_TRANSACTION = 2;
 
   /**
-   * Read only transaction which can be started at replicastion slave node. It runs concurrently
-   * with receiving updates from master node.
+   * Start serializable transaction. This call is equivalent to
+   * <code>beginThreadTransaction(Storage.SERIALIZABLE_TRANSACTION)</code>
    */
-  public static final int REPLICATION_SLAVE_TRANSACTION = 3;
-
+  public void beginSerializableTransaction();
 
   /**
    * Begin per-thread transaction. Three types of per-thread transactions are supported: exclusive,
@@ -201,56 +122,22 @@ public interface Storage {
   public void beginThreadTransaction(int mode);
 
   /**
-   * End per-thread transaction started by beginThreadTransaction method.<br>
-   * If transaction is <i>exclusive</i>, this method commits the transaction and allows other thread
-   * to proceed.<br>
-   * If transaction is <i>serializable</i>, this method commits sll changes done by this thread and
-   * release all locks set by this thread.<br>
-   * If transaction is <i>cooperative</i>, this method decrement counter of cooperative transactions
-   * and if it becomes zero - commit the work
+   * Clear database object cache. This method can be used with "strong" object cache to avoid memory
+   * overflow. It is no valid to invoke this method when there are some uncommitted changes in the
+   * database (some modified objects). Also all variables containing references to persistent object
+   * should be reset after invocation of this method - it is not correct to accessed object directly
+   * though such variables, objects has to be reloaded from the storage
    */
-  public void endThreadTransaction();
-
+  public void clearObjectCache();
   /**
-   * End per-thread cooperative transaction with specified maximal delay of transaction commit. When
-   * cooperative transaction is ended, data is not immediately committed to the disk (because other
-   * cooperative transaction can be active at this moment of time). Instead of it cooperative
-   * transaction counter is decremented. Commit is performed only when this counter reaches zero
-   * value. But in case of heavy load there can be a lot of requests and so a lot of active
-   * cooperative transactions. So transaction counter never reaches zero value. If system crash
-   * happens a large amount of work will be lost in this case. To prevent such scenario, it is
-   * possible to specify maximal delay of pending transaction commit. In this case when such timeout
-   * is expired, new cooperative transaction will be blocked until transaction is committed.
-   * 
-   * @param maxDelay maximal delay in milliseconds of committing transaction. Please notice, that
-   *        Perst could not force other threads to commit their cooperative transactions when this
-   *        timeout is expired. It will only block new cooperative transactions to make it possible
-   *        to current transaction to complete their work. If <code>maxDelay</code> is 0, current
-   *        thread will be blocked until all other cooperative trasnaction are also finished and
-   *        changhes will be committed to the database.
+   * Commit transaction (if needed) and close the storage
    */
-  public void endThreadTransaction(int maxDelay);
-
+  public void close();
   /**
-   * Check if nested thread transaction is active
-   * 
-   * @return true if code executing this method is inside per-thread transaction (serializable,
-   *         exclusive or coopertaive)
+   * Commit changes done by the last transaction. Transaction is started implcitlely with forst
+   * update opertation.
    */
-  public boolean isInsideThreadTransaction();
-
-  /**
-   * Rollback per-thread transaction. It is safe to use this method only for exclusive transactions.
-   * In case of cooperative transactions, this method rollback results of all transactions.
-   */
-  public void rollbackThreadTransaction();
-
-  /**
-   * Start serializable transaction. This call is equivalent to
-   * <code>beginThreadTransaction(Storage.SERIALIZABLE_TRANSACTION)</code>
-   */
-  public void beginSerializableTransaction();
-
+  public void commit();
   /**
    * Commit serializable transaction. This call is equivalent to <code>endThreadTransaction</code>
    * but it checks that serializable transaction was pereviously started using
@@ -260,67 +147,23 @@ public interface Storage {
    *            transaction body
    */
   public void commitSerializableTransaction();
+  /**
+   * Create new peristent multisetset (allowing several occurrences of the same object).
+   * Implementation of this set is based on B-Tree so it can efficiently handle large number of
+   * objects but in case of very small set memory overhead is too high.
+   * 
+   * @return persistent object implementing set
+   */
+  public <T> IPersistentSet<T> createBag();
 
   /**
-   * Rollback serializable transaction. This call is equivalent to
-   * <code>rollbackThreadTransaction</code> but it checks that serializable transaction was
-   * pereviously started using beginSerializableTransaction() method
+   * Create new bit index. Bit index is used to select object with specified set of (boolean)
+   * properties.
    * 
-   * @exception StorageError (NOT_IN_TRANSACTION) if this method is invoked outside serializable
-   *            transaction body
+   * @return persistent object implementing bit index
    */
-  public void rollbackSerializableTransaction();
+  public <T> BitIndex<T> createBitIndex();
 
-  /**
-   * Create JSQL query. JSQL is object oriented subset of SQL allowing to specify arbitrary
-   * prdicates for selecting members of Perst collections
-   * 
-   * @return created query object
-   */
-  public <T> Query<T> createQuery();
-
-  /**
-   * Create new peristent list. Implementation of this list is based on B-Tree so it can efficiently
-   * handle large number of objects but in case of very small list memory overhead is too high.
-   * 
-   * @return persistent object implementing list
-   */
-  public <T> IPersistentList<T> createList();
-
-  /**
-   * Create new scalable list of persistent objects. This container can efficiently handle small
-   * lists as well as large lists When number of members is small, Link class is used to store set
-   * members. When number of members exceeds some threshold, PersistentList (based on B-Tree) is
-   * used instead.
-   * 
-   * @return scalable set implementation
-   */
-  public <T> IPersistentList<T> createScalableList();
-
-  /**
-   * Create new scalable list of persistent objects. This container can efficiently handle small
-   * lists as well as large lists When number of members is small, Link class is used to store set
-   * members. When number of members exceeds some threshold, PersistentList (based on B-Tree) is
-   * used instead.
-   * 
-   * @param initialSize initial allocated size of the list
-   * @return scalable set implementation
-   */
-  public <T> IPersistentList<T> createScalableList(int initialSize);
-
-  /**
-   * Create hierarhical hash table. Levels of tree are added on demand.
-   * 
-   * @return persistent hash table
-   */
-  public <K, V> IPersistentHash<K, V> createHash();
-
-  /**
-   * Create hierarhical hash table. Levels of tree are added on demand.
-   * 
-   * @return persistent hash table
-   */
-  public <K, V> IPersistentHash<K, V> createHash(int pageSize, int loadFactor);
 
   /**
    * Create object bitmap (each bit corresponds to OID). This bitmap can be used to merge results of
@@ -332,133 +175,25 @@ public interface Storage {
   public Bitmap createBitmap(Iterator iterator);
 
   /**
-   * Create scalable persistent map. This container can efficiently handle both small and large
-   * number of members. For small maps, implementation uses sorted array. For large maps - B-Tree.
+   * Create bitmap custom allocator
    * 
-   * @param keyType map key type
-   * @return scalable map implementation
+   * @param quantum size in bytes of allocation quantum. Should be power of two.
+   * @param base base address for allocator (it should match offset of multifile segment)
+   * @param extension size by which space mapped by allocator is extended each time when no suitable
+   *        hole is found in bitmap (it should be large enough to improve allocation speed and
+   *        locality of references)
+   * @param limit maximal size of memory allocated by this allocator (pass Long.MAX_VALUE if you do
+   *        not want to limit space)
+   * @return created allocator
    */
-  public <K extends Comparable, V> IPersistentMap<K, V> createMap(Class keyType);
+  public CustomAllocator createBitmapAllocator(int quantum, long base, long extension, long limit);
 
   /**
-   * Create scalable persistent map. This container can efficiently handle both small and large
-   * number of members. For small maps, implementation uses sorted array. For large maps - B-Tree.
+   * Create new BLOB. Create object for storing large binary data.
    * 
-   * @param keyType map key type
-   * @param initialSize initial allocated size of the list
-   * @return scalable map implementation
+   * @return empty BLOB
    */
-  public <K extends Comparable, V> IPersistentMap<K, V> createMap(Class keyType, int initialSize);
-
-  /**
-   * Create new peristent set. Implementation of this set is based on B-Tree so it can efficiently
-   * handle large number of objects but in case of very small set memory overhead is too high.
-   * 
-   * @return persistent object implementing set
-   */
-  public <T> IPersistentSet<T> createSet();
-
-  /**
-   * Create new peristent multisetset (allowing several occurrences of the same object).
-   * Implementation of this set is based on B-Tree so it can efficiently handle large number of
-   * objects but in case of very small set memory overhead is too high.
-   * 
-   * @return persistent object implementing set
-   */
-  public <T> IPersistentSet<T> createBag();
-
-  /**
-   * Create new scalable set references to persistent objects. This container can efficiently store
-   * small number of references as well as very large number references. When number of members is
-   * small, Link class is used to store set members. When number of members exceeds some threshold,
-   * PersistentSet (based on B-Tree) is used instead.
-   * 
-   * @return scalable set implementation
-   */
-  public <T> IPersistentSet<T> createScalableSet();
-
-  /**
-   * Create new scalable set references to persistent objects. This container can efficiently store
-   * small number of references as well as very large number references. When number of members is
-   * small, Link class is used to store set members. When number of members exceeds some threshold,
-   * PersistentSet (based on B-Tree) is used instead.
-   * 
-   * @param initialSize initial size of the set
-   * @return scalable set implementation
-   */
-  public <T> IPersistentSet<T> createScalableSet(int initialSize);
-
-  /**
-   * Create new peristent set based on hash table. Unlike set created by createSet which is based on
-   * OID, this set if based on hashCode()/equals() methods
-   * 
-   * @return persistent object implementing hash set
-   */
-  public <T> IPersistentSet<T> createHashSet();
-
-  /**
-   * Create new index
-   * 
-   * @param type type of the index key (you should path here <code>String.class</code>,
-   *        <code>int.class</code>, ...)
-   * @param unique whether index is unique (duplicate value of keys are not allowed)
-   * @return persistent object implementing index
-   * @exception StorageError (StorageError.UNSUPPORTED_INDEX_TYPE) exception if specified key type
-   *            is not supported by implementation.
-   */
-  public <T> Index<T> createIndex(Class type, boolean unique);
-
-  /**
-   * Create new compound index
-   * 
-   * @param types types of the index compound key components
-   * @param unique whether index is unique (duplicate value of keys are not allowed)
-   * @return persistent object implementing compound index
-   * @exception StorageError (StorageError.UNSUPPORTED_INDEX_TYPE) exception if specified key type
-   *            is not supported by implementation.
-   */
-  public <T> Index<T> createIndex(Class[] types, boolean unique);
-
-  /**
-   * Create new multidimensional index
-   * 
-   * @param comparator multidimensinal comparator
-   * @return multidimensional index
-   */
-  public <T> MultidimensionalIndex<T> createMultidimensionalIndex(
-      MultidimensionalComparator<T> comparator);
-
-  /**
-   * Create new multidimensional index for specified fields of the class
-   * 
-   * @param type class of objects included in this index
-   * @param fieldNames name of the fields which are treated as index dimensions, if null then all
-   *        declared fields of the class are used.
-   * @param treateZeroAsUndefinedValue if value of scalar field in QBE object is 0 (default value)
-   *        then assume that condition is not defined for this field
-   * @return multidimensional index
-   */
-  public <T> MultidimensionalIndex<T> createMultidimensionalIndex(Class type, String[] fieldNames,
-      boolean treateZeroAsUndefinedValue);
-
-  /**
-   * Create new think index (index with large number of duplicated keys)
-   * 
-   * @param type type of the index key (you should path here <code>String.class</code>,
-   *        <code>int.class</code>, ...)
-   * @return persistent object implementing index
-   * @exception StorageError (StorageError.UNSUPPORTED_INDEX_TYPE) exception if specified key type
-   *            is not supported by implementation.
-   */
-  public <T> Index<T> createThickIndex(Class type);
-
-  /**
-   * Create new bit index. Bit index is used to select object with specified set of (boolean)
-   * properties.
-   * 
-   * @return persistent object implementing bit index
-   */
-  public <T> BitIndex<T> createBitIndex();
+  public Blob createBlob();
 
   /**
    * Create new field index
@@ -543,35 +278,224 @@ public interface Storage {
       boolean caseInsensitive);
 
   /**
-   * Create new n-gram string field index for regular expression search
+   * Create full text search index with default helper
    * 
-   * @param type objects of which type (or derived from which type) will be included in the index
-   * @param fieldName name of the index field. Field with such name should be present in specified
-   *        class <code>type</code>
-   * @param caseInsensitive whether case of characters should be ignores
-   * @param nGrams number of characters used to construcrt n-grams
-   * @return persistent object implementing n-grams field index
-   * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
-   *            specified class,<BR>
-   *            StorageError(StorageError.INCOMPATIBLE_KEY_TYPE) exception if type of specified
-   *            field is not string
+   * @return full text search index
    */
-  public <T> RegexIndex<T> createRegexIndex(Class type, String fieldName, boolean caseInsensitive,
-      int nGrams);
+  public FullTextIndex createFullTextIndex();
 
   /**
-   * Create new 3-gram case insensitive string field index for regular expression search
+   * Create full text search index
+   * 
+   * @param helper helper class which provides method for scanning, stemming and tuning query
+   * @return full text search index
+   */
+  public FullTextIndex createFullTextIndex(FullTextSearchHelper helper);
+
+  /**
+   * Create hierarhical hash table. Levels of tree are added on demand.
+   * 
+   * @return persistent hash table
+   */
+  public <K, V> IPersistentHash<K, V> createHash();
+
+  /**
+   * Create hierarhical hash table. Levels of tree are added on demand.
+   * 
+   * @return persistent hash table
+   */
+  public <K, V> IPersistentHash<K, V> createHash(int pageSize, int loadFactor);
+
+  /**
+   * Create new peristent set based on hash table. Unlike set created by createSet which is based on
+   * OID, this set if based on hashCode()/equals() methods
+   * 
+   * @return persistent object implementing hash set
+   */
+  public <T> IPersistentSet<T> createHashSet();
+
+  /**
+   * Create new index
+   * 
+   * @param type type of the index key (you should path here <code>String.class</code>,
+   *        <code>int.class</code>, ...)
+   * @param unique whether index is unique (duplicate value of keys are not allowed)
+   * @return persistent object implementing index
+   * @exception StorageError (StorageError.UNSUPPORTED_INDEX_TYPE) exception if specified key type
+   *            is not supported by implementation.
+   */
+  public <T> Index<T> createIndex(Class type, boolean unique);
+
+  /**
+   * Create new compound index
+   * 
+   * @param types types of the index compound key components
+   * @param unique whether index is unique (duplicate value of keys are not allowed)
+   * @return persistent object implementing compound index
+   * @exception StorageError (StorageError.UNSUPPORTED_INDEX_TYPE) exception if specified key type
+   *            is not supported by implementation.
+   */
+  public <T> Index<T> createIndex(Class[] types, boolean unique);
+
+  /**
+   * Create one-to-many link.
+   * 
+   * @return new empty link, new members can be added to the link later.
+   */
+  public <T> Link<T> createLink();
+
+  /**
+   * Create one-to-many link with specified initialy alloced size.
+   * 
+   * @param initialSize initial size of array
+   * @return new empty link, new members can be added to the link later.
+   */
+  public <T> Link<T> createLink(int initialSize);
+
+  /**
+   * Create new peristent list. Implementation of this list is based on B-Tree so it can efficiently
+   * handle large number of objects but in case of very small list memory overhead is too high.
+   * 
+   * @return persistent object implementing list
+   */
+  public <T> IPersistentList<T> createList();
+
+  /**
+   * Create scalable persistent map. This container can efficiently handle both small and large
+   * number of members. For small maps, implementation uses sorted array. For large maps - B-Tree.
+   * 
+   * @param keyType map key type
+   * @return scalable map implementation
+   */
+  public <K extends Comparable, V> IPersistentMap<K, V> createMap(Class keyType);
+
+  /**
+   * Create scalable persistent map. This container can efficiently handle both small and large
+   * number of members. For small maps, implementation uses sorted array. For large maps - B-Tree.
+   * 
+   * @param keyType map key type
+   * @param initialSize initial allocated size of the list
+   * @return scalable map implementation
+   */
+  public <K extends Comparable, V> IPersistentMap<K, V> createMap(Class keyType, int initialSize);
+
+  /**
+   * Create new multidimensional index for specified fields of the class
+   * 
+   * @param type class of objects included in this index
+   * @param fieldNames name of the fields which are treated as index dimensions, if null then all
+   *        declared fields of the class are used.
+   * @param treateZeroAsUndefinedValue if value of scalar field in QBE object is 0 (default value)
+   *        then assume that condition is not defined for this field
+   * @return multidimensional index
+   */
+  public <T> MultidimensionalIndex<T> createMultidimensionalIndex(Class type, String[] fieldNames,
+      boolean treateZeroAsUndefinedValue);
+
+  /**
+   * Create new multidimensional index
+   * 
+   * @param comparator multidimensinal comparator
+   * @return multidimensional index
+   */
+  public <T> MultidimensionalIndex<T> createMultidimensionalIndex(
+      MultidimensionalComparator<T> comparator);
+
+  /**
+   * Create PATRICIA trie (Practical Algorithm To Retrieve Information Coded In Alphanumeric) Tries
+   * are a kind of tree where each node holds a common part of one or more keys. PATRICIA trie is
+   * one of the many existing variants of the trie, which adds path compression by grouping common
+   * sequences of nodes together.<BR>
+   * This structure provides a very efficient way of storing values while maintaining the lookup
+   * time for a key in O(N) in the worst case, where N is the length of the longest key. This
+   * structure has it's main use in IP routing software, but can provide an interesting alternative
+   * to other structures such as hashtables when memory space is of concern.
+   * 
+   * @return created PATRICIA trie
+   */
+  public <T> PatriciaTrie<T> createPatriciaTrie();
+
+  /**
+   * Create JSQL query. JSQL is object oriented subset of SQL allowing to specify arbitrary
+   * prdicates for selecting members of Perst collections
+   * 
+   * @return created query object
+   */
+  public <T> Query<T> createQuery();
+
+  /**
+   * Create new random access BLOB. Create file-like object providing efficient random poistion
+   * access.
+   * 
+   * @return empty BLOB
+   */
+  public Blob createRandomAccessBlob();
+
+  /**
+   * Create new field index optimized for access by element position.
    * 
    * @param type objects of which type (or derived from which type) will be included in the index
    * @param fieldName name of the index field. Field with such name should be present in specified
    *        class <code>type</code>
-   * @return persistent object implementing 3-grams field index
+   * @param unique whether index is unique (duplicate value of keys are not allowed)
+   * @return persistent object implementing field index
    * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
    *            specified class,<BR>
-   *            StorageError(StorageError.INCOMPATIBLE_KEY_TYPE) exception if type of specified
-   *            field is not string
+   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
+   *            field is not supported by implementation
    */
-  public <T> RegexIndex<T> createRegexIndex(Class type, String fieldName);
+  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String fieldName,
+      boolean unique);
+
+  /**
+   * Create new field index optimized for access by element position.
+   * 
+   * @param type objects of which type (or derived from which type) will be included in the index
+   * @param fieldName name of the index field. Field with such name should be present in specified
+   *        class <code>type</code>
+   * @param unique whether index is unique (duplicate value of keys are not allowed)
+   * @param caseInsensitive whether index is case insensitive (ignored for non-string keys)
+   * @return persistent object implementing field index
+   * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
+   *            specified class,<BR>
+   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
+   *            field is not supported by implementation
+   */
+  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String fieldName,
+      boolean unique, boolean caseInsensitive);
+
+  /**
+   * Create new mutlifield index optimized for access by element position.
+   * 
+   * @param type objects of which type (or derived from which type) will be included in the index
+   * @param fieldNames names of the index fields. Fields with such name should be present in
+   *        specified class <code>type</code>
+   * @param unique whether index is unique (duplicate value of keys are not allowed)
+   * @return persistent object implementing field index
+   * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
+   *            specified class,<BR>
+   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
+   *            field is not supported by implementation
+   */
+  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String[] fieldNames,
+      boolean unique);
+
+  /**
+   * Create new mutlifield index optimized for access by element position.
+   * 
+   * @param type objects of which type (or derived from which type) will be included in the index
+   * @param fieldNames names of the index fields. Fields with such name should be present in
+   *        specified class <code>type</code>
+   * @param unique whether index is unique (duplicate value of keys are not allowed)
+   * @param caseInsensitive whether index is case insensitive (ignored for non-string keys)
+   * @return persistent object implementing field index
+   * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
+   *            specified class,<BR>
+   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
+   *            field is not supported by implementation
+   */
+  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String[] fieldNames,
+      boolean unique, boolean caseInsensitive);
 
   /**
    * Create new index optimized for access by element position.
@@ -597,70 +521,106 @@ public interface Storage {
   public <T> Index<T> createRandomAccessIndex(Class[] types, boolean unique);
 
   /**
-   * Create new field index optimized for access by element position.
+   * Create new 3-gram case insensitive string field index for regular expression search
    * 
    * @param type objects of which type (or derived from which type) will be included in the index
    * @param fieldName name of the index field. Field with such name should be present in specified
    *        class <code>type</code>
-   * @param unique whether index is unique (duplicate value of keys are not allowed)
-   * @return persistent object implementing field index
+   * @return persistent object implementing 3-grams field index
    * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
    *            specified class,<BR>
-   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
-   *            field is not supported by implementation
+   *            StorageError(StorageError.INCOMPATIBLE_KEY_TYPE) exception if type of specified
+   *            field is not string
    */
-  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String fieldName,
-      boolean unique);
+  public <T> RegexIndex<T> createRegexIndex(Class type, String fieldName);
 
   /**
-   * Create new field index optimized for access by element position.
+   * Create new n-gram string field index for regular expression search
    * 
    * @param type objects of which type (or derived from which type) will be included in the index
    * @param fieldName name of the index field. Field with such name should be present in specified
    *        class <code>type</code>
-   * @param unique whether index is unique (duplicate value of keys are not allowed)
-   * @param caseInsensitive whether index is case insensitive (ignored for non-string keys)
-   * @return persistent object implementing field index
+   * @param caseInsensitive whether case of characters should be ignores
+   * @param nGrams number of characters used to construcrt n-grams
+   * @return persistent object implementing n-grams field index
    * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
    *            specified class,<BR>
-   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
-   *            field is not supported by implementation
+   *            StorageError(StorageError.INCOMPATIBLE_KEY_TYPE) exception if type of specified
+   *            field is not string
    */
-  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String fieldName,
-      boolean unique, boolean caseInsensitive);
+  public <T> RegexIndex<T> createRegexIndex(Class type, String fieldName, boolean caseInsensitive,
+      int nGrams);
 
   /**
-   * Create new mutlifield index optimized for access by element position.
+   * Create relation object. Unlike link which represent embedded relation and stored inside owner
+   * object, this Relation object is standalone persisitent object containing references to owner
+   * and members of the relation
    * 
-   * @param type objects of which type (or derived from which type) will be included in the index
-   * @param fieldNames names of the index fields. Fields with such name should be present in
-   *        specified class <code>type</code>
-   * @param unique whether index is unique (duplicate value of keys are not allowed)
-   * @return persistent object implementing field index
-   * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
-   *            specified class,<BR>
-   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
-   *            field is not supported by implementation
+   * @param owner owner of the relation
+   * @return object representing empty relation (relation with specified owner and no members), new
+   *         members can be added to the link later.
    */
-  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String[] fieldNames,
+  public <M, O> Relation<M, O> createRelation(O owner);
+
+  /**
+   * Create new scalable list of persistent objects. This container can efficiently handle small
+   * lists as well as large lists When number of members is small, Link class is used to store set
+   * members. When number of members exceeds some threshold, PersistentList (based on B-Tree) is
+   * used instead.
+   * 
+   * @return scalable set implementation
+   */
+  public <T> IPersistentList<T> createScalableList();
+
+  /**
+   * Create new scalable list of persistent objects. This container can efficiently handle small
+   * lists as well as large lists When number of members is small, Link class is used to store set
+   * members. When number of members exceeds some threshold, PersistentList (based on B-Tree) is
+   * used instead.
+   * 
+   * @param initialSize initial allocated size of the list
+   * @return scalable set implementation
+   */
+  public <T> IPersistentList<T> createScalableList(int initialSize);
+
+  /**
+   * Create new scalable set references to persistent objects. This container can efficiently store
+   * small number of references as well as very large number references. When number of members is
+   * small, Link class is used to store set members. When number of members exceeds some threshold,
+   * PersistentSet (based on B-Tree) is used instead.
+   * 
+   * @return scalable set implementation
+   */
+  public <T> IPersistentSet<T> createScalableSet();
+
+  /**
+   * Create new scalable set references to persistent objects. This container can efficiently store
+   * small number of references as well as very large number references. When number of members is
+   * small, Link class is used to store set members. When number of members exceeds some threshold,
+   * PersistentSet (based on B-Tree) is used instead.
+   * 
+   * @param initialSize initial size of the set
+   * @return scalable set implementation
+   */
+  public <T> IPersistentSet<T> createScalableSet(int initialSize);
+
+  /**
+   * Create new peristent set. Implementation of this set is based on B-Tree so it can efficiently
+   * handle large number of objects but in case of very small set memory overhead is too high.
+   * 
+   * @return persistent object implementing set
+   */
+  public <T> IPersistentSet<T> createSet();
+
+  /**
+   * Create new sorted collection
+   * 
+   * @param comparator comparator class specifying order in the collection
+   * @param unique whether index is collection (members with the same key value are not allowed)
+   * @return persistent object implementing sorted collection
+   */
+  public <T> SortedCollection<T> createSortedCollection(PersistentComparator<T> comparator,
       boolean unique);
-
-  /**
-   * Create new mutlifield index optimized for access by element position.
-   * 
-   * @param type objects of which type (or derived from which type) will be included in the index
-   * @param fieldNames names of the index fields. Fields with such name should be present in
-   *        specified class <code>type</code>
-   * @param unique whether index is unique (duplicate value of keys are not allowed)
-   * @param caseInsensitive whether index is case insensitive (ignored for non-string keys)
-   * @return persistent object implementing field index
-   * @exception StorageError (StorageError.INDEXED_FIELD_NOT_FOUND) if there is no such field in
-   *            specified class,<BR>
-   *            StorageError(StorageError.UNSUPPORTED_INDEX_TYPE) exception if type of specified
-   *            field is not supported by implementation
-   */
-  public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String[] fieldNames,
-      boolean unique, boolean caseInsensitive);
 
   /**
    * Create new spatial index with integer coordinates
@@ -684,56 +644,15 @@ public interface Storage {
   public <T> SpatialIndexRn<T> createSpatialIndexRn();
 
   /**
-   * Create new sorted collection
+   * Create new think index (index with large number of duplicated keys)
    * 
-   * @param comparator comparator class specifying order in the collection
-   * @param unique whether index is collection (members with the same key value are not allowed)
-   * @return persistent object implementing sorted collection
+   * @param type type of the index key (you should path here <code>String.class</code>,
+   *        <code>int.class</code>, ...)
+   * @return persistent object implementing index
+   * @exception StorageError (StorageError.UNSUPPORTED_INDEX_TYPE) exception if specified key type
+   *            is not supported by implementation.
    */
-  public <T> SortedCollection<T> createSortedCollection(PersistentComparator<T> comparator,
-      boolean unique);
-
-  /**
-   * Create one-to-many link.
-   * 
-   * @return new empty link, new members can be added to the link later.
-   */
-  public <T> Link<T> createLink();
-
-  /**
-   * Create one-to-many link with specified initialy alloced size.
-   * 
-   * @param initialSize initial size of array
-   * @return new empty link, new members can be added to the link later.
-   */
-  public <T> Link<T> createLink(int initialSize);
-
-  /**
-   * Create relation object. Unlike link which represent embedded relation and stored inside owner
-   * object, this Relation object is standalone persisitent object containing references to owner
-   * and members of the relation
-   * 
-   * @param owner owner of the relation
-   * @return object representing empty relation (relation with specified owner and no members), new
-   *         members can be added to the link later.
-   */
-  public <M, O> Relation<M, O> createRelation(O owner);
-
-
-  /**
-   * Create new BLOB. Create object for storing large binary data.
-   * 
-   * @return empty BLOB
-   */
-  public Blob createBlob();
-
-  /**
-   * Create new random access BLOB. Create file-like object providing efficient random poistion
-   * access.
-   * 
-   * @return empty BLOB
-   */
-  public Blob createRandomAccessBlob();
+  public <T> Index<T> createThickIndex(Class type);
 
   /**
    * Create new time series object.
@@ -755,57 +674,45 @@ public interface Storage {
       long maxBlockTimeInterval);
 
   /**
-   * Create PATRICIA trie (Practical Algorithm To Retrieve Information Coded In Alphanumeric) Tries
-   * are a kind of tree where each node holds a common part of one or more keys. PATRICIA trie is
-   * one of the many existing variants of the trie, which adds path compression by grouping common
-   * sequences of nodes together.<BR>
-   * This structure provides a very efficient way of storing values while maintaining the lookup
-   * time for a key in O(N) in the worst case, where N is the length of the longest key. This
-   * structure has it's main use in IP routing software, but can provide an interesting alternative
-   * to other structures such as hashtables when memory space is of concern.
+   * Deallocaste object
    * 
-   * @return created PATRICIA trie
+   * @param obj deallocated object
    */
-  public <T> PatriciaTrie<T> createPatriciaTrie();
+  public void deallocate(Object obj);
+
+  public void deallocateObject(Object obj);
 
   /**
-   * Create full text search index
-   * 
-   * @param helper helper class which provides method for scanning, stemming and tuning query
-   * @return full text search index
+   * End per-thread transaction started by beginThreadTransaction method.<br>
+   * If transaction is <i>exclusive</i>, this method commits the transaction and allows other thread
+   * to proceed.<br>
+   * If transaction is <i>serializable</i>, this method commits sll changes done by this thread and
+   * release all locks set by this thread.<br>
+   * If transaction is <i>cooperative</i>, this method decrement counter of cooperative transactions
+   * and if it becomes zero - commit the work
    */
-  public FullTextIndex createFullTextIndex(FullTextSearchHelper helper);
-
-  /**
-   * Create full text search index with default helper
-   * 
-   * @return full text search index
-   */
-  public FullTextIndex createFullTextIndex();
+  public void endThreadTransaction();
 
 
   /**
-   * Commit transaction (if needed) and close the storage
-   */
-  public void close();
-
-  /**
-   * Set threshold for initiation of garbage collection. By default garbage collection is disable
-   * (threshold is set to Long.MAX_VALUE). If it is set to the value different from Long.MAX_VALUE,
-   * GC will be started each time when delta between total size of allocated and deallocated objects
-   * exceeds specified threashold OR after reaching end of allocation bitmap in allocator.
+   * End per-thread cooperative transaction with specified maximal delay of transaction commit. When
+   * cooperative transaction is ended, data is not immediately committed to the disk (because other
+   * cooperative transaction can be active at this moment of time). Instead of it cooperative
+   * transaction counter is decremented. Commit is performed only when this counter reaches zero
+   * value. But in case of heavy load there can be a lot of requests and so a lot of active
+   * cooperative transactions. So transaction counter never reaches zero value. If system crash
+   * happens a large amount of work will be lost in this case. To prevent such scenario, it is
+   * possible to specify maximal delay of pending transaction commit. In this case when such timeout
+   * is expired, new cooperative transaction will be blocked until transaction is committed.
    * 
-   * @param allocatedDelta delta between total size of allocated and deallocated object since last
-   *        GC or storage opening
+   * @param maxDelay maximal delay in milliseconds of committing transaction. Please notice, that
+   *        Perst could not force other threads to commit their cooperative transactions when this
+   *        timeout is expired. It will only block new cooperative transactions to make it possible
+   *        to current transaction to complete their work. If <code>maxDelay</code> is 0, current
+   *        thread will be blocked until all other cooperative trasnaction are also finished and
+   *        changhes will be committed to the database.
    */
-  public void setGcThreshold(long allocatedDelta);
-
-  /**
-   * Explicit start of garbage collector
-   * 
-   * @return number of collected (deallocated) objects
-   */
-  public int gc();
+  public void endThreadTransaction(int maxDelay);
 
   /**
    * Export database in XML format
@@ -815,11 +722,69 @@ public interface Storage {
   public void exportXML(java.io.Writer writer) throws java.io.IOException;
 
   /**
-   * Import data from XML file
+   * Find registered class loaders by name
    * 
-   * @param reader XML document reader
+   * @param name class loader name
+   * @return class loader with such name or numm if no class loader is found
    */
-  public void importXML(java.io.Reader reader) throws XMLImportException;
+  public ClassLoader findClassLoader(String name);
+
+  /**
+   * Explicit start of garbage collector
+   * 
+   * @return number of collected (deallocated) objects
+   */
+  public int gc();
+
+  /**
+   * Get class loader used to locate classes for loaded class descriptors.
+   * 
+   * @return class loader previously set by <code>setClassLoader</code> method or <code>null</code>
+   *         if not specified.
+   */
+  public ClassLoader getClassLoader();
+
+  /**
+   * Get version of database format for this database. When new database is created it is always
+   * assigned the current database format version
+   * 
+   * @return databasse format version
+   */
+  public int getDatabaseFormatVersion();
+
+
+  /**
+   * Get size of the database
+   */
+  public long getDatabaseSize();
+
+  /**
+   * Get storage listener.
+   * 
+   * @return current storage listener
+   */
+  public StorageListener getListener();
+
+  /**
+   * Get maximal OID of object in the storage
+   */
+  public int getMaxOid();
+
+  /**
+   * Get database memory dump. This function returns hashmap which key is classes of stored objects
+   * and value - MemoryUsage object which specifies number of instances of particular class in the
+   * storage and total size of memory used by these instance. Size of internal database structures
+   * (object index,* memory allocation bitmap) is associated with <code>Storage</code> class. Size
+   * of class descriptors - with <code>java.lang.Class</code> class.
+   * <p>
+   * This method traverse the storage as garbage collection do - starting from the root object and
+   * recursively visiting all reachable objects. So it reports statistic only for visible objects.
+   * If total database size is significantly larger than total size of all instances reported by
+   * this method, it means that there is garbage in the database. You can explicitly invoke garbage
+   * collector in this case.
+   * </p>
+   */
+  public java.util.HashMap<Class, MemoryUsage> getMemoryDump();
 
   /**
    * Retrieve object by OID. This method should be used with care because if object is deallocated,
@@ -832,6 +797,111 @@ public interface Storage {
   public Object getObjectByOID(int oid);
 
   /**
+   * Get object identifier
+   * 
+   * @param obj inspected object
+   */
+  public int getOid(Object obj);
+
+  /**
+   * Get Perst version (for example 435 for release 4.35)
+   */
+  public int getPerstVersion();
+
+  /**
+   * Get all set properties
+   * 
+   * @return all properties set by setProperty or setProperties method
+   */
+  public java.util.Properties getProperties();
+
+  /**
+   * Get property value.
+   * 
+   * @param name property name
+   * @return value of the property previously assigned by setProperty or setProperties method or
+   *         <code>null</code> if property was not set
+   */
+  public Object getProperty(String name);
+
+  /**
+   * Get storage root. Storage can have exactly one root object. If you need to have several root
+   * object and access them by name (as is is possible in many other OODBMSes), you should create
+   * index and use it as root object.
+   * 
+   * @return root object or <code>null</code> if root is not specified (storage is not yet
+   *         initialized)
+   */
+  public <T> T getRoot();
+
+  /**
+   * Get SQL optimizer parameters.
+   * 
+   * @return current SQL optimizer parameters. It is possible to tune these parameters by updating
+   *         fields of this object.
+   */
+  public SqlOptimizerParameters getSqlOptimizerParameters();
+
+  /**
+   * This method is used internally by Perst to get transaction context associated with current
+   * thread. But it can be also used by application to get transaction context, store it in some
+   * variable and use in another thread. I will make it possible to share one transaction between
+   * multiple threads.
+   * 
+   * @return transaction context associated with current thread
+   */
+  public ThreadTransactionContext getTransactionContext();
+
+  /**
+   * Get total size of all allocated objects in the database
+   */
+  public long getUsedSize();
+
+
+  /**
+   * Import data from XML file
+   * 
+   * @param reader XML document reader
+   */
+  public void importXML(java.io.Reader reader) throws XMLImportException;
+
+  /**
+   * Check if nested thread transaction is active
+   * 
+   * @return true if code executing this method is inside per-thread transaction (serializable,
+   *         exclusive or coopertaive)
+   */
+  public boolean isInsideThreadTransaction();
+
+  /**
+   * Check if database is opened
+   * 
+   * @return <code>true</code> if database was opened by <code>open</code> method,
+   *         <code>false</code> otherwise
+   */
+  public boolean isOpened();
+
+  /**
+   * Join results of several index searches. This method efficiently join selections without loading
+   * objects themselve
+   * 
+   * @param selections selections to be merged
+   * @return Iterator through joineded result
+   */
+  public Iterator join(Iterator[] selections);
+
+  /**
+   * Load raw object
+   * 
+   * @param obj loaded object
+   */
+  public void load(Object obj);
+
+  public void loadObject(Object obj);
+
+  public boolean lockObject(Object obj);
+
+  /**
    * Explicitely make object peristent. Usually objects are made persistent implicitlely using
    * "persistency on reachability apporach", but this method allows to do it explicitly. If object
    * is already persistent, execution of this method has no effect.
@@ -840,6 +910,168 @@ public interface Storage {
    * @return OID assigned to the object
    */
   public int makePersistent(Object obj);
+
+  /**
+   * Merge results of several index searches. This method efficiently merge selections without
+   * loading objects themselve
+   * 
+   * @param selections selections to be merged
+   * @return Iterator through merged result
+   */
+  public Iterator merge(Iterator[] selections);
+
+  /**
+   * Mark object as been modified
+   * 
+   * @param obj modified object
+   */
+  public void modify(Object obj);
+
+  public void modifyObject(Object obj);
+
+  /**
+   * Open the storage with default page pool size
+   * 
+   * @param file user specific implementation of IFile interface
+   */
+  public void open(IFile file);
+
+  /**
+   * Open the storage
+   * 
+   * @param file user specific implementation of IFile interface
+   * @param pagePoolSize size of page pool (in bytes). Page pool should contain at least ten 4kb
+   *        pages, so minimal page pool size should be at least 40Kb. But larger page pool ussually
+   *        leads to better performance (unless it could not fit in memory and cause swapping).
+   */
+  public void open(IFile file, long pagePoolSize);
+
+  /**
+   * Open the storage with default page pool size
+   * 
+   * @param filePath path to the database file
+   */
+  public void open(String filePath);
+
+  /**
+   * Open the storage
+   * 
+   * @param filePath path to the database file
+   * @param pagePoolSize size of page pool (in bytes). Page pool should contain at least ten 4kb
+   *        pages, so minimal page pool size should be at least 40Kb. But larger page pool usually
+   *        leads to better performance (unless it could not fit in memory and cause swapping).
+   *        Value 0 of this paremeter corresponds to infinite page pool (all pages are cashed in
+   *        memory). It is especially useful for in-memory database, when storage is created with
+   *        NullFile.
+   * 
+   */
+  public void open(String filePath, long pagePoolSize);
+
+  /**
+   * Open the encrypted storage
+   * 
+   * @param filePath path to the database file
+   * @param pagePoolSize size of page pool (in bytes). Page pool should contain at least then 4kb
+   *        pages, so minimal page pool size should be at least 40Kb. But larger page pool usually
+   *        leads to better performance (unless it could not fit in memory and cause swapping).
+   * @param cipherKey cipher key
+   */
+  public void open(String filePath, long pagePoolSize, String cipherKey);
+
+  /**
+   * Register named class loader in the storage. Mechanism of named class loaders allows to store in
+   * database association between class and its class loader. All named class loaders should be
+   * registered before database open.
+   * 
+   * @param loader registered named class loader
+   */
+  public void registerClassLoader(INamedClassLoader loader);
+
+  /**
+   * Register custom allocator for specified class. Instances of this and derived classes will be
+   * allocated in the storage using specified allocator.
+   * 
+   * @param cls class of the persistent object which instances will be allocated using this
+   *        allocator
+   * @param allocator custom allocator
+   */
+  public void registerCustomAllocator(Class cls, CustomAllocator allocator);
+
+
+  /**
+   * Rollback changes made by the last transaction. By default, Perst doesn't reload modified
+   * objects after a transaction rollback. In this case, the programmer should not use references to
+   * the persistent objects stored in program variables. Instead, the application should fetch the
+   * object tree from the beginning, starting from obtaining the root object using the
+   * Storage.getRoot method. Setting the "perst.reload.objects.on.rollback" property instructs Perst
+   * to reload all objects modified by the aborted (rolled back) transaction. It takes additional
+   * processing time, but in this case it is not necessary to ignore references stored in variables,
+   * unless they point to the objects created by this transactions (which were invalidated when the
+   * transaction was rolled back). Unfortunately, there is no way to prohibit access to such objects
+   * or somehow invalidate references to them. So this option should be used with care.
+   */
+  public void rollback();
+
+  /**
+   * Rollback serializable transaction. This call is equivalent to
+   * <code>rollbackThreadTransaction</code> but it checks that serializable transaction was
+   * pereviously started using beginSerializableTransaction() method
+   * 
+   * @exception StorageError (NOT_IN_TRANSACTION) if this method is invoked outside serializable
+   *            transaction body
+   */
+  public void rollbackSerializableTransaction();
+
+  /**
+   * Rollback per-thread transaction. It is safe to use this method only for exclusive transactions.
+   * In case of cooperative transactions, this method rollback results of all transactions.
+   */
+  public void rollbackThreadTransaction();
+
+  /**
+   * Set class loader. This class loader will be used to locate classes for loaded class
+   * descriptors. If class loader is not specified or it did find the class, then
+   * <code>Class.forName()</code> method will be used to get class for the specified name.
+   * 
+   * @param loader class loader
+   * @return previous class loader or null if not specified
+   */
+  public ClassLoader setClassLoader(ClassLoader loader);
+
+  /**
+   * Set custom serializer used fot packing/unpacking fields of persistent objects which types
+   * implemplemet CustomSerializable interface
+   */
+  public void setCustomSerializer(CustomSerializer serializer);
+
+  /**
+   * Set threshold for initiation of garbage collection. By default garbage collection is disable
+   * (threshold is set to Long.MAX_VALUE). If it is set to the value different from Long.MAX_VALUE,
+   * GC will be started each time when delta between total size of allocated and deallocated objects
+   * exceeds specified threashold OR after reaching end of allocation bitmap in allocator.
+   * 
+   * @param allocatedDelta delta between total size of allocated and deallocated object since last
+   *        GC or storage opening
+   */
+  public void setGcThreshold(long allocatedDelta);
+
+
+  // Internal methods
+
+  /**
+   * Set storage listener.
+   * 
+   * @param listener new storage listener (may be null)
+   * @return previous storage listener
+   */
+  public StorageListener setListener(StorageListener listener);
+
+  /**
+   * Set database properties. This method should be invoked before opening database. For list of
+   * supported properties please see <code>setProperty</code> command. All not recognized properties
+   * are ignored.
+   */
+  public void setProperties(java.util.Properties props);
 
   /**
    * Set database property. This method should be invoked before opening database. Currently the
@@ -1135,239 +1367,6 @@ public interface Storage {
   public void setProperty(String name, Object value);
 
   /**
-   * Set database properties. This method should be invoked before opening database. For list of
-   * supported properties please see <code>setProperty</code> command. All not recognized properties
-   * are ignored.
-   */
-  public void setProperties(java.util.Properties props);
-
-  /**
-   * Get property value.
-   * 
-   * @param name property name
-   * @return value of the property previously assigned by setProperty or setProperties method or
-   *         <code>null</code> if property was not set
-   */
-  public Object getProperty(String name);
-
-  /**
-   * Get all set properties
-   * 
-   * @return all properties set by setProperty or setProperties method
-   */
-  public java.util.Properties getProperties();
-
-  /**
-   * Get SQL optimizer parameters.
-   * 
-   * @return current SQL optimizer parameters. It is possible to tune these parameters by updating
-   *         fields of this object.
-   */
-  public SqlOptimizerParameters getSqlOptimizerParameters();
-
-  /**
-   * Merge results of several index searches. This method efficiently merge selections without
-   * loading objects themselve
-   * 
-   * @param selections selections to be merged
-   * @return Iterator through merged result
-   */
-  public Iterator merge(Iterator[] selections);
-
-
-  /**
-   * Join results of several index searches. This method efficiently join selections without loading
-   * objects themselve
-   * 
-   * @param selections selections to be merged
-   * @return Iterator through joineded result
-   */
-  public Iterator join(Iterator[] selections);
-
-  /**
-   * Set storage listener.
-   * 
-   * @param listener new storage listener (may be null)
-   * @return previous storage listener
-   */
-  public StorageListener setListener(StorageListener listener);
-
-  /**
-   * Get storage listener.
-   * 
-   * @return current storage listener
-   */
-  public StorageListener getListener();
-
-  /**
-   * Get database memory dump. This function returns hashmap which key is classes of stored objects
-   * and value - MemoryUsage object which specifies number of instances of particular class in the
-   * storage and total size of memory used by these instance. Size of internal database structures
-   * (object index,* memory allocation bitmap) is associated with <code>Storage</code> class. Size
-   * of class descriptors - with <code>java.lang.Class</code> class.
-   * <p>
-   * This method traverse the storage as garbage collection do - starting from the root object and
-   * recursively visiting all reachable objects. So it reports statistic only for visible objects.
-   * If total database size is significantly larger than total size of all instances reported by
-   * this method, it means that there is garbage in the database. You can explicitly invoke garbage
-   * collector in this case.
-   * </p>
-   */
-  public java.util.HashMap<Class, MemoryUsage> getMemoryDump();
-
-  /**
-   * Get total size of all allocated objects in the database
-   */
-  public long getUsedSize();
-
-  /**
-   * Get size of the database
-   */
-  public long getDatabaseSize();
-
-  /**
-   * Get maximal OID of object in the storage
-   */
-  public int getMaxOid();
-
-  /**
-   * Set class loader. This class loader will be used to locate classes for loaded class
-   * descriptors. If class loader is not specified or it did find the class, then
-   * <code>Class.forName()</code> method will be used to get class for the specified name.
-   * 
-   * @param loader class loader
-   * @return previous class loader or null if not specified
-   */
-  public ClassLoader setClassLoader(ClassLoader loader);
-
-  /**
-   * Get class loader used to locate classes for loaded class descriptors.
-   * 
-   * @return class loader previously set by <code>setClassLoader</code> method or <code>null</code>
-   *         if not specified.
-   */
-  public ClassLoader getClassLoader();
-
-  /**
-   * Register named class loader in the storage. Mechanism of named class loaders allows to store in
-   * database association between class and its class loader. All named class loaders should be
-   * registered before database open.
-   * 
-   * @param loader registered named class loader
-   */
-  public void registerClassLoader(INamedClassLoader loader);
-
-  /**
-   * Find registered class loaders by name
-   * 
-   * @param name class loader name
-   * @return class loader with such name or numm if no class loader is found
-   */
-  public ClassLoader findClassLoader(String name);
-
-  /**
-   * Register custom allocator for specified class. Instances of this and derived classes will be
-   * allocated in the storage using specified allocator.
-   * 
-   * @param cls class of the persistent object which instances will be allocated using this
-   *        allocator
-   * @param allocator custom allocator
-   */
-  public void registerCustomAllocator(Class cls, CustomAllocator allocator);
-
-  /**
-   * Create bitmap custom allocator
-   * 
-   * @param quantum size in bytes of allocation quantum. Should be power of two.
-   * @param base base address for allocator (it should match offset of multifile segment)
-   * @param extension size by which space mapped by allocator is extended each time when no suitable
-   *        hole is found in bitmap (it should be large enough to improve allocation speed and
-   *        locality of references)
-   * @param limit maximal size of memory allocated by this allocator (pass Long.MAX_VALUE if you do
-   *        not want to limit space)
-   * @return created allocator
-   */
-  public CustomAllocator createBitmapAllocator(int quantum, long base, long extension, long limit);
-
-  /**
-   * This method is used internally by Perst to get transaction context associated with current
-   * thread. But it can be also used by application to get transaction context, store it in some
-   * variable and use in another thread. I will make it possible to share one transaction between
-   * multiple threads.
-   * 
-   * @return transaction context associated with current thread
-   */
-  public ThreadTransactionContext getTransactionContext();
-
-  /**
-   * Associate transaction context with the thread This method can be used by application to share
-   * the same transaction between multiple threads
-   * 
-   * @param ctx new transaction context
-   * @return transaction context previously associated with this thread
-   */
-  public ThreadTransactionContext setTransactionContext(ThreadTransactionContext ctx);
-
-  /**
-   * Set custom serializer used fot packing/unpacking fields of persistent objects which types
-   * implemplemet CustomSerializable interface
-   */
-  public void setCustomSerializer(CustomSerializer serializer);
-
-  /**
-   * Clear database object cache. This method can be used with "strong" object cache to avoid memory
-   * overflow. It is no valid to invoke this method when there are some uncommitted changes in the
-   * database (some modified objects). Also all variables containing references to persistent object
-   * should be reset after invocation of this method - it is not correct to accessed object directly
-   * though such variables, objects has to be reloaded from the storage
-   */
-  public void clearObjectCache();
-
-  /**
-   * Get version of database format for this database. When new database is created it is always
-   * assigned the current database format version
-   * 
-   * @return databasse format version
-   */
-  public int getDatabaseFormatVersion();
-
-
-  /**
-   * Store object in storage
-   * 
-   * @param obj stored object
-   */
-  public void store(Object obj);
-
-  /**
-   * Mark object as been modified
-   * 
-   * @param obj modified object
-   */
-  public void modify(Object obj);
-
-  /**
-   * Load raw object
-   * 
-   * @param obj loaded object
-   */
-  public void load(Object obj);
-
-  /**
-   * Deallocaste object
-   * 
-   * @param obj deallocated object
-   */
-  public void deallocate(Object obj);
-
-  /**
-   * Get object identifier
-   * 
-   * @param obj inspected object
-   */
-  public int getOid(Object obj);
-
-  /**
    * Enable or disable recursive loading for specified class. Recursive loading can be also
    * controlled by overriding recursiveLoading method of Persistent class, but if class is not
    * derived from Persistent base class and not implementing IPersistent interface, this method can
@@ -1381,35 +1380,36 @@ public interface Storage {
    */
   public boolean setRecursiveLoading(Class type, boolean enabled);
 
+  /**
+   * Set new storage root object. Previous reference to the root object is rewritten but old root is
+   * not automatically deallocated.
+   * 
+   * @param root object to become new storage root. If it is not persistent yet, it is made
+   *        persistent and stored in the storage
+   */
+  public void setRoot(Object root);
 
-  // Internal methods
+  /**
+   * Associate transaction context with the thread This method can be used by application to share
+   * the same transaction between multiple threads
+   * 
+   * @param ctx new transaction context
+   * @return transaction context previously associated with this thread
+   */
+  public ThreadTransactionContext setTransactionContext(ThreadTransactionContext ctx);
 
-  public void deallocateObject(Object obj);
-
-  public void storeObject(Object obj);
+  /**
+   * Store object in storage
+   * 
+   * @param obj stored object
+   */
+  public void store(Object obj);
 
   public void storeFinalizedObject(Object obj);
 
-  public void modifyObject(Object obj);
-
-  public void loadObject(Object obj);
-
-  public boolean lockObject(Object obj);
+  public void storeObject(Object obj);
 
   public void throwObject(Object obj);
-
-  /**
-   * Compatibility with databases created by Perst prior to 2.73 release by IBM Java5 VM
-   */
-  public static final int IBM_JAVA5_COMPATIBILITY_MODE = 1;
-
-  /**
-   * Do not store information about class loaders when serialising objects with custime class
-   * loaders
-   */
-  public static final int CLASS_LOADER_SERIALIZATION_COMPATIBILITY_MODE = 2;
-
-  static final long INVALID_DATE = Long.MIN_VALUE;
 }
 
 

@@ -4,12 +4,32 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 
 public class PinWeakHashTable implements OidHashTable {
-  Entry table[];
+  static class Entry {
+    Entry next;
+    Reference ref;
+    int oid;
+    Object pin;
+
+    Entry(int oid, Reference ref, Entry chain) {
+      next = chain;
+      this.oid = oid;
+      this.ref = ref;
+    }
+
+    void clear() {
+      ref.clear();
+      ref = null;
+      pin = null;
+      next = null;
+    }
+  }
   static final float loadFactor = 0.75f;
+  Entry table[];
   int count;
   int threshold;
   long nModified;
   boolean disableRehash;
+
   StorageImpl db;
 
   public PinWeakHashTable(StorageImpl db, int initialCapacity) {
@@ -19,89 +39,29 @@ public class PinWeakHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized boolean remove(int oid) {
+  public synchronized void clear() {
+    Entry tab[] = table;
+    for (int i = 0; i < tab.length; i++) {
+      tab[i] = null;
+    }
+    count = 0;
+  }
+
+  @Override
+  public synchronized void clearDirty(Object obj) {
+    int oid = db.getOid(obj);
     Entry tab[] = table;
     int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index], prev = null; e != null; prev = e, e = e.next) {
+    for (Entry e = tab[index]; e != null; e = e.next) {
       if (e.oid == oid) {
-        if (prev != null) {
-          prev.next = e.next;
-        } else {
-          tab[index] = e.next;
-        }
-        e.clear();
-        count -= 1;
-        return true;
+        e.pin = null;
+        return;
       }
     }
-    return false;
   }
 
   protected Reference createReference(Object obj) {
     return new WeakReference(obj);
-  }
-
-  @Override
-  public synchronized void put(int oid, Object obj) {
-    Reference ref = createReference(obj);
-    Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index]; e != null; e = e.next) {
-      if (e.oid == oid) {
-        e.ref = ref;
-        return;
-      }
-    }
-    if (count >= threshold && !disableRehash) {
-      // Rehash the table if the threshold is exceeded
-      rehash();
-      tab = table;
-      index = (oid & 0x7FFFFFFF) % tab.length;
-    }
-
-    // Creates the new entry.
-    tab[index] = new Entry(oid, ref, tab[index]);
-    count += 1;
-  }
-
-  @Override
-  public synchronized Object get(int oid) {
-    Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index]; e != null; e = e.next) {
-      if (e.oid == oid) {
-        if (e.pin != null) {
-          return e.pin;
-        }
-        return e.ref.get();
-      }
-    }
-    return null;
-  }
-
-  @Override
-  public synchronized void reload() {
-    disableRehash = true;
-    for (int i = 0; i < table.length; i++) {
-      Entry e, next, prev;
-      for (e = table[i]; e != null; e = e.next) {
-        Object obj = e.pin;
-        if (obj != null) {
-          db.invalidate(obj);
-          try {
-            db.load(obj);
-          } catch (Exception x) {
-            // ignore errors caused by attempt to load object which was created in rollbacked
-            // transaction
-          }
-        }
-      }
-    }
-    disableRehash = false;
-    if (count >= threshold) {
-      // Rehash the table if the threshold is exceeded
-      rehash();
-    }
   }
 
   @Override
@@ -130,6 +90,21 @@ public class PinWeakHashTable implements OidHashTable {
   }
 
   @Override
+  public synchronized Object get(int oid) {
+    Entry tab[] = table;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index]; e != null; e = e.next) {
+      if (e.oid == oid) {
+        if (e.pin != null) {
+          return e.pin;
+        }
+        return e.ref.get();
+      }
+    }
+    return null;
+  }
+
+  @Override
   public synchronized void invalidate() {
     for (int i = 0; i < table.length; i++) {
       for (Entry e = table[i]; e != null; e = e.next) {
@@ -143,12 +118,26 @@ public class PinWeakHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized void clear() {
+  public synchronized void put(int oid, Object obj) {
+    Reference ref = createReference(obj);
     Entry tab[] = table;
-    for (int i = 0; i < tab.length; i++) {
-      tab[i] = null;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index]; e != null; e = e.next) {
+      if (e.oid == oid) {
+        e.ref = ref;
+        return;
+      }
     }
-    count = 0;
+    if (count >= threshold && !disableRehash) {
+      // Rehash the table if the threshold is exceeded
+      rehash();
+      tab = table;
+      index = (oid & 0x7FFFFFFF) % tab.length;
+    }
+
+    // Creates the new entry.
+    tab[index] = new Entry(oid, ref, tab[index]);
+    count += 1;
   }
 
   void rehash() {
@@ -196,6 +185,50 @@ public class PinWeakHashTable implements OidHashTable {
   }
 
   @Override
+  public synchronized void reload() {
+    disableRehash = true;
+    for (int i = 0; i < table.length; i++) {
+      Entry e, next, prev;
+      for (e = table[i]; e != null; e = e.next) {
+        Object obj = e.pin;
+        if (obj != null) {
+          db.invalidate(obj);
+          try {
+            db.load(obj);
+          } catch (Exception x) {
+            // ignore errors caused by attempt to load object which was created in rollbacked
+            // transaction
+          }
+        }
+      }
+    }
+    disableRehash = false;
+    if (count >= threshold) {
+      // Rehash the table if the threshold is exceeded
+      rehash();
+    }
+  }
+
+  @Override
+  public synchronized boolean remove(int oid) {
+    Entry tab[] = table;
+    int index = (oid & 0x7FFFFFFF) % tab.length;
+    for (Entry e = tab[index], prev = null; e != null; prev = e, e = e.next) {
+      if (e.oid == oid) {
+        if (prev != null) {
+          prev.next = e.next;
+        } else {
+          tab[index] = e.next;
+        }
+        e.clear();
+        count -= 1;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
   public synchronized void setDirty(Object obj) {
     int oid = db.getOid(obj);
     Entry tab[] = table;
@@ -210,41 +243,8 @@ public class PinWeakHashTable implements OidHashTable {
   }
 
   @Override
-  public synchronized void clearDirty(Object obj) {
-    int oid = db.getOid(obj);
-    Entry tab[] = table;
-    int index = (oid & 0x7FFFFFFF) % tab.length;
-    for (Entry e = tab[index]; e != null; e = e.next) {
-      if (e.oid == oid) {
-        e.pin = null;
-        return;
-      }
-    }
-  }
-
-  @Override
   public int size() {
     return count;
-  }
-
-  static class Entry {
-    Entry next;
-    Reference ref;
-    int oid;
-    Object pin;
-
-    void clear() {
-      ref.clear();
-      ref = null;
-      pin = null;
-      next = null;
-    }
-
-    Entry(int oid, Reference ref, Entry chain) {
-      next = chain;
-      this.oid = oid;
-      this.ref = ref;
-    }
   }
 }
 

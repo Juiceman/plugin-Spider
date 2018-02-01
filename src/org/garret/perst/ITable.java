@@ -8,16 +8,6 @@ import java.util.Collection;
  */
 public interface ITable<T> extends Collection<T> {
   /**
-   * Select members of the collection using search predicate This iterator doesn't support remove()
-   * method.
-   * 
-   * @param cls class of index members
-   * @param predicate JSQL condition
-   * @return iterator through members of the collection matching search condition
-   */
-  public IterableIterator<T> select(Class cls, String predicate);
-
-  /**
    * Remove all objects from the index and deallocate them. This method is equivalent to the
    * following peace of code: { Iterator i = index.iterator(); while (i.hasNext())
    * ((IPersistent)i.next()).deallocate(); index.clear(); } Please notice that this method doesn't
@@ -27,4 +17,14 @@ public interface ITable<T> extends Collection<T> {
    * the program.
    */
   public void deallocateMembers();
+
+  /**
+   * Select members of the collection using search predicate This iterator doesn't support remove()
+   * method.
+   * 
+   * @param cls class of index members
+   * @param predicate JSQL condition
+   * @return iterator through members of the collection matching search condition
+   */
+  public IterableIterator<T> select(Class cls, String predicate);
 }

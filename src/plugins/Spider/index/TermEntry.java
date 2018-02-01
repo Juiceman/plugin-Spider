@@ -17,11 +17,11 @@ package plugins.Spider.index;
  */
 abstract public class TermEntry implements Comparable<TermEntry> {
 
-  final static long serialVersionUID = 0xF23194B7F015560CL;
-
   public enum EntryType {
     INDEX, TERM, PAGE
-  };
+  }
+
+  final static long serialVersionUID = 0xF23194B7F015560CL;;
 
   /**
    ** Subject term of this entry.
@@ -45,12 +45,6 @@ abstract public class TermEntry implements Comparable<TermEntry> {
     subj = s.intern();
     rel = r;
   }
-
-  /**
-   ** Returns the type of TermEntry. This '''must''' be constant for instances of the same class, and
-   * different between classes.
-   */
-  abstract public EntryType entryType();
 
   /**
    ** {@inheritDoc}
@@ -80,6 +74,12 @@ abstract public class TermEntry implements Comparable<TermEntry> {
     EntryType a = entryType(), b = o.entryType();
     return a.compareTo(b);
   }
+
+  /**
+   ** Returns the type of TermEntry. This '''must''' be constant for instances of the same class, and
+   * different between classes.
+   */
+  abstract public EntryType entryType();
 
   /**
    ** {@inheritDoc}

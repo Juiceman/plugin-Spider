@@ -15,27 +15,31 @@ import org.garret.perst.Storage;
 
 
 public class RandomAccessBlobImpl extends PersistentResource implements Blob {
-  long size;
-  Index chunks;
-
-  static class Chunk extends Persistent {
-    byte[] body;
-
-    Chunk() {}
-
-    Chunk(Storage db) {
-      super(db);
-      body = new byte[CHUNK_SIZE];
-    }
-  }
-
-  static final int CHUNK_SIZE = Page.pageSize - ObjectHeader.sizeof;
-
   class BlobInputStream extends RandomAccessInputStream {
     protected Chunk currChunk;
     protected long currPos;
     protected long currChunkPos;
     protected Iterator iterator;
+
+    protected BlobInputStream() {
+      setPosition(0);
+    }
+
+    @Override
+    public int available() {
+      return (int) (size - currPos);
+    }
+
+    @Override
+    public void close() {
+      currChunk = null;
+      iterator = null;
+    }
+
+    @Override
+    public long getPosition() {
+      return currPos;
+    }
 
     @Override
     public int read() {
@@ -92,11 +96,6 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
     }
 
     @Override
-    public long getPosition() {
-      return currPos;
-    }
-
-    @Override
     public long size() {
       return size;
     }
@@ -105,10 +104,15 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
     public long skip(long offs) {
       return setPosition(currPos + offs);
     }
+  }
+  class BlobOutputStream extends RandomAccessOutputStream {
+    protected Chunk currChunk;
+    protected long currPos;
+    protected long currChunkPos;
+    protected Iterator iterator;
 
-    @Override
-    public int available() {
-      return (int) (size - currPos);
+    protected BlobOutputStream(int flags) {
+      setPosition((flags & APPEND) != 0 ? size : 0);
     }
 
     @Override
@@ -117,22 +121,31 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
       iterator = null;
     }
 
-    protected BlobInputStream() {
-      setPosition(0);
+    @Override
+    public long getPosition() {
+      return currPos;
     }
-  }
-
-  class BlobOutputStream extends RandomAccessOutputStream {
-    protected Chunk currChunk;
-    protected long currPos;
-    protected long currChunkPos;
-    protected Iterator iterator;
 
     @Override
-    public void write(int b) {
-      byte[] buf = new byte[1];
-      buf[0] = (byte) b;
-      write(buf, 0, 1);
+    public long setPosition(long newPos) {
+      if (newPos < 0) {
+        return -1;
+      }
+      currPos = newPos;
+      iterator = chunks.entryIterator(new Key(currPos / CHUNK_SIZE * CHUNK_SIZE), null,
+          GenericIndex.ASCENT_ORDER);
+      currChunkPos = Long.MIN_VALUE;
+      currChunk = null;
+      return currPos;
+    }
+
+    @Override
+    public long size() {
+      return size;
+    }
+
+    public long skip(long offs) {
+      return setPosition(currPos + offs);
     }
 
     @Override
@@ -177,41 +190,46 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
     }
 
     @Override
-    public long setPosition(long newPos) {
-      if (newPos < 0) {
-        return -1;
-      }
-      currPos = newPos;
-      iterator = chunks.entryIterator(new Key(currPos / CHUNK_SIZE * CHUNK_SIZE), null,
-          GenericIndex.ASCENT_ORDER);
-      currChunkPos = Long.MIN_VALUE;
-      currChunk = null;
-      return currPos;
+    public void write(int b) {
+      byte[] buf = new byte[1];
+      buf[0] = (byte) b;
+      write(buf, 0, 1);
     }
+  }
 
-    @Override
-    public long getPosition() {
-      return currPos;
-    }
+  static class Chunk extends Persistent {
+    byte[] body;
 
-    @Override
-    public long size() {
-      return size;
-    }
+    Chunk() {}
 
-    public long skip(long offs) {
-      return setPosition(currPos + offs);
+    Chunk(Storage db) {
+      super(db);
+      body = new byte[CHUNK_SIZE];
     }
+  }
 
-    @Override
-    public void close() {
-      currChunk = null;
-      iterator = null;
-    }
+  static final int CHUNK_SIZE = Page.pageSize - ObjectHeader.sizeof;
 
-    protected BlobOutputStream(int flags) {
-      setPosition((flags & APPEND) != 0 ? size : 0);
+  long size;
+
+  Index chunks;
+
+  RandomAccessBlobImpl() {}
+
+  RandomAccessBlobImpl(Storage storage) {
+    super(storage);
+    chunks = storage.createIndex(long.class, true);
+  }
+
+  @Override
+  public void deallocate() {
+    Iterator iterator = chunks.iterator();
+    while (iterator.hasNext()) {
+      iterator.next();
+      iterator.remove();
     }
+    chunks.clear();
+    super.deallocate();
   }
 
   @Override
@@ -235,32 +253,14 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
   }
 
   @Override
-  public RandomAccessOutputStream getOutputStream(long position, boolean multisession) {
-    RandomAccessOutputStream stream = getOutputStream(multisession);
-    stream.setPosition(position);
-    return stream;
-  }
-
-  @Override
   public RandomAccessOutputStream getOutputStream(int flags) {
     return new BlobOutputStream(flags);
   }
 
   @Override
-  public void deallocate() {
-    Iterator iterator = chunks.iterator();
-    while (iterator.hasNext()) {
-      iterator.next();
-      iterator.remove();
-    }
-    chunks.clear();
-    super.deallocate();
+  public RandomAccessOutputStream getOutputStream(long position, boolean multisession) {
+    RandomAccessOutputStream stream = getOutputStream(multisession);
+    stream.setPosition(position);
+    return stream;
   }
-
-  RandomAccessBlobImpl(Storage storage) {
-    super(storage);
-    chunks = storage.createIndex(long.class, true);
-  }
-
-  RandomAccessBlobImpl() {}
 }

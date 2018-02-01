@@ -1,23 +1,23 @@
 package org.garret.perst.impl;
 
 public interface OidHashTable {
-  boolean remove(int oid);
+  void clear();
 
-  void put(int oid, Object obj);
-
-  Object get(int oid);
+  void clearDirty(Object obj);
 
   void flush();
 
+  Object get(int oid);
+
   void invalidate();
+
+  void put(int oid, Object obj);
 
   void reload();
 
-  void clear();
-
-  int size();
+  boolean remove(int oid);
 
   void setDirty(Object obj);
 
-  void clearDirty(Object obj);
+  int size();
 }

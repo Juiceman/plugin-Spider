@@ -55,23 +55,9 @@ public class StorageError extends RuntimeException {
       "Invalid operation", "Database is opened in read-only mode",
       "Not within serializable transaction context", "Wrong cipher key for the encrypted database"};
 
-  /**
-   * Get exception error code (see definitions above)
-   */
-  public int getErrorCode() {
-    return errorCode;
-  }
+  private int errorCode;
 
-  /**
-   * Get original exception if StorageError excepotion was thrown as the result of catching some
-   * other exception within Storage implementation. StorageError is used as wrapper of other
-   * exceptions to avoid cascade propagation of throws and try/catch constructions.
-   * 
-   * @return original exception or <code>null</code> if there is no such exception
-   */
-  public Exception getOriginalException() {
-    return origEx;
-  }
+  private Exception origEx;
 
   public StorageError(int errorCode) {
     super(messageText[errorCode]);
@@ -95,6 +81,20 @@ public class StorageError extends RuntimeException {
     origEx = x;
   }
 
-  private int errorCode;
-  private Exception origEx;
+  /**
+   * Get exception error code (see definitions above)
+   */
+  public int getErrorCode() {
+    return errorCode;
+  }
+  /**
+   * Get original exception if StorageError excepotion was thrown as the result of catching some
+   * other exception within Storage implementation. StorageError is used as wrapper of other
+   * exceptions to avoid cascade propagation of throws and try/catch constructions.
+   * 
+   * @return original exception or <code>null</code> if there is no such exception
+   */
+  public Exception getOriginalException() {
+    return origEx;
+  }
 }

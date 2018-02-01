@@ -18,15 +18,11 @@ public class TermEntryWriter {
 
   final private static TermEntryWriter instance = new TermEntryWriter();
 
-  protected TermEntryWriter() {}
-
   public static TermEntryWriter getInstance() {
     return instance;
   }
 
-  /* @Override **/ public void writeObject(TermEntry en, OutputStream os) throws IOException {
-    writeObject(en, new DataOutputStream(os));
-  }
+  protected TermEntryWriter() {}
 
   public void writeObject(TermEntry en, DataOutputStream dos) throws IOException {
     dos.writeLong(TermEntry.serialVersionUID);
@@ -63,6 +59,10 @@ public class TermEntryWriter {
         }
         return;
     }
+  }
+
+  /* @Override **/ public void writeObject(TermEntry en, OutputStream os) throws IOException {
+    writeObject(en, new DataOutputStream(os));
   }
 
 }

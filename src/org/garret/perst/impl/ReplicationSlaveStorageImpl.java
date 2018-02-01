@@ -18,6 +18,47 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl
   static final int INIT_PAGE_TIMESTAMPS_LENGTH = 64 * 1024;
 
 
+  protected static final int DB_HDR_CURR_INDEX_OFFSET = 0;
+
+
+  protected static final int DB_HDR_DIRTY_OFFSET = 1;
+
+
+  protected static final int DB_HDR_INITIALIZED_OFFSET = 2;
+
+  protected static final int PAGE_DATA_OFFSET = 8;
+
+  public static int LINGER_TIME = 10; // linger parameter for the socket
+
+  protected InputStream in;
+
+  protected OutputStream out;
+
+  protected Socket socket;
+
+  protected boolean outOfSync;
+  protected boolean initialized;
+  protected boolean listening;
+  protected Object sync;
+
+  protected Object init;
+
+  protected Object done;
+
+  protected Object commit;
+
+  protected int prevIndex;
+
+  protected IResource lock;
+
+  protected Thread thread;
+
+  protected int[] pageTimestamps;
+
+  protected int[] dirtyPageTimestampMap;
+
+  protected OSFile pageTimestampFile;
+
   protected ReplicationSlaveStorageImpl(String pageTimestampFilePath) {
     if (pageTimestampFilePath != null) {
       pageTimestampFile = new OSFile(pageTimestampFilePath, false, noFlush);
@@ -43,42 +84,6 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl
               + 31) >> 5];
     }
   }
-
-
-  @Override
-  public void open(IFile file, long pagePoolSize) {
-    if (opened) {
-      throw new StorageError(StorageError.STORAGE_ALREADY_OPENED);
-    }
-    initialize(file, pagePoolSize);
-    lock = new PersistentResource();
-    init = new Object();
-    sync = new Object();
-    done = new Object();
-    commit = new Object();
-    listening = true;
-    connect();
-    thread = new Thread(this);
-    thread.start();
-    waitSynchronizationCompletion();
-    waitInitializationCompletion();
-    opened = true;
-    beginThreadTransaction(REPLICATION_SLAVE_TRANSACTION);
-    reloadScheme();
-    endThreadTransaction();
-  }
-
-
-  /**
-   * Check if socket is connected to the master host
-   * 
-   * @return <code>true</code> if connection between slave and master is sucessfully established
-   */
-  @Override
-  public boolean isConnected() {
-    return socket != null;
-  }
-
   @Override
   public void beginThreadTransaction(int mode) {
     if (mode != REPLICATION_SLAVE_TRANSACTION) {
@@ -94,68 +99,27 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl
     usedSize = header.root[currIndex].size;
     objectCache.clear();
   }
-
+  void cancelIO() {}
   @Override
-  public void endThreadTransaction(int maxDelay) {
-    lock.unlock();
-  }
-
-  protected void waitSynchronizationCompletion() {
+  public void close() {
+    synchronized (done) {
+      listening = false;
+    }
+    cancelIO();
     try {
-      synchronized (sync) {
-        while (outOfSync) {
-          sync.wait();
-        }
-      }
+      thread.interrupt();
+      thread.join();
     } catch (InterruptedException x) {
     }
-  }
 
-  protected void waitInitializationCompletion() {
-    try {
-      synchronized (init) {
-        while (!initialized) {
-          init.wait();
-        }
-      }
-    } catch (InterruptedException x) {
+    hangup();
+
+    pool.flush();
+    super.close();
+    if (pageTimestampFile != null) {
+      pageTimestampFile.close();
     }
   }
-
-  /**
-   * Wait until database is modified by master This method blocks current thread until master node
-   * commits trasanction and this transanction is completely delivered to this slave node
-   */
-  @Override
-  public void waitForModification() {
-    try {
-      synchronized (commit) {
-        if (socket != null) {
-          commit.wait();
-        }
-      }
-    } catch (InterruptedException x) {
-    }
-  }
-
-  protected static final int DB_HDR_CURR_INDEX_OFFSET = 0;
-  protected static final int DB_HDR_DIRTY_OFFSET = 1;
-  protected static final int DB_HDR_INITIALIZED_OFFSET = 2;
-  protected static final int PAGE_DATA_OFFSET = 8;
-
-  public static int LINGER_TIME = 10; // linger parameter for the socket
-
-  /**
-   * When overriden by base class this method perfroms socket error handling
-   * 
-   * @return <code>true</code> if host should be reconnected and attempt to send data to it should
-   *         be repeated, <code>false</code> if no more attmpts to communicate with this host should
-   *         be performed
-   */
-  public boolean handleError() {
-    return (listener != null) ? listener.replicationError(null) : false;
-  }
-
   void connect() {
     try {
       socket = getSocket();
@@ -188,11 +152,70 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl
       in = null;
     }
   }
-
+  @Override
+  public void endThreadTransaction(int maxDelay) {
+    lock.unlock();
+  }
   abstract Socket getSocket() throws IOException;
-
-  void cancelIO() {}
-
+  /**
+   * When overriden by base class this method perfroms socket error handling
+   * 
+   * @return <code>true</code> if host should be reconnected and attempt to send data to it should
+   *         be repeated, <code>false</code> if no more attmpts to communicate with this host should
+   *         be performed
+   */
+  public boolean handleError() {
+    return (listener != null) ? listener.replicationError(null) : false;
+  }
+  protected void hangup() {
+    if (socket != null) {
+      try {
+        in.close();
+        if (out != null) {
+          out.close();
+        }
+        socket.close();
+      } catch (IOException x) {
+      }
+      in = null;
+      socket = null;
+    }
+  }
+  /**
+   * Check if socket is connected to the master host
+   * 
+   * @return <code>true</code> if connection between slave and master is sucessfully established
+   */
+  @Override
+  public boolean isConnected() {
+    return socket != null;
+  }
+  @Override
+  protected boolean isDirty() {
+    return false;
+  }
+  @Override
+  public void open(IFile file, long pagePoolSize) {
+    if (opened) {
+      throw new StorageError(StorageError.STORAGE_ALREADY_OPENED);
+    }
+    initialize(file, pagePoolSize);
+    lock = new PersistentResource();
+    init = new Object();
+    sync = new Object();
+    done = new Object();
+    commit = new Object();
+    listening = true;
+    connect();
+    thread = new Thread(this);
+    thread.start();
+    waitSynchronizationCompletion();
+    waitInitializationCompletion();
+    opened = true;
+    beginThreadTransaction(REPLICATION_SLAVE_TRANSACTION);
+    reloadScheme();
+    endThreadTransaction();
+  }
   @Override
   public void run() {
     byte[] buf = new byte[Page.pageSize + PAGE_DATA_OFFSET + (pageTimestamps != null ? 4 : 0)];
@@ -323,62 +346,39 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl
       }
     }
   }
-
+  /**
+   * Wait until database is modified by master This method blocks current thread until master node
+   * commits trasanction and this transanction is completely delivered to this slave node
+   */
   @Override
-  public void close() {
-    synchronized (done) {
-      listening = false;
-    }
-    cancelIO();
+  public void waitForModification() {
     try {
-      thread.interrupt();
-      thread.join();
+      synchronized (commit) {
+        if (socket != null) {
+          commit.wait();
+        }
+      }
     } catch (InterruptedException x) {
     }
-
-    hangup();
-
-    pool.flush();
-    super.close();
-    if (pageTimestampFile != null) {
-      pageTimestampFile.close();
-    }
   }
-
-  protected void hangup() {
-    if (socket != null) {
-      try {
-        in.close();
-        if (out != null) {
-          out.close();
+  protected void waitInitializationCompletion() {
+    try {
+      synchronized (init) {
+        while (!initialized) {
+          init.wait();
         }
-        socket.close();
-      } catch (IOException x) {
       }
-      in = null;
-      socket = null;
+    } catch (InterruptedException x) {
     }
   }
-
-  @Override
-  protected boolean isDirty() {
-    return false;
+  protected void waitSynchronizationCompletion() {
+    try {
+      synchronized (sync) {
+        while (outOfSync) {
+          sync.wait();
+        }
+      }
+    } catch (InterruptedException x) {
+    }
   }
-
-  protected InputStream in;
-  protected OutputStream out;
-  protected Socket socket;
-  protected boolean outOfSync;
-  protected boolean initialized;
-  protected boolean listening;
-  protected Object sync;
-  protected Object init;
-  protected Object done;
-  protected Object commit;
-  protected int prevIndex;
-  protected IResource lock;
-  protected Thread thread;
-  protected int[] pageTimestamps;
-  protected int[] dirtyPageTimestampMap;
-  protected OSFile pageTimestampFile;
 }

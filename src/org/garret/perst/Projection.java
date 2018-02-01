@@ -12,15 +12,7 @@ import java.util.Iterator;
  * eliminated)
  */
 public class Projection<From, To> extends HashSet<To> {
-  /**
-   * Constructor of projection specified by class and field name of projected objects
-   * 
-   * @param type base class for selected objects
-   * @param fieldName field name used to perform projection
-   */
-  public Projection(Class type, String fieldName) {
-    setProjectionField(type, fieldName);
-  }
+  private Field field;
 
   /**
    * Default constructor of projection. This constructor should be used only when you are going to
@@ -30,75 +22,13 @@ public class Projection<From, To> extends HashSet<To> {
   public Projection() {}
 
   /**
-   * Specify class of the projected objects and projection field name
+   * Constructor of projection specified by class and field name of projected objects
    * 
    * @param type base class for selected objects
    * @param fieldName field name used to perform projection
    */
-  public void setProjectionField(Class type, String fieldName) {
-    try {
-      field = type.getDeclaredField(fieldName);
-      field.setAccessible(true);
-    } catch (Exception x) {
-      throw new StorageError(StorageError.KEY_NOT_FOUND, x);
-    }
-  }
-
-  /**
-   * Project specified selection
-   * 
-   * @param selection array with selected object
-   */
-  public void project(From[] selection) {
-    for (int i = 0; i < selection.length; i++) {
-      map(selection[i]);
-    }
-  }
-
-  /**
-   * Project specified object
-   * 
-   * @param obj selected object
-   */
-  public void project(From obj) {
-    map(obj);
-  }
-
-  /**
-   * Project specified selection
-   * 
-   * @param selection iterator specifying selected objects
-   */
-  public void project(Iterator<From> selection) {
-    while (selection.hasNext()) {
-      map(selection.next());
-    }
-  }
-
-  /**
-   * Project specified selection
-   * 
-   * @param c selection iterator specifying selected objects
-   */
-  public void project(Collection<From> c) {
-    for (From o : c) {
-      map(o);
-    }
-  }
-
-  /**
-   * Join this projection with another projection. Result of this join is set of objects present in
-   * both projections.
-   */
-  public void join(Projection<From, To> prj) {
-    retainAll(prj);
-  }
-
-  /**
-   * Reset projection - clear result of preceding project and join operations
-   */
-  public void reset() {
-    clear();
+  public Projection(Class type, String fieldName) {
+    setProjectionField(type, fieldName);
   }
 
   /**
@@ -112,6 +42,14 @@ public class Projection<From, To> extends HashSet<To> {
       return super.add(obj);
     }
     return false;
+  }
+
+  /**
+   * Join this projection with another projection. Result of this join is set of objects present in
+   * both projections.
+   */
+  public void join(Projection<From, To> prj) {
+    retainAll(prj);
   }
 
   /**
@@ -145,5 +83,67 @@ public class Projection<From, To> extends HashSet<To> {
     }
   }
 
-  private Field field;
+  /**
+   * Project specified selection
+   * 
+   * @param c selection iterator specifying selected objects
+   */
+  public void project(Collection<From> c) {
+    for (From o : c) {
+      map(o);
+    }
+  }
+
+  /**
+   * Project specified object
+   * 
+   * @param obj selected object
+   */
+  public void project(From obj) {
+    map(obj);
+  }
+
+  /**
+   * Project specified selection
+   * 
+   * @param selection array with selected object
+   */
+  public void project(From[] selection) {
+    for (int i = 0; i < selection.length; i++) {
+      map(selection[i]);
+    }
+  }
+
+  /**
+   * Project specified selection
+   * 
+   * @param selection iterator specifying selected objects
+   */
+  public void project(Iterator<From> selection) {
+    while (selection.hasNext()) {
+      map(selection.next());
+    }
+  }
+
+  /**
+   * Reset projection - clear result of preceding project and join operations
+   */
+  public void reset() {
+    clear();
+  }
+
+  /**
+   * Specify class of the projected objects and projection field name
+   * 
+   * @param type base class for selected objects
+   * @param fieldName field name used to perform projection
+   */
+  public void setProjectionField(Class type, String fieldName) {
+    try {
+      field = type.getDeclaredField(fieldName);
+      field.setAccessible(true);
+    } catch (Exception x) {
+      throw new StorageError(StorageError.KEY_NOT_FOUND, x);
+    }
+  }
 }

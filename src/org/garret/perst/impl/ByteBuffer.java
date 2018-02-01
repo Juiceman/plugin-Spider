@@ -7,6 +7,66 @@ import org.garret.perst.PerstOutputStream;
 import org.garret.perst.StorageError;
 
 public class ByteBuffer {
+  class ByteBufferObjectOutputStream extends PerstOutputStream {
+    ByteBufferObjectOutputStream() {
+      super(new ByteBufferOutputStream());
+    }
+
+    @Override
+    public void writeObject(Object obj) throws IOException {
+      try {
+        flush();
+        db.swizzle(ByteBuffer.this, used, obj);
+      } catch (Exception x) {
+        throw new StorageError(StorageError.ACCESS_VIOLATION, x);
+      }
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+      flush();
+      packString(used, str);
+    }
+  }
+
+  class ByteBufferOutputStream extends OutputStream {
+    @Override
+    public void write(byte b[], int off, int len) {
+      int pos = used;
+      extend(pos + len);
+      System.arraycopy(b, off, arr, pos, len);
+    }
+
+    @Override
+    public void write(int b) {
+      write(new byte[] {(byte) b}, 0, 1);
+    }
+  }
+
+  public byte[] arr;
+
+  public int used;
+
+  public String encoding;
+
+  public Object parent;
+
+  public boolean finalized;
+
+  public StorageImpl db;
+
+  ByteBuffer() {
+    arr = new byte[64];
+  }
+
+  ByteBuffer(StorageImpl db, Object parent, boolean finalized) {
+    this();
+    this.db = db;
+    encoding = db.encoding;
+    this.parent = parent;
+    this.finalized = finalized;
+  }
+
   public final void extend(int size) {
     if (size > arr.length) {
       int newLen = size > arr.length * 2 ? size : arr.length * 2;
@@ -16,19 +76,14 @@ public class ByteBuffer {
     }
     used = size;
   }
-
-  final byte[] toArray() {
-    byte[] result = new byte[used];
-    System.arraycopy(arr, 0, result, 0, used);
-    return result;
+  public PerstOutputStream getOutputStream() {
+    return new ByteBufferObjectOutputStream();
   }
-
   int packI4(int dst, int value) {
     extend(dst + 4);
     Bytes.pack4(arr, dst, value);
     return dst + 4;
   }
-
   int packString(int dst, String value) {
     if (value == null) {
       extend(dst + 4);
@@ -58,69 +113,14 @@ public class ByteBuffer {
     }
     return dst;
   }
-
-  class ByteBufferOutputStream extends OutputStream {
-    @Override
-    public void write(int b) {
-      write(new byte[] {(byte) b}, 0, 1);
-    }
-
-    @Override
-    public void write(byte b[], int off, int len) {
-      int pos = used;
-      extend(pos + len);
-      System.arraycopy(b, off, arr, pos, len);
-    }
-  }
-
-  class ByteBufferObjectOutputStream extends PerstOutputStream {
-    ByteBufferObjectOutputStream() {
-      super(new ByteBufferOutputStream());
-    }
-
-    @Override
-    public void writeObject(Object obj) throws IOException {
-      try {
-        flush();
-        db.swizzle(ByteBuffer.this, used, obj);
-      } catch (Exception x) {
-        throw new StorageError(StorageError.ACCESS_VIOLATION, x);
-      }
-    }
-
-    @Override
-    public void writeString(String str) throws IOException {
-      flush();
-      packString(used, str);
-    }
-  }
-
-  public PerstOutputStream getOutputStream() {
-    return new ByteBufferObjectOutputStream();
-  }
-
   public int size() {
     return used;
   }
-
-  ByteBuffer(StorageImpl db, Object parent, boolean finalized) {
-    this();
-    this.db = db;
-    encoding = db.encoding;
-    this.parent = parent;
-    this.finalized = finalized;
+  final byte[] toArray() {
+    byte[] result = new byte[used];
+    System.arraycopy(arr, 0, result, 0, used);
+    return result;
   }
-
-  ByteBuffer() {
-    arr = new byte[64];
-  }
-
-  public byte[] arr;
-  public int used;
-  public String encoding;
-  public Object parent;
-  public boolean finalized;
-  public StorageImpl db;
 }
 
 

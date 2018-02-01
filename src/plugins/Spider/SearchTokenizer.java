@@ -14,19 +14,19 @@ import java.util.Locale;
  * @author SDiZ <sdiz+freenet@gmail.com>
  */
 public class SearchTokenizer implements Iterable<String>, Iterator<String> {
-  private ArrayList<Mode> mode;
-  private ArrayList<String> segments;
-  private int nextPos;
-  private final boolean returnPairs;
+  enum Mode {
+    UNDEF, LATIN, CJK
+  }
   static final int KEEP_NON_LETTER_MIN_CHARS = 3;
   static final String allowedMidWord = "'";
   static final String discardIfEndWord = "'";
+  private ArrayList<Mode> mode;
+  private ArrayList<String> segments;
+  private int nextPos;
 
-  private Iterator<String> cjkTokenizer;
+  private final boolean returnPairs;
 
-  enum Mode {
-    UNDEF, LATIN, CJK
-  };
+  private Iterator<String> cjkTokenizer;;
 
   public SearchTokenizer(String text, boolean returnPairs) {
     this.returnPairs = returnPairs;
@@ -108,36 +108,41 @@ public class SearchTokenizer implements Iterable<String>, Iterator<String> {
     }
   }
 
-  @Override
-  public String toString() {
-    StringBuilder str = new StringBuilder();
-    str.append("->[");
+  /**
+   * Iterate a CJK string. Return characters or characters and pairs of characters.
+   * 
+   * @param returnPairs If true, return pairs of characters in between characters: C1C2C3C4 -> C1,
+   *        C1C2, C2, C2C3, C3, C3C4, C4
+   */
+  private Iterator<String> cjkIterator(String cjkText, final boolean returnPairs) {
+    ArrayList<String> cjkToken = new ArrayList<String>();
 
-    Iterator<String> it = segments.iterator();
-    if (it.hasNext())
-      str.append(it.next());
-    while (it.hasNext()) {
-      str.append(',');
-      str.append(it.next());
+    String lastChar = null;
+    int length = cjkText.length();
+    for (int offset = 0; offset < length;) {
+      final int codepoint = cjkText.codePointAt(offset);
+      offset += Character.charCount(codepoint);
+
+      String curChar = new String(Character.toChars(codepoint));
+
+      if (lastChar != null && returnPairs)
+        cjkToken.add(lastChar + curChar);
+      if (isCJK(codepoint)) // skip number embedded in cjk
+        cjkToken.add(curChar);
+      lastChar = curChar;
     }
-    str.append("]");
 
-    for (String s : this) {
-      str.append(';');
-      str.append(s);
-    }
-
-    return str.toString();
-  }
-
-  @Override
-  public Iterator<String> iterator() {
-    return this;
+    return cjkToken.iterator();
   }
 
   @Override
   public boolean hasNext() {
     return (cjkTokenizer != null && cjkTokenizer.hasNext()) || (nextPos < segments.size());
+  }
+
+  @Override
+  public Iterator<String> iterator() {
+    return this;
   }
 
   @Override
@@ -171,31 +176,10 @@ public class SearchTokenizer implements Iterable<String>, Iterator<String> {
     return null;
   }
 
-  /**
-   * Iterate a CJK string. Return characters or characters and pairs of characters.
-   * 
-   * @param returnPairs If true, return pairs of characters in between characters: C1C2C3C4 -> C1,
-   *        C1C2, C2, C2C3, C3, C3C4, C4
-   */
-  private Iterator<String> cjkIterator(String cjkText, final boolean returnPairs) {
-    ArrayList<String> cjkToken = new ArrayList<String>();
-
-    String lastChar = null;
-    int length = cjkText.length();
-    for (int offset = 0; offset < length;) {
-      final int codepoint = cjkText.codePointAt(offset);
-      offset += Character.charCount(codepoint);
-
-      String curChar = new String(Character.toChars(codepoint));
-
-      if (lastChar != null && returnPairs)
-        cjkToken.add(lastChar + curChar);
-      if (isCJK(codepoint)) // skip number embedded in cjk
-        cjkToken.add(curChar);
-      lastChar = curChar;
-    }
-
-    return cjkToken.iterator();
+  protected String normalize(String text) {
+    // TODO: JAVA6: normalize to NFKC
+    // Do upper case first for Turkish and friends
+    return text.toUpperCase(Locale.US).toLowerCase(Locale.US);
   }
 
   @Override
@@ -203,9 +187,25 @@ public class SearchTokenizer implements Iterable<String>, Iterator<String> {
     throw new UnsupportedOperationException();
   }
 
-  protected String normalize(String text) {
-    // TODO: JAVA6: normalize to NFKC
-    // Do upper case first for Turkish and friends
-    return text.toUpperCase(Locale.US).toLowerCase(Locale.US);
+  @Override
+  public String toString() {
+    StringBuilder str = new StringBuilder();
+    str.append("->[");
+
+    Iterator<String> it = segments.iterator();
+    if (it.hasNext())
+      str.append(it.next());
+    while (it.hasNext()) {
+      str.append(',');
+      str.append(it.next());
+    }
+    str.append("]");
+
+    for (String s : this) {
+      str.append(';');
+      str.append(s);
+    }
+
+    return str.toString();
   }
 }

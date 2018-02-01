@@ -6,19 +6,19 @@ package org.garret.perst;
  */
 public interface RandomAccessStream {
   /**
+   * Get current position in the stream
+   * 
+   * @return current poistion in the stream
+   */
+  public long getPosition();
+
+  /**
    * Set position in the stream
    * 
    * @param pos new absolute poistion in the strwam
    * @return actual position - it can be less than specified if end of stream is reached
    */
   public long setPosition(long pos);
-
-  /**
-   * Get current position in the stream
-   * 
-   * @return current poistion in the stream
-   */
-  public long getPosition();
 
   /**
    * Get size of the stream

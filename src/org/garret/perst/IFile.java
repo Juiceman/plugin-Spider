@@ -7,12 +7,21 @@ package org.garret.perst;
  */
 public interface IFile {
   /**
-   * Write data to the file
-   * 
-   * @param pos offset in the file
-   * @param buf array with data to be writter (size is always equal to database page size)
+   * Close file
    */
-  void write(long pos, byte[] buf);
+  void close();
+
+  /**
+   * Length of the file
+   */
+  long length();
+
+  /**
+   * Lock file
+   * 
+   * @param shared if lock is shared
+   */
+  void lock(boolean shared);
 
   /**
    * Read data from the file
@@ -38,24 +47,15 @@ public interface IFile {
   boolean tryLock(boolean shared);
 
   /**
-   * Lock file
-   * 
-   * @param shared if lock is shared
-   */
-  void lock(boolean shared);
-
-  /**
    * Unlock file
    */
   void unlock();
 
   /**
-   * Close file
+   * Write data to the file
+   * 
+   * @param pos offset in the file
+   * @param buf array with data to be writter (size is always equal to database page size)
    */
-  void close();
-
-  /**
-   * Length of the file
-   */
-  long length();
+  void write(long pos, byte[] buf);
 }

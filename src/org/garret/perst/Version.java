@@ -6,68 +6,63 @@ import java.util.Date;
  * Base class for version of versioned object. All versions are kept in version history.
  */
 public class Version extends PersistentResource {
+  private Link<Version> successors;
+
+  private Link<Version> predecessors;
+
+  private String[] labels;
+
+  private Date date;
+
+  private String id;
+
+  VersionHistory history;
+
   /**
-   * Get version history containing this versioned object
+   * Default constuctor. Not directly accessible.
    */
-  public synchronized VersionHistory getVersionHistory() {
-    return history;
+  private Version() {}
+
+  /**
+   * Constructor of root version. All other versions should be created using
+   * <code>Version.newVersion</code> or <code>VersionHistory.checkout</code> methods
+   */
+  protected Version(Storage storage) {
+    super(storage);
+    successors = storage.createLink(1);
+    predecessors = storage.createLink(1);
+    labels = new String[0];
+    date = new Date();
+    id = "1";
   }
 
   /**
-   * Get predecessors of this version
+   * Add new label to this version
    * 
-   * @return array of predecessor versions
+   * @param label label to be associated with this version
    */
-  public synchronized Version[] getPredecessors() {
-    return predecessors.toArray(new Version[predecessors.size()]);
+  public synchronized void addLabel(String label) {
+    String[] newLabels = new String[labels.length + 1];
+    System.arraycopy(labels, 0, newLabels, 0, labels.length);
+    newLabels[newLabels.length - 1] = label;
+    labels = newLabels;
+    modify();
   }
 
   /**
-   * Get successors of this version
+   * Make specified version predecessor of this version. This method can be used to perfrom merge of
+   * two versions (merging of version data should be done by application itself)
    * 
-   * @return array of predecessor versions
+   * @param predecessor version to merged with
    */
-  public synchronized Version[] getSuccessors() {
-    return successors.toArray(new Version[successors.size()]);
-  }
-
-  /**
-   * Check if version is checked-in
-   * 
-   * @return <code>true</code> if version belongs to version history
-   */
-  public boolean isCheckedIn() {
-    return id != null;
-  }
-
-  /**
-   * Check if version is checked-out
-   * 
-   * @return <code>true</code> if version is cjust created and not checked-in yet (and so belongs to
-   *         version history)
-   */
-  public boolean isCheckedOut() {
-    return id == null;
-  }
-
-  /**
-   * Create new version which will be direct successor of this version. This version has to be
-   * checked-in in order to be placed in version history.
-   */
-  public Version newVersion() {
-    try {
-      Version newVersion = (Version) clone();
-      newVersion.predecessors = getStorage().<Version>createLink(1);
-      newVersion.predecessors.add(this);
-      newVersion.successors = getStorage().<Version>createLink(1);
-      newVersion.labels = new String[0];
-      newVersion.id = null;
-      newVersion.oid = 0;
-      newVersion.state = 0;
-      return newVersion;
-    } catch (CloneNotSupportedException x) {
-      // Could not happen sense we clone ourselves
-      throw new AssertionFailed("Clone not supported");
+  public void addPredecessor(Version predecessor) {
+    synchronized (predecessor) {
+      synchronized (this) {
+        predecessors.add(predecessor);
+        if (isCheckedIn()) {
+          predecessor.successors.add(this);
+        }
+      }
     }
   }
 
@@ -94,21 +89,15 @@ public class Version extends PersistentResource {
     }
   }
 
-  /**
-   * Make specified version predecessor of this version. This method can be used to perfrom merge of
-   * two versions (merging of version data should be done by application itself)
-   * 
-   * @param predecessor version to merged with
-   */
-  public void addPredecessor(Version predecessor) {
-    synchronized (predecessor) {
-      synchronized (this) {
-        predecessors.add(predecessor);
-        if (isCheckedIn()) {
-          predecessor.successors.add(this);
-        }
-      }
+  private String constructId() {
+    int suffixPos = id.lastIndexOf('.');
+    int suffix = Integer.parseInt(id.substring(suffixPos + 1));
+    String nextId = suffixPos < 0 ? Integer.toString(suffix + 1)
+        : id.substring(0, suffixPos) + Integer.toString(suffix + 1);
+    if (successors.size() != 0) {
+      nextId += '.' + successors.size() + ".1";
     }
+    return nextId;
   }
 
   /**
@@ -121,6 +110,15 @@ public class Version extends PersistentResource {
   }
 
   /**
+   * Get identifier of the version
+   * 
+   * @return version identifier automatically assigned by system
+   */
+  public String getId() {
+    return id;
+  }
+
+  /**
    * Get labels associated with this version
    * 
    * @return array of labels assigned to this version
@@ -129,19 +127,30 @@ public class Version extends PersistentResource {
     return labels;
   }
 
+
   /**
-   * Add new label to this version
+   * Get predecessors of this version
    * 
-   * @param label label to be associated with this version
+   * @return array of predecessor versions
    */
-  public synchronized void addLabel(String label) {
-    String[] newLabels = new String[labels.length + 1];
-    System.arraycopy(labels, 0, newLabels, 0, labels.length);
-    newLabels[newLabels.length - 1] = label;
-    labels = newLabels;
-    modify();
+  public synchronized Version[] getPredecessors() {
+    return predecessors.toArray(new Version[predecessors.size()]);
   }
 
+  /**
+   * Get successors of this version
+   * 
+   * @return array of predecessor versions
+   */
+  public synchronized Version[] getSuccessors() {
+    return successors.toArray(new Version[successors.size()]);
+  }
+  /**
+   * Get version history containing this versioned object
+   */
+  public synchronized VersionHistory getVersionHistory() {
+    return history;
+  }
   /**
    * Check if version has specified label
    * 
@@ -155,50 +164,41 @@ public class Version extends PersistentResource {
     }
     return false;
   }
-
   /**
-   * Get identifier of the version
+   * Check if version is checked-in
    * 
-   * @return version identifier automatically assigned by system
+   * @return <code>true</code> if version belongs to version history
    */
-  public String getId() {
-    return id;
+  public boolean isCheckedIn() {
+    return id != null;
   }
-
   /**
-   * Constructor of root version. All other versions should be created using
-   * <code>Version.newVersion</code> or <code>VersionHistory.checkout</code> methods
+   * Check if version is checked-out
+   * 
+   * @return <code>true</code> if version is cjust created and not checked-in yet (and so belongs to
+   *         version history)
    */
-  protected Version(Storage storage) {
-    super(storage);
-    successors = storage.createLink(1);
-    predecessors = storage.createLink(1);
-    labels = new String[0];
-    date = new Date();
-    id = "1";
+  public boolean isCheckedOut() {
+    return id == null;
   }
-
   /**
-   * Default constuctor. Not directly accessible.
+   * Create new version which will be direct successor of this version. This version has to be
+   * checked-in in order to be placed in version history.
    */
-  private Version() {}
-
-
-  private String constructId() {
-    int suffixPos = id.lastIndexOf('.');
-    int suffix = Integer.parseInt(id.substring(suffixPos + 1));
-    String nextId = suffixPos < 0 ? Integer.toString(suffix + 1)
-        : id.substring(0, suffixPos) + Integer.toString(suffix + 1);
-    if (successors.size() != 0) {
-      nextId += '.' + successors.size() + ".1";
+  public Version newVersion() {
+    try {
+      Version newVersion = (Version) clone();
+      newVersion.predecessors = getStorage().<Version>createLink(1);
+      newVersion.predecessors.add(this);
+      newVersion.successors = getStorage().<Version>createLink(1);
+      newVersion.labels = new String[0];
+      newVersion.id = null;
+      newVersion.oid = 0;
+      newVersion.state = 0;
+      return newVersion;
+    } catch (CloneNotSupportedException x) {
+      // Could not happen sense we clone ourselves
+      throw new AssertionFailed("Clone not supported");
     }
-    return nextId;
   }
-
-  private Link<Version> successors;
-  private Link<Version> predecessors;
-  private String[] labels;
-  private Date date;
-  private String id;
-  VersionHistory history;
 }

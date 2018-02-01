@@ -9,23 +9,50 @@ import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
 
 public class BitmapCustomAllocator extends Persistent implements CustomAllocator {
+  static class BitmapPage extends Persistent {
+    byte[] data;
+  }
+  static class Location implements Comparable {
+    long pos;
+    long size;
+
+    Location(long pos, long size) {
+      this.pos = pos;
+      this.size = size;
+    }
+
+    @Override
+    public int compareTo(Object o) {
+      Location loc = (Location) o;
+      return pos + size <= loc.pos ? -1 : loc.pos + loc.size <= pos ? 1 : 0;
+    }
+  }
+  static final int BITMAP_PAGE_SIZE = Page.pageSize - ObjectHeader.sizeof - 4;
+  static final int BITMAP_PAGE_BITS = BITMAP_PAGE_SIZE * 8;
+  static final void memset(BitmapPage pg, int offs, int pattern, int len) {
+    byte[] arr = pg.data;
+    byte pat = (byte) pattern;
+    while (--len >= 0) {
+      arr[offs++] = pat;
+    }
+    pg.modify();
+  }
   protected int quantum;
+
   protected int quantumBits;
   protected long base;
   protected long limit;
+
   protected Link pages;
   protected int extensionPages;
 
   transient int currPage;
+
   transient int currOffs;
+
   transient TreeMap reserved = new TreeMap();
 
-  static final int BITMAP_PAGE_SIZE = Page.pageSize - ObjectHeader.sizeof - 4;
-  static final int BITMAP_PAGE_BITS = BITMAP_PAGE_SIZE * 8;
-
-  static class BitmapPage extends Persistent {
-    byte[] data;
-  }
+  protected BitmapCustomAllocator() {}
 
   public BitmapCustomAllocator(Storage storage, int quantum, long base, long extension,
       long limit) {
@@ -44,42 +71,6 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     pages = storage.createLink();
   }
 
-  protected BitmapCustomAllocator() {}
-
-  @Override
-  public long getSegmentBase() {
-    return base;
-  }
-
-  @Override
-  public long getSegmentSize() {
-    return limit;
-  }
-
-
-  @Override
-  public long getAllocatedMemory() {
-    return (long) pages.size() * BITMAP_PAGE_BITS << quantumBits;
-  }
-
-  @Override
-  public long getUsedMemory() {
-    long used = 0;
-    for (int i = 0, n = pages.size(); i < n; i++) {
-      BitmapPage pg = (BitmapPage) pages.get(i);
-      byte[] bitmap = pg.data;
-      for (int j = 0; j < BITMAP_PAGE_SIZE; j++) {
-        int mask = bitmap[j] & 0xFF;
-        for (int k = 0; k < 8; k++) {
-          if ((mask & 1) != 0) {
-            used += 1;
-          }
-          mask >>>= 1;
-        }
-      }
-    }
-    return used << quantumBits;
-  }
 
   @Override
   public long allocate(long size) {
@@ -182,16 +173,9 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     }
   }
 
-
   @Override
-  public long reallocate(long pos, long oldSize, long newSize) {
-    StorageImpl db = (StorageImpl) getStorage();
-    if (((newSize + quantum - 1) & ~(quantum - 1)) > ((oldSize + quantum - 1) & ~(quantum - 1))) {
-      long newPos = allocate(newSize);
-      free0(pos, oldSize);
-      pos = newPos;
-    }
-    return pos;
+  public void commit() {
+    reserved.clear();
   }
 
   @Override
@@ -199,38 +183,6 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     reserve(pos, (size + quantum - 1) & ~(quantum - 1));
     free0(pos, size);
   }
-
-
-  static class Location implements Comparable {
-    long pos;
-    long size;
-
-    Location(long pos, long size) {
-      this.pos = pos;
-      this.size = size;
-    }
-
-    @Override
-    public int compareTo(Object o) {
-      Location loc = (Location) o;
-      return pos + size <= loc.pos ? -1 : loc.pos + loc.size <= pos ? 1 : 0;
-    }
-  }
-
-  private long wasReserved(long pos, long size) {
-    Location loc = new Location(pos, size);
-    Location r = (Location) reserved.get(loc);
-    if (r != null) {
-      return r.pos + r.size;
-    }
-    return 0;
-  }
-
-  private void reserve(long pos, long size) {
-    Location loc = new Location(pos, size);
-    reserved.put(loc, loc);
-  }
-
 
 
   private void free0(long pos, long size) {
@@ -260,19 +212,67 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     pg.modify();
   }
 
-  static final void memset(BitmapPage pg, int offs, int pattern, int len) {
-    byte[] arr = pg.data;
-    byte pat = (byte) pattern;
-    while (--len >= 0) {
-      arr[offs++] = pat;
-    }
-    pg.modify();
+  @Override
+  public long getAllocatedMemory() {
+    return (long) pages.size() * BITMAP_PAGE_BITS << quantumBits;
   }
 
 
   @Override
-  public void commit() {
-    reserved.clear();
+  public long getSegmentBase() {
+    return base;
+  }
+
+  @Override
+  public long getSegmentSize() {
+    return limit;
+  }
+
+  @Override
+  public long getUsedMemory() {
+    long used = 0;
+    for (int i = 0, n = pages.size(); i < n; i++) {
+      BitmapPage pg = (BitmapPage) pages.get(i);
+      byte[] bitmap = pg.data;
+      for (int j = 0; j < BITMAP_PAGE_SIZE; j++) {
+        int mask = bitmap[j] & 0xFF;
+        for (int k = 0; k < 8; k++) {
+          if ((mask & 1) != 0) {
+            used += 1;
+          }
+          mask >>>= 1;
+        }
+      }
+    }
+    return used << quantumBits;
+  }
+
+
+
+  @Override
+  public long reallocate(long pos, long oldSize, long newSize) {
+    StorageImpl db = (StorageImpl) getStorage();
+    if (((newSize + quantum - 1) & ~(quantum - 1)) > ((oldSize + quantum - 1) & ~(quantum - 1))) {
+      long newPos = allocate(newSize);
+      free0(pos, oldSize);
+      pos = newPos;
+    }
+    return pos;
+  }
+
+  private void reserve(long pos, long size) {
+    Location loc = new Location(pos, size);
+    reserved.put(loc, loc);
+  }
+
+
+  private long wasReserved(long pos, long size) {
+    Location loc = new Location(pos, size);
+    Location r = (Location) reserved.get(loc);
+    if (r != null) {
+      return r.pos + r.size;
+    }
+    return 0;
   }
 }
 

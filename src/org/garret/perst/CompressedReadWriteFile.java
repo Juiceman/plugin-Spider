@@ -18,210 +18,218 @@ import org.garret.perst.impl.Page;
  * instance of this class in <code>Storage.open</code> method
  */
 public class CompressedReadWriteFile implements IFile {
-  @Override
-  public void write(long pageAddr, byte[] buf) {
-    try {
-      long pageOffs = 0;
-      int pageSize = buf.length;
-      if (pageAddr != 0) {
-        Assert.that(pageSize == Page.pageSize);
-        Assert.that((pageAddr & (Page.pageSize - 1)) == 0);
-        long pagePos = pageMap.get(pageAddr);
-        boolean firstUpdate = false;
-        if (pagePos == 0) {
-          int bp = (int) (pageAddr >>> (Page.pageSizeLog - 3));
-          if (bp + 8 <= pageIndexSize) {
-            byte[] posBuf = new byte[8];
-            pageIndexBuffer.position(bp);
-            pageIndexBuffer.get(posBuf, 0, 8);
-            pagePos = Bytes.unpack8(posBuf, 0);
-          }
-          firstUpdate = true;
-        }
-        pageSize = ((int) pagePos & (Page.pageSize - 1)) + 1;
-        deflater.reset();
-        deflater.setInput(buf, 0, buf.length);
-        deflater.finish();
-        int newPageSize = deflater.deflate(compressionBuf);
-        if (newPageSize == Page.pageSize) {
-          System.arraycopy(buf, 0, compressionBuf, 0, newPageSize);
-        }
-        buf = compressionBuf;
-        int newPageBitSize = (newPageSize + ALLOCATION_QUANTUM - 1) >>> ALLOCATION_QUANTUM_LOG;
-        int oldPageBitSize = (pageSize + ALLOCATION_QUANTUM - 1) >>> ALLOCATION_QUANTUM_LOG;
-        if (firstUpdate || newPageBitSize != oldPageBitSize) {
-          if (!firstUpdate) {
-            BitmapAllocator.free(bitmap, pagePos >>> (Page.pageSizeLog + ALLOCATION_QUANTUM_LOG),
-                oldPageBitSize);
-          }
-          pageOffs = allocate(newPageBitSize);
-        } else {
-          pageOffs = pagePos >>> Page.pageSizeLog;
-        }
-        pageSize = newPageSize;
-        pageMap.put(pageAddr, (pageOffs << Page.pageSizeLog) | (pageSize - 1), pagePos);
-        crypt(buf, pageSize);
+  static class PageMap implements Iterable<PageMap.Entry> {
+    static class Entry {
+      Entry next;
+      long addr;
+      long newPos;
+      long oldPos;
+
+      Entry(long addr, long newPos, long oldPos, Entry chain) {
+        next = chain;
+        this.addr = addr;
+        this.newPos = newPos;
+        this.oldPos = oldPos;
       }
-      dataFile.seek(pageOffs);
-      dataFile.write(buf, 0, pageSize);
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
+    }
+
+    class PageMapIterator implements Iterator<Entry> {
+      Entry curr;
+
+      int i;
+
+      PageMapIterator() {
+        moveForward();
+      }
+
+      @Override
+      public boolean hasNext() {
+        return curr != null;
+      }
+
+      private void moveForward() {
+        if (curr != null) {
+          curr = curr.next;
+        }
+        while (curr == null && i < tableSize) {
+          curr = table[i++];
+        }
+      }
+
+      @Override
+      public Entry next() {
+        Entry e = curr;
+        if (e == null) {
+          throw new NoSuchElementException();
+        }
+        moveForward();
+        return e;
+      }
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
+    }
+
+
+    static final float LOAD_FACTOR = 0.75f;
+    static final int primeNumbers[] = {17, /* 0 */
+        37, /* 1 */
+        79, /* 2 */
+        163, /* 3 */
+        331, /* 4 */
+        673, /* 5 */
+        1361, /* 6 */
+        2729, /* 7 */
+        5471, /* 8 */
+        10949, /* 9 */
+        21911, /* 10 */
+        43853, /* 11 */
+        87719, /* 12 */
+        175447, /* 13 */
+        350899, /* 14 */
+        701819, /* 15 */
+        1403641, /* 16 */
+        2807303, /* 17 */
+        5614657, /* 18 */
+        11229331, /* 19 */
+        22458671, /* 20 */
+        44917381, /* 21 */
+        89834777, /* 22 */
+        179669557, /* 23 */
+        359339171, /* 24 */
+        718678369, /* 25 */
+        1437356741, /* 26 */
+        2147483647 /* 27 (largest signed int prime) */
+    };
+    Entry table[];
+    int count;
+    int tableSizePrime;
+
+    int tableSize;
+
+    int threshold;
+
+    public PageMap(int initialCapacity) {
+      for (tableSizePrime = 0; primeNumbers[tableSizePrime] < initialCapacity; tableSizePrime++);
+      tableSize = primeNumbers[tableSizePrime];
+      threshold = (int) (tableSize * LOAD_FACTOR);
+      table = new Entry[tableSize];
+    }
+
+    public void clear() {
+      Entry tab[] = table;
+      int size = tableSize;
+      for (int i = 0; i < size; i++) {
+        tab[i] = null;
+      }
+      count = 0;
+    }
+
+    public long get(long addr) {
+      int index = (int) ((addr >>> Page.pageSizeLog) % tableSize);
+      for (Entry e = table[index]; e != null; e = e.next) {
+        if (e.addr == addr) {
+          return e.newPos;
+        }
+      }
+      return 0;
+    }
+
+    @Override
+    public Iterator<Entry> iterator() {
+      return new PageMapIterator();
+    }
+
+    public void put(long addr, long newPos, long oldPos) {
+      Entry tab[] = table;
+      int index = (int) ((addr >>> Page.pageSizeLog) % tableSize);
+      for (Entry e = tab[index]; e != null; e = e.next) {
+        if (e.addr == addr) {
+          e.newPos = newPos;
+          return;
+        }
+      }
+      if (count >= threshold) {
+        // Rehash the table if the threshold is exceeded
+        rehash();
+        tab = table;
+        index = (int) ((addr >>> Page.pageSizeLog) % tableSize);
+      }
+
+      // Creates the new entry.
+      tab[index] = new Entry(addr, newPos, oldPos, tab[index]);
+      count += 1;
+    }
+
+    void rehash() {
+      int oldCapacity = tableSize;
+      int newCapacity = tableSize = primeNumbers[++tableSizePrime];
+      Entry oldMap[] = table;
+      Entry newMap[] = new Entry[newCapacity];
+
+      threshold = (int) (newCapacity * LOAD_FACTOR);
+      table = newMap;
+      tableSize = newCapacity;
+
+      for (int i = 0; i < oldCapacity; i++) {
+        for (Entry old = oldMap[i]; old != null;) {
+          Entry e = old;
+          old = old.next;
+          int index = (int) ((e.addr >>> Page.pageSizeLog) % newCapacity);
+          e.next = newMap[index];
+          newMap[index] = e;
+        }
+      }
+    }
+
+    public int size() {
+      return count;
     }
   }
 
-  @Override
-  public int read(long pageAddr, byte[] buf) {
-    try {
-      if (pageAddr != 0) {
-        Assert.that((pageAddr & (Page.pageSize - 1)) == 0);
-        long pagePos = 0;
-        if (pageMap != null) {
-          pagePos = pageMap.get(pageAddr);
-        }
-        if (pagePos == 0) {
-          int bp = (int) (pageAddr >>> (Page.pageSizeLog - 3));
-          if (bp + 8 <= pageIndexSize) {
-            byte[] posBuf = new byte[8];
-            pageIndexBuffer.position(bp);
-            pageIndexBuffer.get(posBuf, 0, 8);
-            pagePos = Bytes.unpack8(posBuf, 0);
-          }
-          if (pagePos == 0) {
-            // System.out.println("pagePos=0 for address " + pageAddr);
-            return 0;
-          }
-        }
-        dataFile.seek(pagePos >>> Page.pageSizeLog);
-        int size = ((int) pagePos & (Page.pageSize - 1)) + 1;
-        // System.out.println("Read " + size + " bytes from " + (pagePos >>> Page.pageSizeLog));
-        int rc = dataFile.read(compressionBuf, 0, size);
-        if (rc != size) {
-          throw new StorageError(StorageError.FILE_ACCESS_ERROR);
-        }
-        crypt(compressionBuf, size);
-        if (size < Page.pageSize) {
-          inflater.reset();
-          inflater.setInput(compressionBuf, 0, size);
-          rc = inflater.inflate(buf);
-          Assert.that(rc == Page.pageSize);
-        } else {
-          System.arraycopy(compressionBuf, 0, buf, 0, rc);
-        }
-        return rc;
-      } else {
-        dataFile.seek(0);
-        return dataFile.read(buf, 0, buf.length);
-      }
-    } catch (Exception x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
-    }
-  }
+  static final int ALLOCATION_QUANTUM_LOG = 9;
 
-  @Override
-  public void sync() {
-    try {
-      // Flush data to the main database file
-      if (!noFlush) {
-        dataFile.getFD().sync();
-      }
+  static final int ALLOCATION_QUANTUM = 1 << ALLOCATION_QUANTUM_LOG;
 
-      int txSize = pageMap.size();
-      if (txSize == 0) {
-        return;
-      }
+  static final long MAX_PAGE_MAP_SIZE = 1000000;
 
-      // Make sure that new page mapping is saved in transaction log
-      byte[] buf = new byte[4 + 16 * txSize];
-      Bytes.pack4(buf, 0, txSize);
-      int pos = 4;
-      for (PageMap.Entry e : pageMap) {
-        Bytes.pack8(buf, pos, e.addr);
-        Bytes.pack8(buf, pos + 8, e.newPos);
-        pos += 16;
-      }
-      pageIndexLogFile.write(buf, 0, pos);
-      if (!noFlush) {
-        pageIndexLogFile.getFD().sync();
-      }
+  byte[] bitmap;
 
-      // Store new page mapping in the page index file
-      for (PageMap.Entry e : pageMap) {
-        setPosition(e.addr);
-        Bytes.pack8(buf, 0, e.newPos);
-        pageIndexBuffer.put(buf, 0, 8);
-        if (e.oldPos != 0) {
-          BitmapAllocator.free(bitmap, e.oldPos >>> (Page.pageSizeLog + ALLOCATION_QUANTUM_LOG),
-              ((e.oldPos & (Page.pageSize - 1)) + ALLOCATION_QUANTUM) >>> ALLOCATION_QUANTUM_LOG);
-        }
-      }
-      pageMap.clear();
+  int bitmapPos;
 
-      // Truncate log if necessary
-      if (pageIndexLogFile.length() > pageIndexCheckpointThreshold) {
-        pageIndexBuffer.force();
-        pageIndexLogFile.setLength(0);
-      }
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
-    }
-  }
+  int bitmapStart;
 
-  @Override
-  public boolean tryLock(boolean shared) {
-    try {
-      lck = dataChan.tryLock(0, Long.MAX_VALUE, shared);
-      return lck != null;
-    } catch (IOException x) {
-      return true;
-    }
-  }
+  int bitmapExtensionQuantum;
 
-  @Override
-  public void lock(boolean shared) {
-    try {
-      lck = dataChan.lock(0, Long.MAX_VALUE, shared);
-    } catch (IOException x) {
-      throw new StorageError(StorageError.LOCK_FAILED, x);
-    }
-  }
+  long pageIndexSize;
 
-  @Override
-  public void unlock() {
-    try {
-      lck.release();
-    } catch (IOException x) {
-      throw new StorageError(StorageError.LOCK_FAILED, x);
-    }
-  }
+  long pageIndexCheckpointThreshold;
 
-  @Override
-  public void close() {
-    try {
-      dataChan.close();
-      dataFile.close();
+  Deflater deflater;
 
-      if (pageIndexLogFile != null) {
-        Assert.that(pageMap.size() == 0);
-        pageIndexBuffer.force();
-        pageIndexLogFile.setLength(0);
-        pageIndexLogFile.close();
-      }
-      pageIndexChan.close();
-      pageIndexFile.close();
-    } catch (IOException x) {
-      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
-    }
-  }
+  Inflater inflater;
 
-  @Override
-  public long length() {
-    try {
-      return dataChan.size();
-    } catch (IOException x) {
-      return -1;
-    }
-  }
 
+  byte[] compressionBuf;
+
+  RandomAccessFile dataFile;
+
+
+  RandomAccessFile pageIndexFile;
+
+  RandomAccessFile pageIndexLogFile;
+
+  FileChannel dataChan;
+
+  FileChannel pageIndexChan;
+  MappedByteBuffer pageIndexBuffer;
+  PageMap pageMap;
+
+
+  boolean noFlush;
+  FileLock lck;
+  byte[] pattern;
   /**
    * Constructor of compressed file with default parameter values
    * 
@@ -230,7 +238,6 @@ public class CompressedReadWriteFile implements IFile {
   public CompressedReadWriteFile(String dataFilePath) {
     this(dataFilePath, null);
   }
-
   /**
    * Constructor of compressed file with default parameter values
    * 
@@ -241,7 +248,6 @@ public class CompressedReadWriteFile implements IFile {
     this(dataFilePath, dataFilePath + ".map", dataFilePath + ".log", 8 * 1024 * 1024, 1024 * 1024,
         1024 * 1024, false, false, cipherKey);
   }
-
   /**
    * Constructor of compressed file
    * 
@@ -330,19 +336,48 @@ public class CompressedReadWriteFile implements IFile {
     bitmapPos = (int) ((pos + bitSize) >>> 3);
     return pos << ALLOCATION_QUANTUM_LOG;
   }
+  @Override
+  public void close() {
+    try {
+      dataChan.close();
+      dataFile.close();
 
-
-  void setPosition(long addr) throws IOException {
-    long pos = addr >>> (Page.pageSizeLog - 3);
-    if (pos + 8 > pageIndexSize) {
-      do {
-        pageIndexSize *= 2;
-      } while (pos + 8 > pageIndexSize);
-      pageIndexBuffer = pageIndexChan.map(FileChannel.MapMode.READ_WRITE, 0, pageIndexSize);
+      if (pageIndexLogFile != null) {
+        Assert.that(pageMap.size() == 0);
+        pageIndexBuffer.force();
+        pageIndexLogFile.setLength(0);
+        pageIndexLogFile.close();
+      }
+      pageIndexChan.close();
+      pageIndexFile.close();
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
     }
-    pageIndexBuffer.position((int) pos);
+  }
+  private final void crypt(byte[] buf, int len) {
+    if (pattern != null) {
+      for (int i = 0; i < len; i++) {
+        buf[i] ^= pattern[i];
+      }
+    }
   }
 
+  @Override
+  public long length() {
+    try {
+      return dataChan.size();
+    } catch (IOException x) {
+      return -1;
+    }
+  }
+  @Override
+  public void lock(boolean shared) {
+    try {
+      lck = dataChan.lock(0, Long.MAX_VALUE, shared);
+    } catch (IOException x) {
+      throw new StorageError(StorageError.LOCK_FAILED, x);
+    }
+  }
   void performRecovery() throws IOException {
     int rc;
     byte[] hdr = new byte[4];
@@ -360,177 +395,53 @@ public class CompressedReadWriteFile implements IFile {
     }
   }
 
-
-  static class PageMap implements Iterable<PageMap.Entry> {
-    static final float LOAD_FACTOR = 0.75f;
-
-    static final int primeNumbers[] = {17, /* 0 */
-        37, /* 1 */
-        79, /* 2 */
-        163, /* 3 */
-        331, /* 4 */
-        673, /* 5 */
-        1361, /* 6 */
-        2729, /* 7 */
-        5471, /* 8 */
-        10949, /* 9 */
-        21911, /* 10 */
-        43853, /* 11 */
-        87719, /* 12 */
-        175447, /* 13 */
-        350899, /* 14 */
-        701819, /* 15 */
-        1403641, /* 16 */
-        2807303, /* 17 */
-        5614657, /* 18 */
-        11229331, /* 19 */
-        22458671, /* 20 */
-        44917381, /* 21 */
-        89834777, /* 22 */
-        179669557, /* 23 */
-        359339171, /* 24 */
-        718678369, /* 25 */
-        1437356741, /* 26 */
-        2147483647 /* 27 (largest signed int prime) */
-    };
-
-
-    Entry table[];
-    int count;
-    int tableSizePrime;
-    int tableSize;
-    int threshold;
-
-    public PageMap(int initialCapacity) {
-      for (tableSizePrime = 0; primeNumbers[tableSizePrime] < initialCapacity; tableSizePrime++);
-      tableSize = primeNumbers[tableSizePrime];
-      threshold = (int) (tableSize * LOAD_FACTOR);
-      table = new Entry[tableSize];
-    }
-
-    public void put(long addr, long newPos, long oldPos) {
-      Entry tab[] = table;
-      int index = (int) ((addr >>> Page.pageSizeLog) % tableSize);
-      for (Entry e = tab[index]; e != null; e = e.next) {
-        if (e.addr == addr) {
-          e.newPos = newPos;
-          return;
+  @Override
+  public int read(long pageAddr, byte[] buf) {
+    try {
+      if (pageAddr != 0) {
+        Assert.that((pageAddr & (Page.pageSize - 1)) == 0);
+        long pagePos = 0;
+        if (pageMap != null) {
+          pagePos = pageMap.get(pageAddr);
         }
-      }
-      if (count >= threshold) {
-        // Rehash the table if the threshold is exceeded
-        rehash();
-        tab = table;
-        index = (int) ((addr >>> Page.pageSizeLog) % tableSize);
-      }
-
-      // Creates the new entry.
-      tab[index] = new Entry(addr, newPos, oldPos, tab[index]);
-      count += 1;
-    }
-
-    public long get(long addr) {
-      int index = (int) ((addr >>> Page.pageSizeLog) % tableSize);
-      for (Entry e = table[index]; e != null; e = e.next) {
-        if (e.addr == addr) {
-          return e.newPos;
+        if (pagePos == 0) {
+          int bp = (int) (pageAddr >>> (Page.pageSizeLog - 3));
+          if (bp + 8 <= pageIndexSize) {
+            byte[] posBuf = new byte[8];
+            pageIndexBuffer.position(bp);
+            pageIndexBuffer.get(posBuf, 0, 8);
+            pagePos = Bytes.unpack8(posBuf, 0);
+          }
+          if (pagePos == 0) {
+            // System.out.println("pagePos=0 for address " + pageAddr);
+            return 0;
+          }
         }
-      }
-      return 0;
-    }
-
-    public void clear() {
-      Entry tab[] = table;
-      int size = tableSize;
-      for (int i = 0; i < size; i++) {
-        tab[i] = null;
-      }
-      count = 0;
-    }
-
-    void rehash() {
-      int oldCapacity = tableSize;
-      int newCapacity = tableSize = primeNumbers[++tableSizePrime];
-      Entry oldMap[] = table;
-      Entry newMap[] = new Entry[newCapacity];
-
-      threshold = (int) (newCapacity * LOAD_FACTOR);
-      table = newMap;
-      tableSize = newCapacity;
-
-      for (int i = 0; i < oldCapacity; i++) {
-        for (Entry old = oldMap[i]; old != null;) {
-          Entry e = old;
-          old = old.next;
-          int index = (int) ((e.addr >>> Page.pageSizeLog) % newCapacity);
-          e.next = newMap[index];
-          newMap[index] = e;
+        dataFile.seek(pagePos >>> Page.pageSizeLog);
+        int size = ((int) pagePos & (Page.pageSize - 1)) + 1;
+        // System.out.println("Read " + size + " bytes from " + (pagePos >>> Page.pageSizeLog));
+        int rc = dataFile.read(compressionBuf, 0, size);
+        if (rc != size) {
+          throw new StorageError(StorageError.FILE_ACCESS_ERROR);
         }
-      }
-    }
-
-    @Override
-    public Iterator<Entry> iterator() {
-      return new PageMapIterator();
-    }
-
-    public int size() {
-      return count;
-    }
-
-    class PageMapIterator implements Iterator<Entry> {
-      PageMapIterator() {
-        moveForward();
-      }
-
-      @Override
-      public boolean hasNext() {
-        return curr != null;
-      }
-
-      @Override
-      public Entry next() {
-        Entry e = curr;
-        if (e == null) {
-          throw new NoSuchElementException();
+        crypt(compressionBuf, size);
+        if (size < Page.pageSize) {
+          inflater.reset();
+          inflater.setInput(compressionBuf, 0, size);
+          rc = inflater.inflate(buf);
+          Assert.that(rc == Page.pageSize);
+        } else {
+          System.arraycopy(compressionBuf, 0, buf, 0, rc);
         }
-        moveForward();
-        return e;
+        return rc;
+      } else {
+        dataFile.seek(0);
+        return dataFile.read(buf, 0, buf.length);
       }
-
-      @Override
-      public void remove() {
-        throw new UnsupportedOperationException();
-      }
-
-      private void moveForward() {
-        if (curr != null) {
-          curr = curr.next;
-        }
-        while (curr == null && i < tableSize) {
-          curr = table[i++];
-        }
-      }
-
-      Entry curr;
-      int i;
-    }
-
-    static class Entry {
-      Entry next;
-      long addr;
-      long newPos;
-      long oldPos;
-
-      Entry(long addr, long newPos, long oldPos, Entry chain) {
-        next = chain;
-        this.addr = addr;
-        this.newPos = newPos;
-        this.oldPos = oldPos;
-      }
+    } catch (Exception x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
     }
   }
-
   private void setKey(byte[] key) {
     byte[] state = new byte[256];
     for (int counter = 0; counter < 256; ++counter) {
@@ -558,43 +469,132 @@ public class CompressedReadWriteFile implements IFile {
     }
   }
 
-  private final void crypt(byte[] buf, int len) {
-    if (pattern != null) {
-      for (int i = 0; i < len; i++) {
-        buf[i] ^= pattern[i];
+  void setPosition(long addr) throws IOException {
+    long pos = addr >>> (Page.pageSizeLog - 3);
+    if (pos + 8 > pageIndexSize) {
+      do {
+        pageIndexSize *= 2;
+      } while (pos + 8 > pageIndexSize);
+      pageIndexBuffer = pageIndexChan.map(FileChannel.MapMode.READ_WRITE, 0, pageIndexSize);
+    }
+    pageIndexBuffer.position((int) pos);
+  }
+
+  @Override
+  public void sync() {
+    try {
+      // Flush data to the main database file
+      if (!noFlush) {
+        dataFile.getFD().sync();
       }
+
+      int txSize = pageMap.size();
+      if (txSize == 0) {
+        return;
+      }
+
+      // Make sure that new page mapping is saved in transaction log
+      byte[] buf = new byte[4 + 16 * txSize];
+      Bytes.pack4(buf, 0, txSize);
+      int pos = 4;
+      for (PageMap.Entry e : pageMap) {
+        Bytes.pack8(buf, pos, e.addr);
+        Bytes.pack8(buf, pos + 8, e.newPos);
+        pos += 16;
+      }
+      pageIndexLogFile.write(buf, 0, pos);
+      if (!noFlush) {
+        pageIndexLogFile.getFD().sync();
+      }
+
+      // Store new page mapping in the page index file
+      for (PageMap.Entry e : pageMap) {
+        setPosition(e.addr);
+        Bytes.pack8(buf, 0, e.newPos);
+        pageIndexBuffer.put(buf, 0, 8);
+        if (e.oldPos != 0) {
+          BitmapAllocator.free(bitmap, e.oldPos >>> (Page.pageSizeLog + ALLOCATION_QUANTUM_LOG),
+              ((e.oldPos & (Page.pageSize - 1)) + ALLOCATION_QUANTUM) >>> ALLOCATION_QUANTUM_LOG);
+        }
+      }
+      pageMap.clear();
+
+      // Truncate log if necessary
+      if (pageIndexLogFile.length() > pageIndexCheckpointThreshold) {
+        pageIndexBuffer.force();
+        pageIndexLogFile.setLength(0);
+      }
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
     }
   }
 
-  static final int ALLOCATION_QUANTUM_LOG = 9;
-  static final int ALLOCATION_QUANTUM = 1 << ALLOCATION_QUANTUM_LOG;
-  static final long MAX_PAGE_MAP_SIZE = 1000000;
+  @Override
+  public boolean tryLock(boolean shared) {
+    try {
+      lck = dataChan.tryLock(0, Long.MAX_VALUE, shared);
+      return lck != null;
+    } catch (IOException x) {
+      return true;
+    }
+  }
+  @Override
+  public void unlock() {
+    try {
+      lck.release();
+    } catch (IOException x) {
+      throw new StorageError(StorageError.LOCK_FAILED, x);
+    }
+  }
 
-
-  byte[] bitmap;
-  int bitmapPos;
-  int bitmapStart;
-  int bitmapExtensionQuantum;
-  long pageIndexSize;
-  long pageIndexCheckpointThreshold;
-
-  Deflater deflater;
-  Inflater inflater;
-  byte[] compressionBuf;
-
-  RandomAccessFile dataFile;
-  RandomAccessFile pageIndexFile;
-  RandomAccessFile pageIndexLogFile;
-
-  FileChannel dataChan;
-  FileChannel pageIndexChan;
-
-  MappedByteBuffer pageIndexBuffer;
-
-  PageMap pageMap;
-
-  boolean noFlush;
-  FileLock lck;
-
-  byte[] pattern;
+  @Override
+  public void write(long pageAddr, byte[] buf) {
+    try {
+      long pageOffs = 0;
+      int pageSize = buf.length;
+      if (pageAddr != 0) {
+        Assert.that(pageSize == Page.pageSize);
+        Assert.that((pageAddr & (Page.pageSize - 1)) == 0);
+        long pagePos = pageMap.get(pageAddr);
+        boolean firstUpdate = false;
+        if (pagePos == 0) {
+          int bp = (int) (pageAddr >>> (Page.pageSizeLog - 3));
+          if (bp + 8 <= pageIndexSize) {
+            byte[] posBuf = new byte[8];
+            pageIndexBuffer.position(bp);
+            pageIndexBuffer.get(posBuf, 0, 8);
+            pagePos = Bytes.unpack8(posBuf, 0);
+          }
+          firstUpdate = true;
+        }
+        pageSize = ((int) pagePos & (Page.pageSize - 1)) + 1;
+        deflater.reset();
+        deflater.setInput(buf, 0, buf.length);
+        deflater.finish();
+        int newPageSize = deflater.deflate(compressionBuf);
+        if (newPageSize == Page.pageSize) {
+          System.arraycopy(buf, 0, compressionBuf, 0, newPageSize);
+        }
+        buf = compressionBuf;
+        int newPageBitSize = (newPageSize + ALLOCATION_QUANTUM - 1) >>> ALLOCATION_QUANTUM_LOG;
+        int oldPageBitSize = (pageSize + ALLOCATION_QUANTUM - 1) >>> ALLOCATION_QUANTUM_LOG;
+        if (firstUpdate || newPageBitSize != oldPageBitSize) {
+          if (!firstUpdate) {
+            BitmapAllocator.free(bitmap, pagePos >>> (Page.pageSizeLog + ALLOCATION_QUANTUM_LOG),
+                oldPageBitSize);
+          }
+          pageOffs = allocate(newPageBitSize);
+        } else {
+          pageOffs = pagePos >>> Page.pageSizeLog;
+        }
+        pageSize = newPageSize;
+        pageMap.put(pageAddr, (pageOffs << Page.pageSizeLog) | (pageSize - 1), pagePos);
+        crypt(buf, pageSize);
+      }
+      dataFile.seek(pageOffs);
+      dataFile.write(buf, 0, pageSize);
+    } catch (IOException x) {
+      throw new StorageError(StorageError.FILE_ACCESS_ERROR, x);
+    }
+  }
 }

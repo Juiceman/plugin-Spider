@@ -9,6 +9,18 @@ import java.util.NoSuchElementException;
  */
 public class Bitmap implements Iterable {
   class BitmapIterator implements Iterator, PersistentIterator {
+    int curr;
+
+    int prev;
+
+    BitmapIterator() {
+      int[] bm = bitmap;
+      int i, n;
+      for (i = 0, n = n_bits; i < n && (bm[i >>> 5] & (1 << (i & 31))) == 0; i++);
+      curr = i;
+      prev = -1;
+    }
+
     @Override
     public boolean hasNext() {
       return curr < n_bits;
@@ -40,7 +52,6 @@ public class Bitmap implements Iterable {
       curr = i;
       return prev;
     }
-
     @Override
     public void remove() {
       if (prev < 0) {
@@ -48,37 +59,30 @@ public class Bitmap implements Iterable {
       }
       bitmap[prev >>> 5] &= ~(1 << (prev & 31));
     }
-
-    BitmapIterator() {
-      int[] bm = bitmap;
-      int i, n;
-      for (i = 0, n = n_bits; i < n && (bm[i >>> 5] & (1 << (i & 31))) == 0; i++);
-      curr = i;
-      prev = -1;
-    }
-
-    int curr;
-    int prev;
   };
 
-  /**
-   * Check if object with this OID is present in bitmap
-   * 
-   * @param oid object identifier
-   * @return true if object is repsent in botmap, false otherwise
-   */
-  public boolean contains(int oid) {
-    return oid < n_bits && (bitmap[oid >>> 5] & (1 << (oid & 31))) != 0;
-  }
+  Storage storage;
+
+  int[] bitmap;
+
+  int n_bits;
 
   /**
-   * Get iterator through objects selected in bitmap
+   * Constructor of bitmap
    * 
-   * @return selected object iterator
+   * @param sto storage of persistent object selected by this bitmap
+   * @param i iterator through persistent object which is used to initialize bitmap
    */
-  @Override
-  public Iterator iterator() {
-    return new BitmapIterator();
+  public Bitmap(Storage sto, Iterator i) {
+    storage = sto;
+    n_bits = sto.getMaxOid();
+    int[] bm = new int[(n_bits + 31) >>> 5];
+    PersistentIterator pi = (PersistentIterator) i;
+    int oid;
+    while ((oid = pi.nextOid()) != 0) {
+      bm[oid >>> 5] |= 1 << (oid & 31);
+    }
+    bitmap = bm;
   }
 
   /**
@@ -103,6 +107,25 @@ public class Bitmap implements Iterable {
   }
 
   /**
+   * Check if object with this OID is present in bitmap
+   * 
+   * @param oid object identifier
+   * @return true if object is repsent in botmap, false otherwise
+   */
+  public boolean contains(int oid) {
+    return oid < n_bits && (bitmap[oid >>> 5] & (1 << (oid & 31))) != 0;
+  }
+
+  /**
+   * Get iterator through objects selected in bitmap
+   * 
+   * @return selected object iterator
+   */
+  @Override
+  public Iterator iterator() {
+    return new BitmapIterator();
+  }
+  /**
    * Union (bit or) two bitmaps
    * 
    * @param other bitmaps which will be combined with this one
@@ -123,7 +146,6 @@ public class Bitmap implements Iterable {
       n_bits = other.n_bits;
     }
   }
-
   /**
    * Exclusive OR (xor) of two bitmaps
    * 
@@ -145,26 +167,4 @@ public class Bitmap implements Iterable {
       n_bits = other.n_bits;
     }
   }
-
-  /**
-   * Constructor of bitmap
-   * 
-   * @param sto storage of persistent object selected by this bitmap
-   * @param i iterator through persistent object which is used to initialize bitmap
-   */
-  public Bitmap(Storage sto, Iterator i) {
-    storage = sto;
-    n_bits = sto.getMaxOid();
-    int[] bm = new int[(n_bits + 31) >>> 5];
-    PersistentIterator pi = (PersistentIterator) i;
-    int oid;
-    while ((oid = pi.nextOid()) != 0) {
-      bm[oid >>> 5] |= 1 << (oid & 31);
-    }
-    bitmap = bm;
-  }
-
-  Storage storage;
-  int[] bitmap;
-  int n_bits;
 }

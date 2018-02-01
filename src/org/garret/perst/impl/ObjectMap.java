@@ -4,9 +4,30 @@ import java.lang.ref.WeakReference;
 import org.garret.perst.PinnedPersistent;
 
 class ObjectMap {
+  static class Entry {
+    Entry next;
+    WeakReference wref;
+    Object pin;
+    int oid;
+    int state;
+
+    Entry(Object obj, Entry chain) {
+      wref = new WeakReference(obj);
+      next = chain;
+    }
+
+    void clear() {
+      wref.clear();
+      wref = null;
+      state = 0;
+      next = null;
+      pin = null;
+    }
+  }
   Entry[] table;
   final float loadFactor = 0.75f;
   int count;
+
   int threshold;
 
   ObjectMap(int initialCapacity) {
@@ -14,33 +35,28 @@ class ObjectMap {
     table = new Entry[initialCapacity];
   }
 
-  synchronized boolean remove(Object obj) {
-    Entry[] tab = table;
-    int hashcode = (int) ((0xFFFFFFFFL & System.identityHashCode(obj)) % tab.length);
-    for (Entry e = tab[hashcode], prev = null; e != null; e = e.next) {
-      Object target = e.wref.get();
-      if (target == null) {
-        if (prev != null) {
-          prev.next = e.next;
-        } else {
-          tab[hashcode] = e.next;
+  Entry get(Object obj) {
+    if (obj != null) {
+      Entry[] tab = table;
+      int hashcode = (int) ((0xFFFFFFFFL & System.identityHashCode(obj)) % tab.length);
+      for (Entry e = tab[hashcode]; e != null; e = e.next) {
+        Object target = e.wref.get();
+        if (target == obj) {
+          return e;
         }
-        e.clear();
-        count -= 1;
-      } else if (target == obj) {
-        if (prev != null) {
-          prev.next = e.next;
-        } else {
-          tab[hashcode] = e.next;
-        }
-        e.clear();
-        count -= 1;
-        return true;
-      } else {
-        prev = e;
       }
     }
-    return false;
+    return null;
+  }
+
+  synchronized int getOid(Object obj) {
+    Entry e = get(obj);
+    return e != null ? e.oid : 0;
+  }
+
+  synchronized int getState(Object obj) {
+    Entry e = get(obj);
+    return e != null ? e.state : PinnedPersistent.DELETED;
   }
 
   Entry put(Object obj) {
@@ -72,45 +88,6 @@ class ObjectMap {
     // Creates the new entry.
     count++;
     return tab[hashcode] = new Entry(obj, tab[hashcode]);
-  }
-
-  synchronized void setOid(Object obj, int oid) {
-    Entry e = put(obj);
-    e.oid = oid;
-  }
-
-  synchronized void setState(Object obj, int state) {
-    Entry e = put(obj);
-    e.state = state;
-    if ((state & PinnedPersistent.DIRTY) != 0) {
-      e.pin = obj;
-    } else {
-      e.pin = null;
-    }
-  }
-
-  Entry get(Object obj) {
-    if (obj != null) {
-      Entry[] tab = table;
-      int hashcode = (int) ((0xFFFFFFFFL & System.identityHashCode(obj)) % tab.length);
-      for (Entry e = tab[hashcode]; e != null; e = e.next) {
-        Object target = e.wref.get();
-        if (target == obj) {
-          return e;
-        }
-      }
-    }
-    return null;
-  }
-
-  synchronized int getOid(Object obj) {
-    Entry e = get(obj);
-    return e != null ? e.oid : 0;
-  }
-
-  synchronized int getState(Object obj) {
-    Entry e = get(obj);
-    return e != null ? e.state : PinnedPersistent.DELETED;
   }
 
   void rehash() {
@@ -161,24 +138,47 @@ class ObjectMap {
     }
   }
 
-  static class Entry {
-    Entry next;
-    WeakReference wref;
-    Object pin;
-    int oid;
-    int state;
-
-    void clear() {
-      wref.clear();
-      wref = null;
-      state = 0;
-      next = null;
-      pin = null;
+  synchronized boolean remove(Object obj) {
+    Entry[] tab = table;
+    int hashcode = (int) ((0xFFFFFFFFL & System.identityHashCode(obj)) % tab.length);
+    for (Entry e = tab[hashcode], prev = null; e != null; e = e.next) {
+      Object target = e.wref.get();
+      if (target == null) {
+        if (prev != null) {
+          prev.next = e.next;
+        } else {
+          tab[hashcode] = e.next;
+        }
+        e.clear();
+        count -= 1;
+      } else if (target == obj) {
+        if (prev != null) {
+          prev.next = e.next;
+        } else {
+          tab[hashcode] = e.next;
+        }
+        e.clear();
+        count -= 1;
+        return true;
+      } else {
+        prev = e;
+      }
     }
+    return false;
+  }
 
-    Entry(Object obj, Entry chain) {
-      wref = new WeakReference(obj);
-      next = chain;
+  synchronized void setOid(Object obj, int oid) {
+    Entry e = put(obj);
+    e.oid = oid;
+  }
+
+  synchronized void setState(Object obj, int state) {
+    Entry e = put(obj);
+    e.state = state;
+    if ((state & PinnedPersistent.DIRTY) != 0) {
+      e.pin = obj;
+    } else {
+      e.pin = null;
     }
   }
 }

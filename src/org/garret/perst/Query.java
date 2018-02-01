@@ -14,61 +14,63 @@ import java.util.Iterator;
  * substitute SQL joins.
  */
 public interface Query<T> extends Iterable<T> {
+  enum ClassExtentLockType {
+    None, Shared, Exclusive
+  }
+
+
   /**
-   * Execute query
+   * Add index which can be used to optimize query execution (replace sequential search with direct
+   * index access)
    * 
-   * @param cls class of inspected objects
-   * @param iterator iterator for sequential access to objects in the table
-   * @param predicate selection crieria
+   * @param key indexed field
+   * @param index implementation of index
+   */
+  public void addIndex(String key, GenericIndex<T> index);
+
+  /**
+   * Enable or disable reporting of runtime errors on console. Runtime errors during JSQL query are
+   * reported in two ways:
+   * <OL>
+   * <LI>If query error reporting is enabled then message is printed to System.err</LI>
+   * <LI>If storage listener is registered, then JSQLRuntimeError of method listener is invoked</LI>
+   * </OL>
+   * By default reporting to System.err is enabled.
+   * 
+   * @param enabled if <code>true</code> then reportnig is enabled
+   */
+  public void enableRuntimeErrorReporting(boolean enabled);
+
+  /**
+   * Execute prepared query using iterator obtained from index registered by Query.setClassExtent
+   * method
+   * 
    * @return iterator through selected objects. This iterator doesn't support remove() method.
    */
-  public IterableIterator<T> select(Class cls, Iterator<T> iterator, String predicate)
-      throws CompileError;
-
+  public IterableIterator<T> execute();
 
   /**
-   * Execute query
+   * Execute prepared query
    * 
-   * @param className name of the class of inspected objects
    * @param iterator iterator for sequential access to objects in the table
-   * @param predicate selection crieria
    * @return iterator through selected objects. This iterator doesn't support remove() method.
    */
-  public IterableIterator<T> select(String className, Iterator<T> iterator, String predicate)
-      throws CompileError;
+  public IterableIterator<T> execute(Iterator<T> iterator);
 
   /**
-   * Set value of query parameter
+   * Get query code generator for class associated with the query by Query.setClass method
    * 
-   * @param index parameters index (1 based)
-   * @param value value of parameter (for scalar parameters instance f correspondendt wrapper class,
-   *        for example <code>java.lang.Long</code>
+   * @return code generator for class associated with the query
    */
-  public void setParameter(int index, Object value);
+  public CodeGenerator getCodeGenerator();
 
   /**
-   * Set value of query parameter
+   * Get query code generator for the specified class
    * 
-   * @param index parameters index (1 based)
-   * @param value value of integer parameter
+   * @param cls class for which query is constructed
+   * @return code generator for the specified class
    */
-  public void setIntParameter(int index, long value);
-
-  /**
-   * Set value of query parameter
-   * 
-   * @param index parameters index (1 based)
-   * @param value value of real parameter
-   */
-  public void setRealParameter(int index, double value);
-
-  /**
-   * Set value of query parameter
-   * 
-   * @param index parameters index (1 based)
-   * @param value value of boolean parameter
-   */
-  public void setBoolParameter(int index, boolean value);
+  public CodeGenerator getCodeGenerator(Class cls);
 
   /**
    * Prepare SQL statement
@@ -87,60 +89,34 @@ public interface Query<T> extends Iterable<T> {
   public void prepare(String className, String predicate);
 
   /**
-   * Execute prepared query
+   * Execute query
    * 
+   * @param cls class of inspected objects
    * @param iterator iterator for sequential access to objects in the table
+   * @param predicate selection crieria
    * @return iterator through selected objects. This iterator doesn't support remove() method.
    */
-  public IterableIterator<T> execute(Iterator<T> iterator);
+  public IterableIterator<T> select(Class cls, Iterator<T> iterator, String predicate)
+      throws CompileError;
 
   /**
-   * Execute prepared query using iterator obtained from index registered by Query.setClassExtent
-   * method
+   * Execute query
    * 
+   * @param className name of the class of inspected objects
+   * @param iterator iterator for sequential access to objects in the table
+   * @param predicate selection crieria
    * @return iterator through selected objects. This iterator doesn't support remove() method.
    */
-  public IterableIterator<T> execute();
+  public IterableIterator<T> select(String className, Iterator<T> iterator, String predicate)
+      throws CompileError;
 
   /**
-   * Enable or disable reporting of runtime errors on console. Runtime errors during JSQL query are
-   * reported in two ways:
-   * <OL>
-   * <LI>If query error reporting is enabled then message is printed to System.err</LI>
-   * <LI>If storage listener is registered, then JSQLRuntimeError of method listener is invoked</LI>
-   * </OL>
-   * By default reporting to System.err is enabled.
+   * Set value of query parameter
    * 
-   * @param enabled if <code>true</code> then reportnig is enabled
+   * @param index parameters index (1 based)
+   * @param value value of boolean parameter
    */
-  public void enableRuntimeErrorReporting(boolean enabled);
-
-  /**
-   * Specify resolver. Resolver can be used to replaced SQL JOINs: given object ID, it will provide
-   * reference to the resolved object
-   * 
-   * @param original class which instances will have to be resolved
-   * @param resolved class of the resolved object
-   * @param resolver class implementing Resolver interface
-   */
-  public void setResolver(Class original, Class resolved, Resolver resolver);
-
-  /**
-   * Add index which can be used to optimize query execution (replace sequential search with direct
-   * index access)
-   * 
-   * @param key indexed field
-   * @param index implementation of index
-   */
-  public void addIndex(String key, GenericIndex<T> index);
-
-  /**
-   * Set index provider for this query. Available indices should be either registered using addIndex
-   * method, either should be accessible through index provider
-   * 
-   * @param indexProvider index provider
-   */
-  public void setIndexProvider(IndexProvider indexProvider);
+  public void setBoolParameter(int index, boolean value);
 
   /**
    * Set class for which this query will be executed
@@ -148,10 +124,6 @@ public interface Query<T> extends Iterable<T> {
    * @param cls queried class
    */
   public void setClass(Class cls);
-
-  enum ClassExtentLockType {
-    None, Shared, Exclusive
-  };
 
   /**
    * Set class extent used to obtain iterator through all instances of this class
@@ -162,17 +134,45 @@ public interface Query<T> extends Iterable<T> {
   public void setClassExtent(Collection<T> set, ClassExtentLockType lock);
 
   /**
-   * Get query code generator for the specified class
+   * Set index provider for this query. Available indices should be either registered using addIndex
+   * method, either should be accessible through index provider
    * 
-   * @param cls class for which query is constructed
-   * @return code generator for the specified class
+   * @param indexProvider index provider
    */
-  public CodeGenerator getCodeGenerator(Class cls);
+  public void setIndexProvider(IndexProvider indexProvider);
 
   /**
-   * Get query code generator for class associated with the query by Query.setClass method
+   * Set value of query parameter
    * 
-   * @return code generator for class associated with the query
+   * @param index parameters index (1 based)
+   * @param value value of integer parameter
    */
-  public CodeGenerator getCodeGenerator();
+  public void setIntParameter(int index, long value);;
+
+  /**
+   * Set value of query parameter
+   * 
+   * @param index parameters index (1 based)
+   * @param value value of parameter (for scalar parameters instance f correspondendt wrapper class,
+   *        for example <code>java.lang.Long</code>
+   */
+  public void setParameter(int index, Object value);
+
+  /**
+   * Set value of query parameter
+   * 
+   * @param index parameters index (1 based)
+   * @param value value of real parameter
+   */
+  public void setRealParameter(int index, double value);
+
+  /**
+   * Specify resolver. Resolver can be used to replaced SQL JOINs: given object ID, it will provide
+   * reference to the resolved object
+   * 
+   * @param original class which instances will have to be resolved
+   * @param resolved class of the resolved object
+   * @param resolver class implementing Resolver interface
+   */
+  public void setResolver(Class original, Class resolved, Resolver resolver);
 }

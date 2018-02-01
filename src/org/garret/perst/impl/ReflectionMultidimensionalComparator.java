@@ -9,34 +9,20 @@ import org.garret.perst.StorageError;
  * Implementation of multidimensional reflection comparator using reflection
  */
 public class ReflectionMultidimensionalComparator<T> extends MultidimensionalComparator<T> {
+  private static boolean isZero(Object val) {
+    return val instanceof Double || val instanceof Float ? ((Number) val).doubleValue() == 0.0
+        : val instanceof Number ? ((Number) val).longValue() == 0 : false;
+  }
   private String className;
   private String[] fieldNames;
-  private boolean treateZeroAsUndefinedValue;
 
+  private boolean treateZeroAsUndefinedValue;
   transient private Class cls;
   transient private Field[] fields;
+
   transient private ClassDescriptor desc;
 
-  @Override
-  public void onLoad() {
-    cls = ClassDescriptor.loadClass(getStorage(), className);
-    locateFields();
-  }
-
-  private final void locateFields() {
-    if (fieldNames == null) {
-      fields = cls.getDeclaredFields();
-    } else {
-      fields = new Field[fieldNames.length];
-      for (int i = 0; i < fields.length; i++) {
-        fields[i] = ClassDescriptor.locateField(cls, fieldNames[i]);
-        if (fields[i] == null) {
-          throw new StorageError(StorageError.INDEXED_FIELD_NOT_FOUND,
-              className + "." + fieldNames[i]);
-        }
-      }
-    }
-  }
+  ReflectionMultidimensionalComparator() {}
 
   public ReflectionMultidimensionalComparator(Storage storage, Class cls, String[] fieldNames,
       boolean treateZeroAsUndefinedValue) {
@@ -48,11 +34,18 @@ public class ReflectionMultidimensionalComparator<T> extends MultidimensionalCom
     locateFields();
   }
 
-  ReflectionMultidimensionalComparator() {}
-
-  private static boolean isZero(Object val) {
-    return val instanceof Double || val instanceof Float ? ((Number) val).doubleValue() == 0.0
-        : val instanceof Number ? ((Number) val).longValue() == 0 : false;
+  @Override
+  public T cloneField(T obj, int i) {
+    if (desc == null) {
+      desc = ((StorageImpl) getStorage()).findClassDescriptor(cls);
+    }
+    T clone = (T) desc.newInstance();
+    try {
+      fields[i].set(clone, fields[i].get(obj));
+      return clone;
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
   }
 
   @Override
@@ -80,18 +73,25 @@ public class ReflectionMultidimensionalComparator<T> extends MultidimensionalCom
     return fields.length;
   }
 
+  private final void locateFields() {
+    if (fieldNames == null) {
+      fields = cls.getDeclaredFields();
+    } else {
+      fields = new Field[fieldNames.length];
+      for (int i = 0; i < fields.length; i++) {
+        fields[i] = ClassDescriptor.locateField(cls, fieldNames[i]);
+        if (fields[i] == null) {
+          throw new StorageError(StorageError.INDEXED_FIELD_NOT_FOUND,
+              className + "." + fieldNames[i]);
+        }
+      }
+    }
+  }
+
   @Override
-  public T cloneField(T obj, int i) {
-    if (desc == null) {
-      desc = ((StorageImpl) getStorage()).findClassDescriptor(cls);
-    }
-    T clone = (T) desc.newInstance();
-    try {
-      fields[i].set(clone, fields[i].get(obj));
-      return clone;
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
+  public void onLoad() {
+    cls = ClassDescriptor.loadClass(getStorage(), className);
+    locateFields();
   }
 }
 

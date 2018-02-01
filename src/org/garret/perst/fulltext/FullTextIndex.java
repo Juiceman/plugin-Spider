@@ -15,6 +15,21 @@ import org.garret.perst.IResource;
  */
 public interface FullTextIndex extends IPersistent, IResource {
   /**
+   * Description of full text index keyword
+   */
+  public interface Keyword {
+    /**
+     * Normal form of the keyword
+     */
+    String getNormalForm();
+
+    /**
+     * Number of keyword occurrences (number of documents containing this keyword)
+     */
+    long getNumberOfOccurrences();
+  }
+
+  /**
    * Add document to the index
    * 
    * @param obj document to be added
@@ -31,6 +46,11 @@ public interface FullTextIndex extends IPersistent, IResource {
   void add(Object obj, Reader text, String language);
 
   /**
+   * Remove all elements from full text index
+   */
+  void clear();
+
+  /**
    * Delete document from the index
    * 
    * @param obj document to be deleted
@@ -38,24 +58,9 @@ public interface FullTextIndex extends IPersistent, IResource {
   void delete(Object obj);
 
   /**
-   * Remove all elements from full text index
+   * Get full text search helper
    */
-  void clear();
-
-  /**
-   * Description of full text index keyword
-   */
-  public interface Keyword {
-    /**
-     * Normal form of the keyword
-     */
-    String getNormalForm();
-
-    /**
-     * Number of keyword occurrences (number of documents containing this keyword)
-     */
-    long getNumberOfOccurrences();
-  }
+  FullTextSearchHelper getHelper();
 
   /**
    * Get iterator through full text index keywords started with specified prefix
@@ -66,16 +71,24 @@ public interface FullTextIndex extends IPersistent, IResource {
   Iterator<Keyword> getKeywords(String prefix);
 
   /**
-   * Locate all documents containing words started with specified prefix
+   * Get total number of indexed documents
+   */
+  int getNumberOfDocuments();
+
+  /**
+   * Get total number of different words in all documents
+   */
+  int getNumberOfWords();
+
+  /**
+   * Execute full text search query
    * 
-   * @param prefix word prefix
+   * @param query prepared query
    * @param maxResults maximal amount of selected documents
    * @param timeLimit limit for query execution time
-   * @param sort whether it is necessary to sort result by rank
-   * @return result of query execution ordered by rank (if sort==true) or null in case of empty or
-   *         incorrect query
+   * @return result of query execution ordered by rank or null in case of empty or incorrect query
    */
-  FullTextSearchResult searchPrefix(String prefix, int maxResults, int timeLimit, boolean sort);
+  FullTextSearchResult search(FullTextQuery query, int maxResults, int timeLimit);
 
   /**
    * Parse and execute full text search query
@@ -89,27 +102,14 @@ public interface FullTextIndex extends IPersistent, IResource {
   FullTextSearchResult search(String query, String language, int maxResults, int timeLimit);
 
   /**
-   * Execute full text search query
+   * Locate all documents containing words started with specified prefix
    * 
-   * @param query prepared query
+   * @param prefix word prefix
    * @param maxResults maximal amount of selected documents
    * @param timeLimit limit for query execution time
-   * @return result of query execution ordered by rank or null in case of empty or incorrect query
+   * @param sort whether it is necessary to sort result by rank
+   * @return result of query execution ordered by rank (if sort==true) or null in case of empty or
+   *         incorrect query
    */
-  FullTextSearchResult search(FullTextQuery query, int maxResults, int timeLimit);
-
-  /**
-   * Get total number of different words in all documents
-   */
-  int getNumberOfWords();
-
-  /**
-   * Get total number of indexed documents
-   */
-  int getNumberOfDocuments();
-
-  /**
-   * Get full text search helper
-   */
-  FullTextSearchHelper getHelper();
+  FullTextSearchResult searchPrefix(String prefix, int maxResults, int timeLimit, boolean sort);
 }

@@ -43,6 +43,36 @@ class MainPage implements WebPage {
     pr = spider.getPluginRespirator();
   }
 
+  // -- Utilities
+  private PageStatus getPageStatus(Status status) {
+    PerstRoot root = spider.getRoot();
+    synchronized (root) {
+      int count = root.getPageCount(status);
+      Iterator<Page> it = root.getPages(status);
+
+      int showURI = spider.getConfig().getMaxShownURIs();
+      List<Page> page = new ArrayList();
+      while (page.size() < showURI && it.hasNext()) {
+        page.add(it.next());
+      }
+
+      return new PageStatus(count, page);
+    }
+  }
+
+  private void listPages(PageStatus pageStatus, HTMLNode parent) {
+    if (pageStatus.pages.isEmpty()) {
+      parent.addChild("#", "NO URI");
+    } else {
+      HTMLNode list = parent.addChild("ol", "style", "overflow: auto; white-space: nowrap;");
+
+      for (Page page : pageStatus.pages) {
+        HTMLNode litem = list.addChild("li", "title", page.getComment());
+        litem.addChild("a", "href", "/freenet:" + page.getURI(), page.getURI());
+      }
+    }
+  }
+
   /*
    * (non-Javadoc)
    * 
@@ -198,35 +228,5 @@ class MainPage implements WebPage {
     HTMLNode failedContent = failed.content;
     listPages(failedStatus, failedContent);
     contentNode.addChild(failedBox);
-  }
-
-  // -- Utilities
-  private PageStatus getPageStatus(Status status) {
-    PerstRoot root = spider.getRoot();
-    synchronized (root) {
-      int count = root.getPageCount(status);
-      Iterator<Page> it = root.getPages(status);
-
-      int showURI = spider.getConfig().getMaxShownURIs();
-      List<Page> page = new ArrayList();
-      while (page.size() < showURI && it.hasNext()) {
-        page.add(it.next());
-      }
-
-      return new PageStatus(count, page);
-    }
-  }
-
-  private void listPages(PageStatus pageStatus, HTMLNode parent) {
-    if (pageStatus.pages.isEmpty()) {
-      parent.addChild("#", "NO URI");
-    } else {
-      HTMLNode list = parent.addChild("ol", "style", "overflow: auto; white-space: nowrap;");
-
-      for (Page page : pageStatus.pages) {
-        HTMLNode litem = list.addChild("li", "title", page.getComment());
-        litem.addChild("a", "href", "/freenet:" + page.getURI(), page.getURI());
-      }
-    }
   }
 }

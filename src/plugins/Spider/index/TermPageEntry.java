@@ -50,6 +50,21 @@ public class TermPageEntry extends TermEntry {
   }
 
   /**
+   ** For serialisation.
+   */
+  public TermPageEntry(String s, float r, FreenetURI u, SortedIntSet pos,
+      Map<Integer, String> frags) {
+    super(s, r);
+    if (u == null) {
+      throw new IllegalArgumentException("can't have a null page");
+    }
+    page = u.intern(); // OPT LOW make the translator use the same URI object as from the URI table?
+    title = null;
+    this.positions = pos;
+    this.posFragments = frags;
+  }
+
+  /**
    ** Extended constructor with additional {@code title} field for old-style indexes.
    **
    ** @param s Subject of the entry
@@ -79,31 +94,10 @@ public class TermPageEntry extends TermEntry {
     }
   }
 
-  /**
-   ** For serialisation.
-   */
-  public TermPageEntry(String s, float r, FreenetURI u, SortedIntSet pos,
-      Map<Integer, String> frags) {
-    super(s, r);
-    if (u == null) {
-      throw new IllegalArgumentException("can't have a null page");
-    }
-    page = u.intern(); // OPT LOW make the translator use the same URI object as from the URI table?
-    title = null;
-    this.positions = pos;
-    this.posFragments = frags;
-  }
-
   /*
    * ======================================================================== abstract public class
    * TermEntry ========================================================================
    */
-
-  @Override
-  public EntryType entryType() {
-    assert (getClass() == TermPageEntry.class);
-    return EntryType.PAGE;
-  }
 
   // we discount the "pos" field as there is no simple way to compare a map.
   // this case should never crop up anyway.
@@ -118,6 +112,12 @@ public class TermPageEntry extends TermEntry {
   }
 
   @Override
+  public EntryType entryType() {
+    assert (getClass() == TermPageEntry.class);
+    return EntryType.PAGE;
+  }
+
+  @Override
   public boolean equals(Object o) {
     return o == this || super.equals(o) && page.equals(((TermPageEntry) o).page);
   }
@@ -128,23 +128,30 @@ public class TermPageEntry extends TermEntry {
         || (entry instanceof TermPageEntry) && page.equals(((TermPageEntry) entry).page);
   }
 
+  public boolean hasFragments() {
+    return posFragments != null;
+  }
+
   @Override
   public int hashCode() {
     return super.hashCode() ^ page.hashCode();
   }
 
-  public int sizeEstimate() {
-    int s = 0;
-    s += page.toString().length();
-    s += (title == null) ? 0 : title.length();
-    s += (subj == null) ? 0 : subj.length();
-    s += (positions == null) ? 0 : positions.size() * 4;
-    return s;
+  public boolean hasPosition(int i) {
+    return positions.contains(i);
   }
 
   /** Do we have term positions? Just because we do doesn't necessarily mean we have fragments. */
   public boolean hasPositions() {
     return positions != null;
+  }
+
+  public ArrayList<Integer> positions() {
+    int[] array = positions.toArrayRaw();
+    ArrayList<Integer> pos = new ArrayList<Integer>(array.length);
+    for (int x : array)
+      pos.add(x);
+    return pos;
   }
 
   /**
@@ -163,18 +170,6 @@ public class TermPageEntry extends TermEntry {
     return ret;
   }
 
-  public boolean hasPosition(int i) {
-    return positions.contains(i);
-  }
-
-  public ArrayList<Integer> positions() {
-    int[] array = positions.toArrayRaw();
-    ArrayList<Integer> pos = new ArrayList<Integer>(array.length);
-    for (int x : array)
-      pos.add(x);
-    return pos;
-  }
-
   public int[] positionsRaw() {
     return positions.toArrayRaw();
   }
@@ -185,16 +180,21 @@ public class TermPageEntry extends TermEntry {
     return positions.size();
   }
 
-  public boolean hasFragments() {
-    return posFragments != null;
-  }
-
   public void putPosition(int position) {
     if (positions == null)
       positions = new SortedIntSet();
     positions.add(position);
     if (posFragments != null)
       posFragments.put(position, null);
+  }
+
+  public int sizeEstimate() {
+    int s = 0;
+    s += page.toString().length();
+    s += (title == null) ? 0 : title.length();
+    s += (subj == null) ? 0 : subj.length();
+    s += (positions == null) ? 0 : positions.size() * 4;
+    return s;
   }
 
 }

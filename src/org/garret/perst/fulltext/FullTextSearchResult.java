@@ -20,6 +20,12 @@ public class FullTextSearchResult {
    */
   public FullTextSearchHit[] hits;
 
+  public FullTextSearchResult(FullTextSearchHit[] hits, int estimation) {
+    this.hits = hits;
+    this.estimation = estimation;
+  }
+
+
   /**
    * Merge results of two searches
    * 
@@ -52,11 +58,5 @@ public class FullTextSearchResult {
     Arrays.sort(joinHits);
     return new FullTextSearchResult(joinHits,
         Math.min(estimation * n / hits.length, another.estimation * n / another.hits.length));
-  }
-
-
-  public FullTextSearchResult(FullTextSearchHit[] hits, int estimation) {
-    this.hits = hits;
-    this.estimation = estimation;
   }
 }

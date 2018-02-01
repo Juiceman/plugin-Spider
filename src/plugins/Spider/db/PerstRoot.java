@@ -9,18 +9,6 @@ import freenet.keys.FreenetURI;
 
 public class PerstRoot extends Persistent {
 
-  protected FieldIndex<Page> idPage;
-  protected FieldIndex<Page> uriPage;
-  protected FieldIndex<Page> queuedPages;
-  protected FieldIndex<Page> failedPages;
-  protected FieldIndex<Page> succeededPages;
-  protected FieldIndex<Page> notPushedPages;
-  protected FieldIndex<Page> indexedPages;
-
-  private Config config;
-
-  public PerstRoot() {}
-
   public static PerstRoot createRoot(Storage storage) {
     PerstRoot root = new PerstRoot();
 
@@ -37,6 +25,37 @@ public class PerstRoot extends Persistent {
     storage.setRoot(root);
 
     return root;
+  }
+  protected FieldIndex<Page> idPage;
+  protected FieldIndex<Page> uriPage;
+  protected FieldIndex<Page> queuedPages;
+  protected FieldIndex<Page> failedPages;
+  protected FieldIndex<Page> succeededPages;
+  protected FieldIndex<Page> notPushedPages;
+
+  protected FieldIndex<Page> indexedPages;
+
+  private Config config;
+
+  public PerstRoot() {}
+
+  public void exclusiveLock(Status status) {
+    FieldIndex<Page> index = getPageIndex(status);
+    index.exclusiveLock();
+  }
+
+  public synchronized Config getConfig() {
+    return config;
+  }
+
+  public Page getPageById(long id) {
+    idPage.sharedLock();
+    try {
+      Page page = idPage.get(id);
+      return page;
+    } finally {
+      idPage.unlock();
+    }
   }
 
   public Page getPageByURI(FreenetURI uri, boolean create, String comment) {
@@ -62,13 +81,13 @@ public class PerstRoot extends Persistent {
     }
   }
 
-  public Page getPageById(long id) {
-    idPage.sharedLock();
+  public int getPageCount(Status status) {
+    FieldIndex<Page> index = getPageIndex(status);
+    index.sharedLock();
     try {
-      Page page = idPage.get(id);
-      return page;
+      return index.size();
     } finally {
-      idPage.unlock();
+      index.unlock();
     }
   }
 
@@ -89,21 +108,6 @@ public class PerstRoot extends Persistent {
     }
   }
 
-  public void exclusiveLock(Status status) {
-    FieldIndex<Page> index = getPageIndex(status);
-    index.exclusiveLock();
-  }
-
-  public void sharedLockPages(Status status) {
-    FieldIndex<Page> index = getPageIndex(status);
-    index.sharedLock();
-  }
-
-  public void unlockPages(Status status) {
-    FieldIndex<Page> index = getPageIndex(status);
-    index.unlock();
-  }
-
   public Iterator<Page> getPages(Status status) {
     FieldIndex<Page> index = getPageIndex(status);
     index.sharedLock();
@@ -114,23 +118,19 @@ public class PerstRoot extends Persistent {
     }
   }
 
-  public int getPageCount(Status status) {
-    FieldIndex<Page> index = getPageIndex(status);
-    index.sharedLock();
-    try {
-      return index.size();
-    } finally {
-      index.unlock();
-    }
-  }
-
   public synchronized void setConfig(Config config) {
     this.config = config;
     modify();
   }
 
-  public synchronized Config getConfig() {
-    return config;
+  public void sharedLockPages(Status status) {
+    FieldIndex<Page> index = getPageIndex(status);
+    index.sharedLock();
+  }
+
+  public void unlockPages(Status status) {
+    FieldIndex<Page> index = getPageIndex(status);
+    index.unlock();
   }
 
 }

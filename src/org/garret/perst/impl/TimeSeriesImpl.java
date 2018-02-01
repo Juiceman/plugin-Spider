@@ -16,40 +16,15 @@ import org.garret.perst.TimeSeries;
 
 public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollection<T>
     implements TimeSeries<T> {
-  @Override
-  public ArrayList<T> elements() {
-    return new ArrayList<T>(this);
-  }
-
-  @Override
-  public Object[] toArray() {
-    return elements().toArray();
-  }
-
-  @Override
-  public <E> E[] toArray(E[] arr) {
-    return elements().toArray(arr);
-  }
-
-  @Override
-  public boolean add(T tick) {
-    return add(tick, false);
-  }
-
-  @Override
-  public boolean add(T tick, boolean reverse) {
-    long time = tick.getTime();
-    Iterator iterator = index.iterator(new Key(time - maxBlockTimeInterval), new Key(time),
-        GenericIndex.DESCENT_ORDER);
-    if (iterator.hasNext()) {
-      insertInBlock((Block) iterator.next(), tick, reverse);
-    } else {
-      addNewBlock(tick, reverse);
-    }
-    return true;
-  }
-
   class TimeSeriesIterator extends IterableIterator<T> {
+    private Iterator blockIterator;
+
+    private Block currBlock;
+
+    private int pos;
+
+    private long till;
+
     TimeSeriesIterator(long from, long till) {
       pos = -1;
       this.till = till;
@@ -78,12 +53,10 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
         }
       }
     }
-
     @Override
     public boolean hasNext() {
       return pos >= 0;
     }
-
     @Override
     public T next() {
       if (pos < 0) {
@@ -104,20 +77,21 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
       }
       return tick;
     }
-
     @Override
     public void remove() {
       throw new UnsupportedOperationException();
     }
-
-    private Iterator blockIterator;
-    private Block currBlock;
-    private int pos;
-    private long till;
   }
 
-
   class TimeSeriesReverseIterator extends IterableIterator<T> {
+    private Iterator blockIterator;
+
+    private Block currBlock;
+
+    private int pos;
+
+    private long from;
+
     TimeSeriesReverseIterator(long from, long till) {
       pos = -1;
       this.from = from;
@@ -146,12 +120,10 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
         }
       }
     }
-
     @Override
     public boolean hasNext() {
       return pos >= 0;
     }
-
     @Override
     public T next() {
       if (pos < 0) {
@@ -172,39 +144,97 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
       }
       return tick;
     }
-
     @Override
     public void remove() {
       throw new UnsupportedOperationException();
     }
+  }
 
-    private Iterator blockIterator;
-    private Block currBlock;
-    private int pos;
-    private long from;
+  private Index index;
+
+  private long maxBlockTimeInterval;
+
+  private String blockClassName;
+
+  private transient Class blockClass;
+
+
+  TimeSeriesImpl() {}
+
+  TimeSeriesImpl(Storage storage, Class blockClass, long maxBlockTimeInterval) {
+    this.blockClass = blockClass;
+    this.maxBlockTimeInterval = maxBlockTimeInterval;
+    blockClassName = ClassDescriptor.getClassName(blockClass);
+    index = storage.createIndex(long.class, false);
   }
 
   @Override
-  public Iterator<T> iterator() {
-    return iterator(null, null, true);
+  public boolean add(T tick) {
+    return add(tick, false);
   }
 
   @Override
-  public IterableIterator<T> iterator(Date from, Date till) {
-    return iterator(from, till, true);
+  public boolean add(T tick, boolean reverse) {
+    long time = tick.getTime();
+    Iterator iterator = index.iterator(new Key(time - maxBlockTimeInterval), new Key(time),
+        GenericIndex.DESCENT_ORDER);
+    if (iterator.hasNext()) {
+      insertInBlock((Block) iterator.next(), tick, reverse);
+    } else {
+      addNewBlock(tick, reverse);
+    }
+    return true;
+  }
+
+  private void addNewBlock(Tick t, boolean reverse) {
+    Block block;
+    try {
+      block = (Block) blockClass.newInstance();
+    } catch (Exception x) {
+      throw new StorageError(StorageError.CONSTRUCTOR_FAILURE, blockClass, x);
+    }
+    block.timestamp = t.getTime() - (reverse ? maxBlockTimeInterval : 0);
+    block.used = 1;
+    block.getTicks()[0] = t;
+    index.put(new Key(block.timestamp), block);
   }
 
   @Override
-  public IterableIterator<T> iterator(boolean ascent) {
-    return iterator(null, null, ascent);
+  public void clear() {
+    Iterator blockIterator = index.iterator();
+    while (blockIterator.hasNext()) {
+      Block block = (Block) blockIterator.next();
+      block.deallocate();
+    }
+    index.clear();
   }
 
   @Override
-  public IterableIterator<T> iterator(Date from, Date till, boolean ascent) {
-    long low = from == null ? 0 : from.getTime();
-    long high = till == null ? Long.MAX_VALUE : till.getTime();
-    return ascent ? (IterableIterator<T>) new TimeSeriesIterator(low, high)
-        : (IterableIterator<T>) new TimeSeriesReverseIterator(low, high);
+  public long countTicks() {
+    long n = 0;
+    Iterator blockIterator = index.iterator();
+    while (blockIterator.hasNext()) {
+      Block block = (Block) blockIterator.next();
+      n += block.used;
+    }
+    return n;
+  }
+
+  @Override
+  public void deallocate() {
+    clear();
+    index.deallocate();
+    super.deallocate();
+  }
+
+  @Override
+  public void deallocateMembers() {
+    clear();
+  }
+
+  @Override
+  public ArrayList<T> elements() {
+    return new ArrayList<T>(this);
   }
 
   @Override
@@ -225,22 +255,6 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
       return new Date(block.getTicks()[block.used - 1].getTime());
     }
     return null;
-  }
-
-  @Override
-  public int size() {
-    return (int) countTicks();
-  }
-
-  @Override
-  public long countTicks() {
-    long n = 0;
-    Iterator blockIterator = index.iterator();
-    while (blockIterator.hasNext()) {
-      Block block = (Block) blockIterator.next();
-      n += block.used;
-    }
-    return n;
   }
 
   @Override
@@ -272,66 +286,6 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
   @Override
   public boolean has(Date timestamp) {
     return getTick(timestamp) != null;
-  }
-
-  @Override
-  public int remove(Date from, Date till) {
-    long low = from == null ? 0 : from.getTime();
-    long high = till == null ? Long.MAX_VALUE : till.getTime();
-    int nRemoved = 0;
-    Key fromKey = new Key(low - maxBlockTimeInterval);
-    Key tillKey = new Key(high);
-    Iterator blockIterator = index.iterator(fromKey, tillKey, GenericIndex.ASCENT_ORDER);
-    while (blockIterator.hasNext()) {
-      Block block = (Block) blockIterator.next();
-      int n = block.used;
-      Tick[] e = block.getTicks();
-      int l = 0, r = n;
-      while (l < r) {
-        int i = (l + r) >> 1;
-        if (low > e[i].getTime()) {
-          l = i + 1;
-        } else {
-          r = i;
-        }
-      }
-      Assert.that(l == r && (l == n || e[l].getTime() >= low));
-      while (r < n && e[r].getTime() <= high) {
-        r += 1;
-        nRemoved += 1;
-      }
-      if (l == 0 && r == n) {
-        index.remove(new Key(block.timestamp), block);
-        blockIterator = index.iterator(fromKey, tillKey, GenericIndex.ASCENT_ORDER);
-        block.deallocate();
-      } else if (l < n && l != r) {
-        if (l == 0) {
-          index.remove(new Key(block.timestamp), block);
-          block.timestamp = e[r].getTime();
-          index.put(new Key(block.timestamp), block);
-          blockIterator = index.iterator(fromKey, tillKey, GenericIndex.ASCENT_ORDER);
-        }
-        while (r < n) {
-          e[l++] = e[r++];
-        }
-        block.used = l;
-        block.modify();
-      }
-    }
-    return nRemoved;
-  }
-
-  private void addNewBlock(Tick t, boolean reverse) {
-    Block block;
-    try {
-      block = (Block) blockClass.newInstance();
-    } catch (Exception x) {
-      throw new StorageError(StorageError.CONSTRUCTOR_FAILURE, blockClass, x);
-    }
-    block.timestamp = t.getTime() - (reverse ? maxBlockTimeInterval : 0);
-    block.used = 1;
-    block.getTicks()[0] = t;
-    index.put(new Key(block.timestamp), block);
   }
 
   void insertInBlock(Block block, Tick tick, boolean reverse) {
@@ -381,14 +335,29 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
     block.modify();
   }
 
-  TimeSeriesImpl(Storage storage, Class blockClass, long maxBlockTimeInterval) {
-    this.blockClass = blockClass;
-    this.maxBlockTimeInterval = maxBlockTimeInterval;
-    blockClassName = ClassDescriptor.getClassName(blockClass);
-    index = storage.createIndex(long.class, false);
+  @Override
+  public Iterator<T> iterator() {
+    return iterator(null, null, true);
   }
 
-  TimeSeriesImpl() {}
+  @Override
+  public IterableIterator<T> iterator(boolean ascent) {
+    return iterator(null, null, ascent);
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Date from, Date till) {
+    return iterator(from, till, true);
+  }
+
+  @Override
+  public IterableIterator<T> iterator(Date from, Date till, boolean ascent) {
+    long low = from == null ? 0 : from.getTime();
+    long high = till == null ? Long.MAX_VALUE : till.getTime();
+    return ascent ? (IterableIterator<T>) new TimeSeriesIterator(low, high)
+        : (IterableIterator<T>) new TimeSeriesReverseIterator(low, high);
+  }
+
 
   @Override
   public void onLoad() {
@@ -396,31 +365,62 @@ public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollect
   }
 
   @Override
-  public void deallocateMembers() {
-    clear();
-  }
-
-  @Override
-  public void clear() {
-    Iterator blockIterator = index.iterator();
+  public int remove(Date from, Date till) {
+    long low = from == null ? 0 : from.getTime();
+    long high = till == null ? Long.MAX_VALUE : till.getTime();
+    int nRemoved = 0;
+    Key fromKey = new Key(low - maxBlockTimeInterval);
+    Key tillKey = new Key(high);
+    Iterator blockIterator = index.iterator(fromKey, tillKey, GenericIndex.ASCENT_ORDER);
     while (blockIterator.hasNext()) {
       Block block = (Block) blockIterator.next();
-      block.deallocate();
+      int n = block.used;
+      Tick[] e = block.getTicks();
+      int l = 0, r = n;
+      while (l < r) {
+        int i = (l + r) >> 1;
+        if (low > e[i].getTime()) {
+          l = i + 1;
+        } else {
+          r = i;
+        }
+      }
+      Assert.that(l == r && (l == n || e[l].getTime() >= low));
+      while (r < n && e[r].getTime() <= high) {
+        r += 1;
+        nRemoved += 1;
+      }
+      if (l == 0 && r == n) {
+        index.remove(new Key(block.timestamp), block);
+        blockIterator = index.iterator(fromKey, tillKey, GenericIndex.ASCENT_ORDER);
+        block.deallocate();
+      } else if (l < n && l != r) {
+        if (l == 0) {
+          index.remove(new Key(block.timestamp), block);
+          block.timestamp = e[r].getTime();
+          index.put(new Key(block.timestamp), block);
+          blockIterator = index.iterator(fromKey, tillKey, GenericIndex.ASCENT_ORDER);
+        }
+        while (r < n) {
+          e[l++] = e[r++];
+        }
+        block.used = l;
+        block.modify();
+      }
     }
-    index.clear();
+    return nRemoved;
   }
-
-
   @Override
-  public void deallocate() {
-    clear();
-    index.deallocate();
-    super.deallocate();
+  public int size() {
+    return (int) countTicks();
   }
-
-  private Index index;
-  private long maxBlockTimeInterval;
-  private String blockClassName;
-  private transient Class blockClass;
+  @Override
+  public Object[] toArray() {
+    return elements().toArray();
+  }
+  @Override
+  public <E> E[] toArray(E[] arr) {
+    return elements().toArray(arr);
+  }
 }
 

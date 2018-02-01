@@ -25,22 +25,6 @@ public class QueryProfiler extends StorageListener {
 
   protected HashMap<String, QueryInfo> profile = new HashMap<String, QueryInfo>();
 
-  public synchronized void queryExecution(String query, long elapsedTime,
-      boolean sequentialSearch) {
-    QueryInfo info = profile.get(query);
-    if (info == null) {
-      info = new QueryInfo();
-      info.query = query;
-      profile.put(query, info);
-    }
-    if (info.maxTime < elapsedTime) {
-      info.maxTime = elapsedTime;
-    }
-    info.totalTime += elapsedTime;
-    info.count += 1;
-    info.sequentialSearch |= sequentialSearch;
-  }
-
   /**
    * Dump queries execution profile to standard output
    */
@@ -79,5 +63,21 @@ public class QueryProfiler extends StorageListener {
     profile.values().toArray(a);
     Arrays.sort(a);
     return a;
+  }
+
+  public synchronized void queryExecution(String query, long elapsedTime,
+      boolean sequentialSearch) {
+    QueryInfo info = profile.get(query);
+    if (info == null) {
+      info = new QueryInfo();
+      info.query = query;
+      profile.put(query, info);
+    }
+    if (info.maxTime < elapsedTime) {
+      info.maxTime = elapsedTime;
+    }
+    info.totalTime += elapsedTime;
+    info.count += 1;
+    info.sequentialSearch |= sequentialSearch;
   }
 }

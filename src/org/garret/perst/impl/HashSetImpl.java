@@ -9,21 +9,20 @@ import org.garret.perst.PersistentCollection;
 class HashSetImpl<T> extends PersistentCollection<T> implements IPersistentSet<T> {
   IPersistentHash<T, T> map;
 
+  HashSetImpl() {}
+
   HashSetImpl(StorageImpl storage) {
     super(storage);
     map = storage.createHash();
   }
 
-  HashSetImpl() {}
-
   @Override
-  public boolean isEmpty() {
-    return size() != 0;
-  }
-
-  @Override
-  public int size() {
-    return map.size();
+  public boolean add(T obj) {
+    if (map.containsKey(obj)) {
+      return false;
+    }
+    map.put(obj, obj);
+    return true;
   }
 
   @Override
@@ -37,13 +36,14 @@ class HashSetImpl<T> extends PersistentCollection<T> implements IPersistentSet<T
   }
 
   @Override
-  public Object[] toArray() {
-    return map.values().toArray();
+  public void deallocate() {
+    map.deallocate();
+    super.deallocate();
   }
 
   @Override
-  public <E> E[] toArray(E a[]) {
-    return map.values().toArray(a);
+  public boolean isEmpty() {
+    return size() != 0;
   }
 
   @Override
@@ -52,12 +52,9 @@ class HashSetImpl<T> extends PersistentCollection<T> implements IPersistentSet<T
   }
 
   @Override
-  public boolean add(T obj) {
-    if (map.containsKey(obj)) {
-      return false;
-    }
-    map.put(obj, obj);
-    return true;
+  public IterableIterator<T> join(Iterator<T> with) {
+    return with == null ? (IterableIterator<T>) iterator()
+        : new JoinSetIterator<T>(getStorage(), iterator(), with);
   }
 
   @Override
@@ -66,15 +63,18 @@ class HashSetImpl<T> extends PersistentCollection<T> implements IPersistentSet<T
   }
 
   @Override
-  public void deallocate() {
-    map.deallocate();
-    super.deallocate();
+  public int size() {
+    return map.size();
   }
 
   @Override
-  public IterableIterator<T> join(Iterator<T> with) {
-    return with == null ? (IterableIterator<T>) iterator()
-        : new JoinSetIterator<T>(getStorage(), iterator(), with);
+  public Object[] toArray() {
+    return map.values().toArray();
+  }
+
+  @Override
+  public <E> E[] toArray(E a[]) {
+    return map.values().toArray(a);
   }
 }
 

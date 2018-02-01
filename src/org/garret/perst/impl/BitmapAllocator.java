@@ -70,16 +70,6 @@ public class BitmapAllocator {
     return -1;
   }
 
-  public static int locateBitmapEnd(byte[] bitmap, int offs) {
-    while (offs != 0 && bitmap[--offs] == 0);
-    return offs;
-  }
-
-  public static int locateHoleEnd(byte[] bitmap, int offs) {
-    while (offs < bitmap.length && bitmap[offs++] == 0);
-    return offs;
-  }
-
   public static void free(byte[] bitmap, long objBitPos, long objBitSize) {
     int bitOffs = (int) objBitPos & 7;
     int offs = (int) (objBitPos >>> 3);
@@ -94,6 +84,16 @@ public class BitmapAllocator {
     } else {
       bitmap[offs] &= (byte) ~(((1 << (int) objBitSize) - 1) << bitOffs);
     }
+  }
+
+  public static int locateBitmapEnd(byte[] bitmap, int offs) {
+    while (offs != 0 && bitmap[--offs] == 0);
+    return offs;
+  }
+
+  public static int locateHoleEnd(byte[] bitmap, int offs) {
+    while (offs < bitmap.length && bitmap[offs++] == 0);
+    return offs;
   }
 
   public static void reserve(byte[] bitmap, long objBitPos, long objBitSize) {

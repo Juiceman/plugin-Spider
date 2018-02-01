@@ -36,1325 +36,50 @@ import org.garret.perst.Resolver;
 import org.garret.perst.SqlOptimizerParameters;
 import org.garret.perst.Storage;
 
-class FilterIterator<T> extends IterableIterator<T> {
-  Iterator iterator;
-  Node condition;
-  QueryImpl<T> query;
-  int[] indexVar;
-  long[] intAggregateFuncValue;
-  double[] realAggregateFuncValue;
-  Object[] containsArray;
-  T currObj;
-  Object containsElem;
+class AggregateFunctionNode extends Node {
+  int index;
 
-  final static int maxIndexVars = 32;
+  Node argument;
 
-  @Override
-  public boolean hasNext() {
-    if (currObj != null) {
-      return true;
-    }
-    while (iterator.hasNext()) {
-      Object obj = iterator.next();
-      if (query.cls.isInstance(obj)) {
-        currObj = (T) obj;
-        if (condition == null) {
-          return true;
-        }
-        try {
-          if (condition.evaluateBool(this)) {
-            return true;
-          }
-        } catch (JSQLRuntimeException x) {
-          query.reportRuntimeError(x);
-        }
-        currObj = null;
-      }
-    }
-    return false;
-  }
-
-  @Override
-  public T next() {
-    if (!hasNext()) {
-      throw new NoSuchElementException();
-    }
-    T obj = currObj;
-    currObj = null;
-    return obj;
-  }
-
-  @Override
-  public void remove() {
-    throw new UnsupportedOperationException();
-  }
-
-  FilterIterator(T obj) {
-    currObj = obj;
-  }
-
-  FilterIterator(QueryImpl query, Iterator iterator, Node condition) {
-    this.query = query;
-    this.iterator = iterator;
-    this.condition = condition;
-    indexVar = new int[maxIndexVars];
-  }
-}
-
-
-class UnionIterator implements Iterator {
-  GenericIndex index;
-  Iterator currIterator;
-  Class keyType;
-  Iterator alternativesIterator;
-  Object currObj;
-
-  UnionIterator(GenericIndex index, Iterator currIterator, Iterable alternatives) {
-    this.index = index;
-    this.currIterator = currIterator;
-    this.alternativesIterator = alternatives.iterator();
-    keyType = index.getKeyType();
-  }
-
-  @Override
-  public boolean hasNext() {
-    if (currObj != null) {
-      return true;
-    }
-    while (currIterator == null || !currIterator.hasNext()) {
-      if (!alternativesIterator.hasNext()) {
-        return false;
-      }
-      Object value = alternativesIterator.next();
-      currIterator = index.iterator(value, value, GenericIndex.ASCENT_ORDER);
-    }
-    currObj = currIterator.next();
-    return true;
-  }
-
-  @Override
-  public Object next() {
-    if (!hasNext()) {
-      throw new NoSuchElementException();
-    }
-    Object obj = currObj;
-    currObj = null;
-    return obj;
-  }
-
-
-  @Override
-  public void remove() {
-    throw new UnsupportedOperationException();
-  }
-}
-
-
-class JoinIterator implements Iterator {
-  GenericIndex joinIndex;
-  Iterator iterator;
-  Iterator joinIterator;
-  Object currObj;
-
-  @Override
-  public boolean hasNext() {
-    if (currObj != null) {
-      return true;
-    }
-    while (joinIterator == null || !joinIterator.hasNext()) {
-      if (!iterator.hasNext()) {
-        return false;
-      }
-      Object obj = iterator.next();
-      Key key = new Key(obj);
-      joinIterator = joinIndex.iterator(key, key, GenericIndex.ASCENT_ORDER);
-    }
-    currObj = joinIterator.next();
-    return true;
-  }
-
-  @Override
-  public Object next() {
-    if (!hasNext()) {
-      throw new NoSuchElementException();
-    }
-    Object obj = currObj;
-    currObj = null;
-    return obj;
-  }
-
-  @Override
-  public void remove() {
-    throw new UnsupportedOperationException();
-  }
-}
-
-
-class Node implements CodeGenerator.Code {
-  int type;
-  int tag;
-
-  final static int tpBool = 0;
-  final static int tpInt = 1;
-  final static int tpReal = 2;
-  final static int tpFreeVar = 3;
-  final static int tpList = 4;
-  final static int tpObj = 5;
-  final static int tpStr = 6;
-  final static int tpDate = 7;
-  final static int tpArrayBool = 8;
-  final static int tpArrayChar = 9;
-  final static int tpArrayInt1 = 10;
-  final static int tpArrayInt2 = 11;
-  final static int tpArrayInt4 = 12;
-  final static int tpArrayInt8 = 13;
-  final static int tpArrayReal4 = 14;
-  final static int tpArrayReal8 = 15;
-  final static int tpArrayStr = 16;
-  final static int tpArrayObj = 17;
-  final static int tpCollection = 18;
-  final static int tpUnknown = 19;
-  final static int tpAny = 20;
-
-  final static String typeNames[] = {"boolean", "integer", "real", "index variable", "list",
-      "object", "string", "date", "array of boolean", "array of char", "array of byte",
-      "array of short", "array of int", "array of long", "array of float", "array of double",
-      "array of string", "array of object", "collection", "unknown", "any"};
-
-  final static int opNop = 0;
-  final static int opIntAdd = 1;
-  final static int opIntSub = 2;
-  final static int opIntMul = 3;
-  final static int opIntDiv = 4;
-  final static int opIntAnd = 5;
-  final static int opIntOr = 6;
-  final static int opIntNeg = 7;
-  final static int opIntNot = 8;
-  final static int opIntAbs = 9;
-  final static int opIntPow = 10;
-  final static int opIntEq = 11;
-  final static int opIntNe = 12;
-  final static int opIntGt = 13;
-  final static int opIntGe = 14;
-  final static int opIntLt = 15;
-  final static int opIntLe = 16;
-  final static int opIntBetween = 17;
-
-  final static int opRealEq = 18;
-  final static int opRealNe = 19;
-  final static int opRealGt = 20;
-  final static int opRealGe = 21;
-  final static int opRealLt = 22;
-  final static int opRealLe = 23;
-  final static int opRealBetween = 24;
-
-  final static int opStrEq = 25;
-  final static int opStrNe = 26;
-  final static int opStrGt = 27;
-  final static int opStrGe = 28;
-  final static int opStrLt = 29;
-  final static int opStrLe = 30;
-  final static int opStrBetween = 31;
-  final static int opStrLike = 32;
-  final static int opStrLikeEsc = 33;
-
-  final static int opBoolEq = 34;
-  final static int opBoolNe = 35;
-
-  final static int opObjEq = 36;
-  final static int opObjNe = 37;
-
-  final static int opRealAdd = 38;
-  final static int opRealSub = 39;
-  final static int opRealMul = 40;
-  final static int opRealDiv = 41;
-  final static int opRealNeg = 42;
-  final static int opRealAbs = 43;
-  final static int opRealPow = 44;
-
-  final static int opIntToReal = 45;
-  final static int opRealToInt = 46;
-  final static int opIntToStr = 47;
-  final static int opRealToStr = 48;
-
-  final static int opIsNull = 49;
-
-  final static int opStrGetAt = 50;
-  final static int opGetAtBool = 51;
-  final static int opGetAtChar = 52;
-  final static int opGetAtInt1 = 53;
-  final static int opGetAtInt2 = 54;
-  final static int opGetAtInt4 = 55;
-  final static int opGetAtInt8 = 56;
-  final static int opGetAtReal4 = 57;
-  final static int opGetAtReal8 = 58;
-  final static int opGetAtStr = 59;
-  final static int opGetAtObj = 60;
-
-  final static int opLength = 61;
-  final static int opExists = 62;
-  final static int opIndexVar = 63;
-
-  final static int opFalse = 64;
-  final static int opTrue = 65;
-  final static int opNull = 66;
-  final static int opCurrent = 67;
-
-  final static int opIntConst = 68;
-  final static int opRealConst = 69;
-  final static int opStrConst = 70;
-
-  final static int opInvoke = 71;
-
-  final static int opScanArrayBool = 72;
-  final static int opScanArrayChar = 73;
-  final static int opScanArrayInt1 = 74;
-  final static int opScanArrayInt2 = 75;
-  final static int opScanArrayInt4 = 76;
-  final static int opScanArrayInt8 = 77;
-  final static int opScanArrayReal4 = 78;
-  final static int opScanArrayReal8 = 79;
-  final static int opScanArrayStr = 80;
-  final static int opScanArrayObj = 81;
-  final static int opInString = 82;
-
-  final static int opRealSin = 83;
-  final static int opRealCos = 84;
-  final static int opRealTan = 85;
-  final static int opRealAsin = 86;
-  final static int opRealAcos = 87;
-  final static int opRealAtan = 88;
-  final static int opRealSqrt = 89;
-  final static int opRealExp = 90;
-  final static int opRealLog = 91;
-  final static int opRealCeil = 92;
-  final static int opRealFloor = 93;
-
-  final static int opBoolAnd = 94;
-  final static int opBoolOr = 95;
-  final static int opBoolNot = 96;
-
-  final static int opStrLower = 97;
-  final static int opStrUpper = 98;
-  final static int opStrConcat = 99;
-  final static int opStrLength = 100;
-
-  final static int opLoad = 100;
-
-  final static int opLoadAny = 101;
-  final static int opInvokeAny = 102;
-
-  final static int opContains = 111;
-  final static int opElement = 112;
-
-  final static int opAvg = 114;
-  final static int opCount = 115;
-  final static int opMax = 116;
-  final static int opMin = 117;
-  final static int opSum = 118;
-
-  final static int opParameter = 119;
-
-  final static int opAnyAdd = 121;
-  final static int opAnySub = 122;
-  final static int opAnyMul = 123;
-  final static int opAnyDiv = 124;
-  final static int opAnyAnd = 125;
-  final static int opAnyOr = 126;
-  final static int opAnyNeg = 127;
-  final static int opAnyNot = 128;
-  final static int opAnyAbs = 129;
-  final static int opAnyPow = 130;
-  final static int opAnyEq = 131;
-  final static int opAnyNe = 132;
-  final static int opAnyGt = 133;
-  final static int opAnyGe = 134;
-  final static int opAnyLt = 135;
-  final static int opAnyLe = 136;
-  final static int opAnyBetween = 137;
-  final static int opAnyLength = 138;
-  final static int opInAny = 139;
-  final static int opAnyToStr = 140;
-  final static int opConvertAny = 141;
-
-  final static int opResolve = 142;
-  final static int opScanCollection = 143;
-
-  final static int opDateEq = 145;
-  final static int opDateNe = 146;
-  final static int opDateGt = 147;
-  final static int opDateGe = 148;
-  final static int opDateLt = 149;
-  final static int opDateLe = 150;
-  final static int opDateBetween = 151;
-  final static int opDateToStr = 152;
-  final static int opStrToDate = 153;
-  final static int opDateConst = 154;
-
-  final static int opStrIgnoreCaseEq = 155;
-  final static int opStrIgnoreCaseNe = 156;
-  final static int opStrIgnoreCaseGt = 157;
-  final static int opStrIgnoreCaseGe = 158;
-  final static int opStrIgnoreCaseLt = 159;
-  final static int opStrIgnoreCaseLe = 160;
-  final static int opStrIgnoreCaseBetween = 161;
-  final static int opStrIgnoreCaseLike = 162;
-  final static int opStrIgnoreCaseLikeEsc = 163;
-
-  final static int opByteArrayEq = 164;
-  final static int opByteArrayNe = 165;
-
-  static String wrapNullString(Object val) {
-    return val == null ? "" : (String) val;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof Node && ((Node) o).tag == tag && ((Node) o).type == type;
-  }
-
-  static final boolean equalObjects(Object a, Object b) {
-    return a == b || (a != null && a.equals(b));
-  }
-
-
-  static final int getFieldType(Class type) {
-    if (type.equals(byte.class) || type.equals(short.class) || type.equals(int.class)
-        || type.equals(long.class)) {
-      return tpInt;
-    } else if (type.equals(boolean.class)) {
-      return tpBool;
-    } else if (type.equals(double.class) || type.equals(float.class)) {
-      return tpReal;
-    } else if (type.equals(String.class)) {
-      return tpStr;
-    } else if (type.equals(Date.class)) {
-      return tpDate;
-    } else if (type.equals(boolean[].class)) {
-      return tpArrayBool;
-    } else if (type.equals(byte[].class)) {
-      return tpArrayInt1;
-    } else if (type.equals(short[].class)) {
-      return tpArrayInt2;
-    } else if (type.equals(char[].class)) {
-      return tpArrayChar;
-    } else if (type.equals(int[].class)) {
-      return tpArrayInt4;
-    } else if (type.equals(long[].class)) {
-      return tpArrayInt8;
-    } else if (type.equals(float[].class)) {
-      return tpArrayReal4;
-    } else if (type.equals(double[].class)) {
-      return tpArrayReal8;
-    } else if (type.equals(String[].class)) {
-      return tpArrayStr;
-    } else if (Collection.class.isAssignableFrom(type)) {
-      return tpCollection;
-    } else if (type.isArray()) {
-      return tpArrayObj;
-    } else if (type.equals(Object.class)) {
-      return tpAny;
-    } else {
-      return tpObj;
-    }
-  }
-
-  int getIndirectionLevel() {
-    return 0;
-  }
-
-  String getFieldName() {
-    return null;
-  }
-
-  Field getField() {
-    return null;
-  }
-
-  boolean evaluateBool(FilterIterator t) {
-    throw new AbstractMethodError();
-  }
-
-  long evaluateInt(FilterIterator t) {
-    throw new AbstractMethodError();
-  }
-
-  double evaluateReal(FilterIterator t) {
-    throw new AbstractMethodError();
-  }
-
-  String evaluateStr(FilterIterator t) {
-    return wrapNullString(evaluateObj(t));
-  }
-
-  Date evaluateDate(FilterIterator t) {
-    return (Date) evaluateObj(t);
-  }
-
-  Object evaluateObj(FilterIterator t) {
-    switch (type) {
-      case tpStr:
-        return evaluateStr(t);
-      case tpDate:
-        return evaluateDate(t);
-      case tpInt:
-        return new Long(evaluateInt(t));
-      case tpReal:
-        return new Double(evaluateReal(t));
-      case tpBool:
-        return evaluateBool(t) ? Boolean.TRUE : Boolean.FALSE;
-      default:
-        throw new AbstractMethodError();
-    }
-  }
-
-  Class getType() {
-    return null;
-  }
-
-  @Override
-  public String toString() {
-    return "Node tag=" + tag + ", type=" + type;
-  }
-
-  Node(int type, int tag) {
-    this.type = type;
-    this.tag = tag;
-  }
-}
-
-
-class EmptyNode extends Node {
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    return true;
-  }
-
-  EmptyNode() {
-    super(tpBool, opTrue);
-  }
-}
-
-
-abstract class LiteralNode extends Node {
-  abstract Object getValue();
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    return getValue();
-  }
-
-  LiteralNode(int type, int tag) {
+  AggregateFunctionNode(int type, int tag, Node arg) {
     super(type, tag);
+    argument = arg;
   }
-}
-
-
-class IntLiteralNode extends LiteralNode {
-  long value;
 
   @Override
   public boolean equals(Object o) {
-    return o instanceof IntLiteralNode && ((IntLiteralNode) o).value == value;
-  }
-
-  @Override
-  Object getValue() {
-    return new Long(value);
+    return o instanceof AggregateFunctionNode && super.equals(o)
+        && equalObjects(((AggregateFunctionNode) o).argument, argument)
+        && ((AggregateFunctionNode) o).index == index;
   }
 
   @Override
   long evaluateInt(FilterIterator t) {
-    return value;
+    return t.intAggregateFuncValue[index];
   }
-
-  IntLiteralNode(long value) {
-    super(tpInt, opIntConst);
-    this.value = value;
-  }
-}
-
-
-class RealLiteralNode extends LiteralNode {
-  double value;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof RealLiteralNode && ((RealLiteralNode) o).value == value;
-  }
-
-  @Override
-  Object getValue() {
-    return new Double(value);
-  }
-
   @Override
   double evaluateReal(FilterIterator t) {
-    return value;
-  }
-
-  RealLiteralNode(double value) {
-    super(tpReal, opRealConst);
-    this.value = value;
+    return t.realAggregateFuncValue[index];
   }
 }
 
 
-class StrLiteralNode extends LiteralNode {
-  String value;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof StrLiteralNode && ((StrLiteralNode) o).value.equals(value);
-  }
-
-  @Override
-  Object getValue() {
-    return value;
-  }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    return value;
-  }
-
-  StrLiteralNode(String value) {
-    super(tpStr, opStrConst);
-    this.value = value;
-  }
-}
-
-
-class CurrentNode extends Node {
-  @Override
-  Class getType() {
-    return cls;
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    return t.currObj;
-  }
-
-  CurrentNode(Class cls) {
-    super(tpObj, opCurrent);
-    this.cls = cls;
-  }
-
-  Class cls;
-}
-
-
-class DateLiteralNode extends LiteralNode {
-  Date value;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof DateLiteralNode && ((DateLiteralNode) o).value.equals(value);
-  }
-
-  @Override
-  Object getValue() {
-    return value;
-  }
-
-  @Override
-  Date evaluateDate(FilterIterator t) {
-    return value;
-  }
-
-  DateLiteralNode(Date value) {
-    super(tpDate, opDateConst);
-    this.value = value;
-  }
-}
-
-
-class ConstantNode extends LiteralNode {
-  @Override
-  Object getValue() {
-    switch (tag) {
-      case opNull:
-        return null;
-      case opFalse:
-        return Boolean.FALSE;
-      case opTrue:
-        return Boolean.TRUE;
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    return tag != opFalse;
-  }
-
-  ConstantNode(int type, int tag) {
-    super(type, tag);
-  }
-}
-
-
-class IndexOutOfRangeError extends Error {
+class Binding {
+  Binding next;
+  String name;
+  boolean used;
   int loopId;
 
-  IndexOutOfRangeError(int loop) {
+  Binding(String ident, int loop, Binding chain) {
+    name = ident;
+    used = false;
+    next = chain;
     loopId = loop;
   }
-}
-
-
-class ExistsNode extends Node {
-  Node expr;
-  int loopId;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof ExistsNode && ((ExistsNode) o).expr.equals(expr)
-        && ((ExistsNode) o).loopId == loopId;
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    t.indexVar[loopId] = 0;
-    try {
-      while (!expr.evaluateBool(t)) {
-        t.indexVar[loopId] += 1;
-      }
-      return true;
-    } catch (IndexOutOfRangeError x) {
-      if (x.loopId != loopId) {
-        throw x;
-      }
-      return false;
-    }
-  }
-
-  ExistsNode(Node expr, int loopId) {
-    super(tpBool, opExists);
-    this.expr = expr;
-    this.loopId = loopId;
-  }
-}
-
-
-class IndexNode extends Node {
-  int loopId;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof IndexNode && ((IndexNode) o).loopId == loopId;
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    return t.indexVar[loopId];
-  }
-
-  IndexNode(int loop) {
-    super(tpInt, opIndexVar);
-    loopId = loop;
-  }
-}
-
-
-class GetAtNode extends Node {
-  Node left;
-  Node right;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof GetAtNode && ((GetAtNode) o).left.equals(left)
-        && ((GetAtNode) o).right.equals(right);
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    Object arr = left.evaluateObj(t);
-    long idx = right.evaluateInt(t);
-
-    if (right.tag == opIndexVar) {
-      try {
-        if (idx >= Array.getLength(arr)) {
-          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
-        }
-      } catch (IllegalArgumentException x) {
-        throw new Error("Argument is not array");
-      }
-    }
-    int index = (int) idx;
-    switch (tag) {
-      case opGetAtInt1:
-        return ((byte[]) arr)[index];
-      case opGetAtInt2:
-        return ((short[]) arr)[index];
-      case opGetAtInt4:
-        return ((int[]) arr)[index];
-      case opGetAtInt8:
-        return ((long[]) arr)[index];
-      case opGetAtChar:
-        return ((char[]) arr)[index];
-      case opStrGetAt:
-        return ((String) arr).charAt(index);
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    Object arr = left.evaluateObj(t);
-    long index = right.evaluateInt(t);
-
-    if (right.tag == opIndexVar) {
-      try {
-        if (index >= Array.getLength(arr)) {
-          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
-        }
-      } catch (IllegalArgumentException x) {
-        throw new Error("Argument is not array");
-      }
-    }
-    switch (tag) {
-      case opGetAtReal4:
-        return ((float[]) arr)[(int) index];
-      case opGetAtReal8:
-        return ((double[]) arr)[(int) index];
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    boolean[] arr = (boolean[]) left.evaluateObj(t);
-    long index = right.evaluateInt(t);
-
-    if (right.tag == opIndexVar) {
-      try {
-        if (index >= arr.length) {
-          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
-        }
-      } catch (IllegalArgumentException x) {
-        throw new Error("Argument is not array");
-      }
-    }
-    return arr[(int) index];
-  }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    String[] arr = (String[]) left.evaluateObj(t);
-    long index = right.evaluateInt(t);
-
-    if (right.tag == opIndexVar) {
-      try {
-        if (index >= arr.length) {
-          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
-        }
-      } catch (IllegalArgumentException x) {
-        throw new Error("Argument is not array");
-      }
-    }
-    return wrapNullString(arr[(int) index]);
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    Object arr = left.evaluateObj(t);
-    long index = right.evaluateInt(t);
-
-    try {
-      if (right.tag == Node.opIndexVar) {
-        if (index >= Array.getLength(arr)) {
-          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
-        }
-      }
-      return Array.get(arr, (int) index);
-    } catch (IllegalArgumentException x) {
-      throw new Error("Argument is not array");
-    }
-  }
-
-  GetAtNode(int type, int tag, Node base, Node index) {
-    super(type, tag);
-    left = base;
-    right = index;
-  }
-}
-
-
-class InvokeNode extends Node {
-  Node target;
-  Node[] arguments;
-  Method mth;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof InvokeNode && equalObjects(((InvokeNode) o).target, target)
-        && Arrays.equals(((InvokeNode) o).arguments, arguments)
-        && equalObjects(((InvokeNode) o).mth, mth);
-  }
-
-  @Override
-  Class getType() {
-    return mth.getReturnType();
-  }
-
-  @Override
-  String getFieldName() {
-    if (target != null && target.tag != opCurrent) {
-      String baseName = target.getFieldName();
-      return (baseName != null) ? baseName + "." + mth.getName() : null;
-    } else {
-      return mth.getName();
-    }
-  }
-
-  Object getTarget(FilterIterator t) {
-    if (target == null) {
-      return t.currObj;
-    }
-    Object obj = target.evaluateObj(t);
-    if (obj == null) {
-      throw new JSQLNullPointerException(target.getType(), mth.toString());
-    }
-    return obj;
-  }
-
-  Object[] evaluateArguments(FilterIterator t) {
-    Object[] parameters = null;
-    int n = arguments.length;
-    if (n > 0) {
-      parameters = new Object[n];
-      for (int i = 0; i < n; i++) {
-        Node arg = arguments[i];
-        Object value;
-        switch (arg.type) {
-          case Node.tpInt:
-            value = new Long(arg.evaluateInt(t));
-            break;
-          case Node.tpReal:
-            value = new Double(arg.evaluateReal(t));
-            break;
-          case Node.tpStr:
-            value = arg.evaluateStr(t);
-            break;
-          case Node.tpDate:
-            value = arg.evaluateDate(t);
-            break;
-          case Node.tpBool:
-            value = new Boolean(arg.evaluateBool(t));
-            break;
-          default:
-            value = arg.evaluateObj(t);
-        }
-        parameters[i] = value;
-      }
-    }
-    return parameters;
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    Object obj = getTarget(t);
-    Object[] parameters = evaluateArguments(t);
-    try {
-      return ((Number) mth.invoke(obj, parameters)).longValue();
-    } catch (Exception x) {
-      x.printStackTrace();
-      throw new Error("Method invocation error");
-    }
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    Object obj = getTarget(t);
-    Object[] parameters = evaluateArguments(t);
-    try {
-      return ((Number) mth.invoke(obj, parameters)).doubleValue();
-    } catch (Exception x) {
-      x.printStackTrace();
-      throw new Error("Method invocation error");
-    }
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    Object obj = getTarget(t);
-    Object[] parameters = evaluateArguments(t);
-    try {
-      return ((Boolean) mth.invoke(obj, parameters)).booleanValue();
-    } catch (Exception x) {
-      x.printStackTrace();
-      throw new Error("Method invocation error");
-    }
-  }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    Object obj = getTarget(t);
-    Object[] parameters = evaluateArguments(t);
-    try {
-      return wrapNullString(mth.invoke(obj, parameters));
-    } catch (Exception x) {
-      x.printStackTrace();
-      throw new Error("Method invocation error");
-    }
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    Object obj = getTarget(t);
-    Object[] parameters = evaluateArguments(t);
-    try {
-      return mth.invoke(obj, parameters);
-    } catch (Exception x) {
-      x.printStackTrace();
-      throw new Error("Method invocation error");
-    }
-  }
-
-  InvokeNode(Node target, Method mth, Node arguments[]) {
-    super(getFieldType(mth.getReturnType()), opInvoke);
-    this.target = target;
-    this.arguments = arguments;
-    this.mth = mth;
-  }
-}
-
-
-class InvokeAnyNode extends Node {
-  Node target;
-  Node[] arguments;
-  Class[] profile;
-  String methodName;
-  String containsFieldName;
-
-  @Override
-  public boolean equals(Object o) {
-    if (!(o instanceof InvokeAnyNode)) {
-      return false;
-    }
-    InvokeAnyNode node = (InvokeAnyNode) o;
-    return equalObjects(node.target, target) && Arrays.equals(node.arguments, arguments)
-        && Arrays.equals(node.profile, profile) && equalObjects(node.methodName, methodName)
-        && equalObjects(node.containsFieldName, containsFieldName);
-  }
-
-  @Override
-  Class getType() {
-    return Object.class;
-  }
-
-  @Override
-  String getFieldName() {
-    if (target != null) {
-      if (target.tag != opCurrent) {
-        String baseName = target.getFieldName();
-        return (baseName != null) ? baseName + "." + methodName : null;
-      } else {
-        return methodName;
-      }
-    } else {
-      return containsFieldName != null ? containsFieldName + "." + methodName : methodName;
-    }
-  }
-
-  InvokeAnyNode(Node target, String name, Node arguments[], String containsFieldName) {
-    super(tpAny, opInvokeAny);
-    this.target = target;
-    this.containsFieldName = containsFieldName;
-    methodName = name;
-    this.arguments = arguments;
-    profile = new Class[arguments.length];
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    Class cls;
-    Method m;
-    Object obj = t.currObj;
-    if (target != null) {
-      obj = target.evaluateObj(t);
-      if (obj == null) {
-        throw new JSQLNullPointerException(null, methodName);
-      }
-    }
-    Object[] parameters = null;
-    int n = arguments.length;
-    if (n > 0) {
-      parameters = new Object[n];
-      for (int i = 0; i < n; i++) {
-        Node arg = arguments[i];
-        Object value;
-        Class type;
-        switch (arg.type) {
-          case Node.tpInt:
-            value = new Long(arg.evaluateInt(t));
-            type = long.class;
-            break;
-          case Node.tpReal:
-            value = new Double(arg.evaluateReal(t));
-            type = double.class;
-            break;
-          case Node.tpStr:
-            value = arg.evaluateStr(t);
-            type = String.class;
-            break;
-          case Node.tpDate:
-            value = arg.evaluateDate(t);
-            type = Date.class;
-            break;
-          case Node.tpBool:
-            value = new Boolean(arg.evaluateBool(t));
-            type = boolean.class;
-            break;
-          default:
-            value = arg.evaluateObj(t);
-            if (value != null) {
-              type = value.getClass();
-              if (type.equals(Long.class) || type.equals(Integer.class) || type.equals(Byte.class)
-                  || type.equals(Character.class) || type.equals(Short.class)) {
-                type = long.class;
-              } else if (type.equals(Float.class) || type.equals(Double.class)) {
-                type = double.class;
-              } else if (type.equals(Boolean.class)) {
-                type = boolean.class;
-              }
-            } else {
-              type = Object.class;
-            }
-        }
-        parameters[i] = value;
-        profile[i] = type;
-      }
-    }
-    try {
-      if (target == null && t.containsElem != null) {
-        if ((m = QueryImpl.lookupMethod(t.containsElem.getClass(), methodName, profile)) != null) {
-          return t.query.resolve(m.invoke(t.containsElem, parameters));
-        }
-      }
-      cls = obj.getClass();
-      if ((m = QueryImpl.lookupMethod(cls, methodName, profile)) != null) {
-        return t.query.resolve(m.invoke(t.containsElem, parameters));
-      }
-    } catch (InvocationTargetException x) {
-      x.printStackTrace();
-      throw new IllegalAccessError();
-    } catch (IllegalAccessException x) {
-      x.printStackTrace();
-      throw new IllegalAccessError();
-    }
-
-    throw new JSQLNoSuchFieldException(cls, methodName);
-  }
-}
-
-
-class ConvertAnyNode extends Node {
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof ConvertAnyNode && super.equals(o) && ((ConvertAnyNode) o).expr.equals(expr);
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    return ((Boolean) evaluateObj(t)).booleanValue();
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    return ((Number) evaluateObj(t)).longValue();
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    return ((Number) evaluateObj(t)).doubleValue();
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    return expr.evaluateObj(t);
-  }
-
-  ConvertAnyNode(int type, Node expr) {
-    super(type, opConvertAny);
-    this.expr = expr;
-  }
-
-  Node expr;
 }
 
 
 class BinOpNode extends Node {
-  Node left;
-  Node right;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof BinOpNode && super.equals(o) && ((BinOpNode) o).left.equals(left)
-        && ((BinOpNode) o).right.equals(right);
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    long lval = left.evaluateInt(t);
-    long rval = right.evaluateInt(t);
-    long res;
-    switch (tag) {
-      case opIntAdd:
-        return lval + rval;
-      case opIntSub:
-        return lval - rval;
-      case opIntMul:
-        return lval * rval;
-      case opIntDiv:
-        if (rval == 0) {
-          throw new JSQLArithmeticException("Divided by zero");
-        }
-        return lval / rval;
-      case opIntAnd:
-        return lval & rval;
-      case opIntOr:
-        return lval | rval;
-      case opIntPow:
-        res = 1;
-        if (rval < 0) {
-          lval = 1 / lval;
-          rval = -rval;
-        }
-        while (rval != 0) {
-          if ((rval & 1) != 0) {
-            res *= lval;
-          }
-          lval *= lval;
-          rval >>>= 1;
-        }
-        return res;
-      default:
-        throw new Error("Invalid tag");
-    }
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    double lval = left.evaluateReal(t);
-    double rval = right.evaluateReal(t);
-    switch (tag) {
-      case opRealAdd:
-        return lval + rval;
-      case opRealSub:
-        return lval - rval;
-      case opRealMul:
-        return lval * rval;
-      case opRealDiv:
-        return lval / rval;
-      case opRealPow:
-        return Math.pow(lval, rval);
-      default:
-        throw new Error("Invalid tag");
-    }
-  }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    String lval = left.evaluateStr(t);
-    String rval = right.evaluateStr(t);
-    return lval + rval;
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    Object lval, rval;
-    try {
-      lval = left.evaluateObj(t);
-    } catch (JSQLRuntimeException x) {
-      t.query.reportRuntimeError(x);
-      rval = right.evaluateObj(t);
-      if (rval instanceof Boolean) {
-        return ((Boolean) rval).booleanValue() ? Boolean.TRUE : Boolean.FALSE;
-      }
-      throw x;
-    }
-
-    if (lval instanceof Boolean) {
-      switch (tag) {
-        case opAnyAnd:
-          return ((Boolean) lval).booleanValue() && ((Boolean) right.evaluateObj(t)).booleanValue()
-              ? Boolean.TRUE
-              : Boolean.FALSE;
-        case opAnyOr:
-          return ((Boolean) lval).booleanValue() || ((Boolean) right.evaluateObj(t)).booleanValue()
-              ? Boolean.TRUE
-              : Boolean.FALSE;
-        default:
-          throw new Error("Operation is not applicable to operands of boolean type");
-      }
-    }
-    rval = right.evaluateObj(t);
-    if (lval instanceof Double || lval instanceof Float || rval instanceof Double
-        || rval instanceof Float) {
-      double r1 = ((Number) lval).doubleValue();
-      double r2 = ((Number) rval).doubleValue();
-      switch (tag) {
-        case opAnyAdd:
-          return new Double(r1 + r2);
-        case opAnySub:
-          return new Double(r1 - r2);
-        case opAnyMul:
-          return new Double(r1 * r2);
-        case opAnyDiv:
-          return new Double(r1 / r2);
-        case opAnyPow:
-          return new Double(Math.pow(r1, r2));
-        default:
-          throw new Error("Operation is not applicable to operands of real type");
-      }
-    } else if (lval instanceof String && rval instanceof String) {
-      return (String) lval + (String) rval;
-    } else {
-      long i1 = ((Number) lval).longValue();
-      long i2 = ((Number) rval).longValue();
-      long res;
-      switch (tag) {
-        case opAnyAdd:
-          return new Long(i1 + i2);
-        case opAnySub:
-          return new Long(i1 - i2);
-        case opAnyMul:
-          return new Long(i1 * i2);
-        case opAnyDiv:
-          if (i2 == 0) {
-            throw new JSQLArithmeticException("Divided by zero");
-          }
-          return new Long(i1 / i2);
-        case opAnyAnd:
-          return new Long(i1 & i2);
-        case opAnyOr:
-          return new Long(i1 | i2);
-        case opAnyPow:
-          res = 1;
-          if (i1 < 0) {
-            i2 = 1 / i2;
-            i1 = -i1;
-          }
-          while (i1 != 0) {
-            if ((i1 & 1) != 0) {
-              res *= i2;
-            }
-            i2 *= i2;
-            i1 >>>= 1;
-          }
-          return new Long(res);
-        default:
-          throw new Error("Operation is not applicable to operands of integer type");
-      }
-    }
-  }
-
   static boolean areEqual(Object a, Object b) {
     if (a == b) {
       return true;
@@ -1368,7 +93,6 @@ class BinOpNode extends Node {
     }
     return false;
   }
-
   static int compare(Object a, Object b) {
     if (a == null) {
       return b == null ? 0 : -1;
@@ -1386,6 +110,22 @@ class BinOpNode extends Node {
     } else {
       return ((Comparable) a).compareTo(b);
     }
+  }
+
+  Node left;
+
+  Node right;
+
+  BinOpNode(int type, int tag, Node left, Node right) {
+    super(type, tag);
+    this.left = left;
+    this.right = right;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof BinOpNode && super.equals(o) && ((BinOpNode) o).left.equals(left)
+        && ((BinOpNode) o).right.equals(right);
   }
 
   @Override
@@ -1628,16 +368,173 @@ class BinOpNode extends Node {
     }
   }
 
-  BinOpNode(int type, int tag, Node left, Node right) {
-    super(type, tag);
-    this.left = left;
-    this.right = right;
+  @Override
+  long evaluateInt(FilterIterator t) {
+    long lval = left.evaluateInt(t);
+    long rval = right.evaluateInt(t);
+    long res;
+    switch (tag) {
+      case opIntAdd:
+        return lval + rval;
+      case opIntSub:
+        return lval - rval;
+      case opIntMul:
+        return lval * rval;
+      case opIntDiv:
+        if (rval == 0) {
+          throw new JSQLArithmeticException("Divided by zero");
+        }
+        return lval / rval;
+      case opIntAnd:
+        return lval & rval;
+      case opIntOr:
+        return lval | rval;
+      case opIntPow:
+        res = 1;
+        if (rval < 0) {
+          lval = 1 / lval;
+          rval = -rval;
+        }
+        while (rval != 0) {
+          if ((rval & 1) != 0) {
+            res *= lval;
+          }
+          lval *= lval;
+          rval >>>= 1;
+        }
+        return res;
+      default:
+        throw new Error("Invalid tag");
+    }
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    Object lval, rval;
+    try {
+      lval = left.evaluateObj(t);
+    } catch (JSQLRuntimeException x) {
+      t.query.reportRuntimeError(x);
+      rval = right.evaluateObj(t);
+      if (rval instanceof Boolean) {
+        return ((Boolean) rval).booleanValue() ? Boolean.TRUE : Boolean.FALSE;
+      }
+      throw x;
+    }
+
+    if (lval instanceof Boolean) {
+      switch (tag) {
+        case opAnyAnd:
+          return ((Boolean) lval).booleanValue() && ((Boolean) right.evaluateObj(t)).booleanValue()
+              ? Boolean.TRUE
+              : Boolean.FALSE;
+        case opAnyOr:
+          return ((Boolean) lval).booleanValue() || ((Boolean) right.evaluateObj(t)).booleanValue()
+              ? Boolean.TRUE
+              : Boolean.FALSE;
+        default:
+          throw new Error("Operation is not applicable to operands of boolean type");
+      }
+    }
+    rval = right.evaluateObj(t);
+    if (lval instanceof Double || lval instanceof Float || rval instanceof Double
+        || rval instanceof Float) {
+      double r1 = ((Number) lval).doubleValue();
+      double r2 = ((Number) rval).doubleValue();
+      switch (tag) {
+        case opAnyAdd:
+          return new Double(r1 + r2);
+        case opAnySub:
+          return new Double(r1 - r2);
+        case opAnyMul:
+          return new Double(r1 * r2);
+        case opAnyDiv:
+          return new Double(r1 / r2);
+        case opAnyPow:
+          return new Double(Math.pow(r1, r2));
+        default:
+          throw new Error("Operation is not applicable to operands of real type");
+      }
+    } else if (lval instanceof String && rval instanceof String) {
+      return (String) lval + (String) rval;
+    } else {
+      long i1 = ((Number) lval).longValue();
+      long i2 = ((Number) rval).longValue();
+      long res;
+      switch (tag) {
+        case opAnyAdd:
+          return new Long(i1 + i2);
+        case opAnySub:
+          return new Long(i1 - i2);
+        case opAnyMul:
+          return new Long(i1 * i2);
+        case opAnyDiv:
+          if (i2 == 0) {
+            throw new JSQLArithmeticException("Divided by zero");
+          }
+          return new Long(i1 / i2);
+        case opAnyAnd:
+          return new Long(i1 & i2);
+        case opAnyOr:
+          return new Long(i1 | i2);
+        case opAnyPow:
+          res = 1;
+          if (i1 < 0) {
+            i2 = 1 / i2;
+            i1 = -i1;
+          }
+          while (i1 != 0) {
+            if ((i1 & 1) != 0) {
+              res *= i2;
+            }
+            i2 *= i2;
+            i1 >>>= 1;
+          }
+          return new Long(res);
+        default:
+          throw new Error("Operation is not applicable to operands of integer type");
+      }
+    }
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    double lval = left.evaluateReal(t);
+    double rval = right.evaluateReal(t);
+    switch (tag) {
+      case opRealAdd:
+        return lval + rval;
+      case opRealSub:
+        return lval - rval;
+      case opRealMul:
+        return lval * rval;
+      case opRealDiv:
+        return lval / rval;
+      case opRealPow:
+        return Math.pow(lval, rval);
+      default:
+        throw new Error("Invalid tag");
+    }
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    String lval = left.evaluateStr(t);
+    String rval = right.evaluateStr(t);
+    return lval + rval;
   }
 }
 
 
 class CompareNode extends Node {
   Node o1, o2, o3;
+
+  CompareNode(int tag, Node a, Node b, Node c) {
+    super(tpBool, tag);
+    o1 = a;
+    o2 = b;
+    o3 = c;
+  }
 
   @Override
   public boolean equals(Object o) {
@@ -1738,574 +635,32 @@ class CompareNode extends Node {
         throw new Error("Invalid tag " + tag);
     }
   }
-
-  CompareNode(int tag, Node a, Node b, Node c) {
-    super(tpBool, tag);
-    o1 = a;
-    o2 = b;
-    o3 = c;
-  }
 }
 
 
-class UnaryOpNode extends Node {
-  Node opd;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof UnaryOpNode && super.equals(o) && ((UnaryOpNode) o).opd.equals(opd);
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    Object val = opd.evaluateObj(t);
-    switch (tag) {
-      case opAnyNeg:
-        return val instanceof Double || val instanceof Float
-            ? (Object) new Double(-((Number) val).doubleValue())
-            : (Object) new Long(-((Number) val).longValue());
-      case opAnyAbs:
-        if (val instanceof Double || val instanceof Float) {
-          double rval = ((Number) val).doubleValue();
-          return new Double(rval < 0 ? -rval : rval);
-        } else {
-          long ival = ((Number) val).longValue();
-          return new Long(ival < 0 ? -ival : ival);
-        }
-      case opAnyNot:
-        return val instanceof Boolean
-            ? ((Boolean) val).booleanValue() ? Boolean.FALSE : Boolean.TRUE
-            : (Object) new Long(~((Number) val).longValue());
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    long val;
-    switch (tag) {
-      case opIntNot:
-        return ~opd.evaluateInt(t);
-      case opIntNeg:
-        return -opd.evaluateInt(t);
-      case opIntAbs:
-        val = opd.evaluateInt(t);
-        return val < 0 ? -val : val;
-      case opRealToInt:
-        return (long) opd.evaluateReal(t);
-      case opAnyLength: {
-        Object obj = opd.evaluateObj(t);
-        if (obj instanceof String) {
-          return ((String) obj).length();
-        } else {
-          try {
-            return Array.getLength(obj);
-          } catch (IllegalArgumentException x) {
-            throw new Error("Argument is not array");
-          }
-        }
-      }
-      case opLength:
-        try {
-          return Array.getLength(opd.evaluateObj(t));
-        } catch (IllegalArgumentException x) {
-          throw new Error("Argument is not array");
-        }
-      case opStrLength:
-        return opd.evaluateStr(t).length();
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    double val;
-    switch (tag) {
-      case opRealNeg:
-        return -opd.evaluateReal(t);
-      case opRealAbs:
-        val = opd.evaluateReal(t);
-        return val < 0 ? -val : val;
-      case opRealSin:
-        return Math.sin(opd.evaluateReal(t));
-      case opRealCos:
-        return Math.cos(opd.evaluateReal(t));
-      case opRealTan:
-        return Math.tan(opd.evaluateReal(t));
-      case opRealAsin:
-        return Math.asin(opd.evaluateReal(t));
-      case opRealAcos:
-        return Math.acos(opd.evaluateReal(t));
-      case opRealAtan:
-        return Math.atan(opd.evaluateReal(t));
-      case opRealExp:
-        return Math.exp(opd.evaluateReal(t));
-      case opRealLog:
-        return Math.log(opd.evaluateReal(t));
-      case opRealSqrt:
-        return Math.sqrt(opd.evaluateReal(t));
-      case opRealCeil:
-        return Math.ceil(opd.evaluateReal(t));
-      case opRealFloor:
-        return Math.floor(opd.evaluateReal(t));
-      case opIntToReal:
-        return opd.evaluateInt(t);
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  Date evaluateDate(FilterIterator t) {
-    switch (tag) {
-      case opStrToDate:
-        return QueryImpl.parseDate(opd.evaluateStr(t));
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    switch (tag) {
-      case opStrUpper:
-        return opd.evaluateStr(t).toUpperCase();
-      case opStrLower:
-        return opd.evaluateStr(t).toLowerCase();
-      case opIntToStr:
-        return Long.toString(opd.evaluateInt(t), 10);
-      case opRealToStr:
-        return Double.toString(opd.evaluateReal(t));
-      case opDateToStr:
-        return opd.evaluateDate(t).toString();
-      case opAnyToStr:
-        return opd.evaluateObj(t).toString();
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    switch (tag) {
-      case opBoolNot:
-        return !opd.evaluateBool(t);
-      case opIsNull:
-        return opd.evaluateObj(t) == null;
-      default:
-        throw new Error("Invalid tag " + tag);
-    }
-  }
-
-  UnaryOpNode(int type, int tag, Node node) {
+class ConstantNode extends LiteralNode {
+  ConstantNode(int type, int tag) {
     super(type, tag);
-    opd = node;
-  }
-}
-
-
-class LoadAnyNode extends Node {
-  String fieldName;
-  String containsFieldName;
-  Node base;
-  Field f;
-  Method m;
-
-  @Override
-  public boolean equals(Object o) {
-    if (!(o instanceof LoadAnyNode)) {
-      return false;
-    }
-    LoadAnyNode node = (LoadAnyNode) o;
-    return equalObjects(node.base, base) && equalObjects(node.fieldName, fieldName)
-        && equalObjects(node.f, f) && equalObjects(node.m, m);
-  }
-
-  @Override
-  Class getType() {
-    return Object.class;
-  }
-
-  @Override
-  Field getField() {
-    return f;
-  }
-
-  @Override
-  String getFieldName() {
-    if (base != null) {
-      if (base.tag != opCurrent) {
-        String baseName = base.getFieldName();
-        return (baseName != null) ? baseName + "." + fieldName : null;
-      } else {
-        return fieldName;
-      }
-    } else {
-      return containsFieldName != null ? containsFieldName + "." + fieldName : fieldName;
-    }
-  }
-
-  LoadAnyNode(Node base, String name, String containsFieldName) {
-    super(tpAny, opLoadAny);
-    fieldName = name;
-    this.containsFieldName = containsFieldName;
-    this.base = base;
-  }
-
-  @Override
-  public String toString() {
-    return "LoadAnyNode: fieldName='" + fieldName + "', containsFieldName='" + containsFieldName
-        + "', base=(" + base + "), f=" + f + ", m=" + m;
-  }
-
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    Object obj;
-    Class cls;
-    Field f = this.f;
-    Method m = this.m;
-    try {
-      if (base == null) {
-        if (t.containsElem != null) {
-          obj = t.containsElem;
-          cls = obj.getClass();
-          if (f != null && f.getDeclaringClass().equals(cls)) {
-            return t.query.resolve(f.get(obj));
-          }
-          if (m != null && m.getDeclaringClass().equals(cls)) {
-            return t.query.resolve(m.invoke(obj));
-          }
-          if ((f = ClassDescriptor.locateField(cls, fieldName)) != null) {
-            this.f = f;
-            return t.query.resolve(f.get(obj));
-          }
-          if ((m = QueryImpl.lookupMethod(cls, fieldName, QueryImpl.defaultProfile)) != null) {
-            this.m = m;
-            return t.query.resolve(m.invoke(obj));
-          }
-        }
-        obj = t.currObj;
-      } else {
-        obj = base.evaluateObj(t);
-        if (obj == null) {
-          throw new JSQLNullPointerException(null, fieldName);
-        }
-      }
-      cls = obj.getClass();
-      if (f != null && f.getDeclaringClass().equals(cls)) {
-        return t.query.resolve(f.get(obj));
-      }
-      if (m != null && m.getDeclaringClass().equals(cls)) {
-        return t.query.resolve(m.invoke(obj));
-      }
-      if ((f = ClassDescriptor.locateField(cls, fieldName)) != null) {
-        this.f = f;
-        return t.query.resolve(f.get(obj));
-      }
-      if ((m = QueryImpl.lookupMethod(cls, fieldName, QueryImpl.defaultProfile)) != null) {
-        this.m = m;
-        return t.query.resolve(m.invoke(obj));
-      }
-    } catch (IllegalAccessException x) {
-      x.printStackTrace();
-      throw new IllegalAccessError();
-    } catch (InvocationTargetException x) {
-      x.printStackTrace();
-      throw new IllegalAccessError();
-    }
-
-    throw new JSQLNoSuchFieldException(cls, fieldName);
-  }
-}
-
-
-class ResolveNode extends Node {
-  Resolver resolver;
-  Class resolvedClass;
-  Node expr;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof ResolveNode && ((ResolveNode) o).expr.equals(expr)
-        && ((ResolveNode) o).resolver.equals(resolver)
-        && ((ResolveNode) o).resolvedClass.equals(resolvedClass);
-  }
-
-  @Override
-  Class getType() {
-    return resolvedClass;
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    return resolver.resolve(expr.evaluateObj(t));
-  }
-
-  @Override
-  Field getField() {
-    return (expr != null) ? expr.getField() : null;
-  }
-
-  @Override
-  String getFieldName() {
-    return (expr != null) ? expr.getFieldName() : null;
-  }
-
-  ResolveNode(Node expr, Resolver resolver, Class resolvedClass) {
-    super(tpObj, opResolve);
-    this.expr = expr;
-    this.resolver = resolver;
-    this.resolvedClass = resolvedClass;
-  }
-}
-
-
-class LoadNode extends Node {
-  Field field;
-  Node base;
-
-  @Override
-  int getIndirectionLevel() {
-    return base == null ? 0 : base.getIndirectionLevel() + 1;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof LoadNode && super.equals(o) && ((LoadNode) o).field.equals(field)
-        && equalObjects(((LoadNode) o).base, base);
-  }
-
-  public boolean isSelfField() {
-    return base == null || base.tag == opCurrent;
-  }
-
-  @Override
-  Class getType() {
-    return field.getType();
-  }
-
-  Class getDeclaringClass() {
-    return field.getDeclaringClass();
-  }
-
-  @Override
-  Field getField() {
-    return field;
-  }
-
-  @Override
-  String getFieldName() {
-    if (base != null && base.tag != opCurrent) {
-      String baseName = base.getFieldName();
-      return (baseName != null) ? baseName + "." + field.getName() : null;
-    } else {
-      return field.getName();
-    }
-  }
-
-  final Object getBase(FilterIterator t) {
-    if (base == null) {
-      return t.currObj;
-    }
-    Object obj = base.evaluateObj(t);
-    if (obj == null) {
-      throw new JSQLNullPointerException(base.getType(), field.getName());
-    }
-    return obj;
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    try {
-      return field.getLong(getBase(t));
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    try {
-      return field.getDouble(getBase(t));
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
   }
 
   @Override
   boolean evaluateBool(FilterIterator t) {
-    try {
-      return field.getBoolean(getBase(t));
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
+    return tag != opFalse;
+  }
+
+  @Override
+  Object getValue() {
+    switch (tag) {
+      case opNull:
+        return null;
+      case opFalse:
+        return Boolean.FALSE;
+      case opTrue:
+        return Boolean.TRUE;
+      default:
+        throw new Error("Invalid tag " + tag);
     }
   }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    try {
-      return wrapNullString(field.get(getBase(t)));
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    try {
-      return field.get(getBase(t));
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  LoadNode(Node base, Field f) {
-    super(getFieldType(f.getType()), opLoad);
-    field = f;
-    this.base = base;
-  }
-}
-
-
-class AggregateFunctionNode extends Node {
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof AggregateFunctionNode && super.equals(o)
-        && equalObjects(((AggregateFunctionNode) o).argument, argument)
-        && ((AggregateFunctionNode) o).index == index;
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    return t.intAggregateFuncValue[index];
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    return t.realAggregateFuncValue[index];
-  }
-
-  AggregateFunctionNode(int type, int tag, Node arg) {
-    super(type, tag);
-    argument = arg;
-  }
-
-  int index;
-  Node argument;
-}
-
-
-class InvokeElementNode extends InvokeNode {
-  String containsArrayName;
-
-  InvokeElementNode(Method mth, Node arguments[], String arrayName) {
-    super(null, mth, arguments);
-    containsArrayName = arrayName;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof InvokeElementNode && super.equals(o);
-  }
-
-  @Override
-  Object getTarget(FilterIterator t) {
-    return t.containsElem;
-  }
-
-  @Override
-  String getFieldName() {
-    if (containsArrayName != null) {
-      return containsArrayName + "." + mth.getName();
-    } else {
-      return null;
-    }
-  }
-}
-
-
-class ElementNode extends Node {
-  String arrayName;
-  Field field;
-  Class type;
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof ElementNode && equalObjects(((ElementNode) o).arrayName, arrayName)
-        && equalObjects(((ElementNode) o).field, field)
-        && equalObjects(((ElementNode) o).type, type);
-  }
-
-  ElementNode(String array, Field f) {
-    super(getFieldType(f.getType()), opElement);
-    arrayName = array;
-    type = f.getType();
-    field = f;
-  }
-
-  @Override
-  Field getField() {
-    return field;
-  }
-
-  @Override
-  String getFieldName() {
-    return arrayName != null ? arrayName + "." + field.getName() : null;
-  }
-
-  @Override
-  boolean evaluateBool(FilterIterator t) {
-    try {
-      return field.getBoolean(t.containsElem);
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  long evaluateInt(FilterIterator t) {
-    try {
-      return field.getLong(t.containsElem);
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  double evaluateReal(FilterIterator t) {
-    try {
-      return field.getDouble(t.containsElem);
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  String evaluateStr(FilterIterator t) {
-    try {
-      return wrapNullString(field.get(t.containsElem));
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  Object evaluateObj(FilterIterator t) {
-    try {
-      return field.get(t.containsElem);
-    } catch (IllegalAccessException x) {
-      throw new IllegalAccessError();
-    }
-  }
-
-  @Override
-  Class getType() {
-    return type;
-  }
-
 }
 
 
@@ -2321,19 +676,11 @@ class ContainsNode extends Node implements Comparator {
   Resolver resolver;
   ArrayList aggregateFunctions;
 
-  @Override
-  public boolean equals(Object o) {
-    if (!(o instanceof ContainsNode)) {
-      return false;
-    }
-    ContainsNode node = (ContainsNode) o;
-    return node.containsExpr.equals(containsExpr) && equalObjects(node.groupByField, groupByField)
-        && equalObjects(node.groupByMethod, groupByMethod)
-        && equalObjects(node.groupByFieldName, groupByFieldName)
-        && equalObjects(node.containsFieldClass, containsFieldClass)
-        && node.groupByType == groupByType && equalObjects(node.havingExpr, havingExpr)
-        && equalObjects(node.withExpr, withExpr)
-        && equalObjects(node.aggregateFunctions, aggregateFunctions);
+  ContainsNode(Node containsExpr, Class containsFieldClass) {
+    super(tpBool, opContains);
+    this.containsExpr = containsExpr;
+    this.containsFieldClass = containsFieldClass;
+    aggregateFunctions = new ArrayList();
   }
 
   @Override
@@ -2371,6 +718,22 @@ class ContainsNode extends Node implements Comparator {
       x.printStackTrace();
       throw new IllegalAccessError();
     }
+  }
+
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof ContainsNode)) {
+      return false;
+    }
+    ContainsNode node = (ContainsNode) o;
+    return node.containsExpr.equals(containsExpr) && equalObjects(node.groupByField, groupByField)
+        && equalObjects(node.groupByMethod, groupByMethod)
+        && equalObjects(node.groupByFieldName, groupByFieldName)
+        && equalObjects(node.containsFieldClass, containsFieldClass)
+        && node.groupByType == groupByType && equalObjects(node.havingExpr, havingExpr)
+        && equalObjects(node.withExpr, withExpr)
+        && equalObjects(node.aggregateFunctions, aggregateFunctions);
   }
 
 
@@ -2589,13 +952,1368 @@ class ContainsNode extends Node implements Comparator {
     }
     return false;
   }
+}
 
 
-  ContainsNode(Node containsExpr, Class containsFieldClass) {
-    super(tpBool, opContains);
-    this.containsExpr = containsExpr;
-    this.containsFieldClass = containsFieldClass;
-    aggregateFunctions = new ArrayList();
+class ConvertAnyNode extends Node {
+  Node expr;
+
+  ConvertAnyNode(int type, Node expr) {
+    super(type, opConvertAny);
+    this.expr = expr;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof ConvertAnyNode && super.equals(o) && ((ConvertAnyNode) o).expr.equals(expr);
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    return ((Boolean) evaluateObj(t)).booleanValue();
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    return ((Number) evaluateObj(t)).longValue();
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    return expr.evaluateObj(t);
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    return ((Number) evaluateObj(t)).doubleValue();
+  }
+}
+
+
+class CurrentNode extends Node {
+  Class cls;
+
+  CurrentNode(Class cls) {
+    super(tpObj, opCurrent);
+    this.cls = cls;
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    return t.currObj;
+  }
+
+  @Override
+  Class getType() {
+    return cls;
+  }
+}
+
+
+class DateLiteralNode extends LiteralNode {
+  Date value;
+
+  DateLiteralNode(Date value) {
+    super(tpDate, opDateConst);
+    this.value = value;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof DateLiteralNode && ((DateLiteralNode) o).value.equals(value);
+  }
+
+  @Override
+  Date evaluateDate(FilterIterator t) {
+    return value;
+  }
+
+  @Override
+  Object getValue() {
+    return value;
+  }
+}
+
+
+class ElementNode extends Node {
+  String arrayName;
+  Field field;
+  Class type;
+
+  ElementNode(String array, Field f) {
+    super(getFieldType(f.getType()), opElement);
+    arrayName = array;
+    type = f.getType();
+    field = f;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof ElementNode && equalObjects(((ElementNode) o).arrayName, arrayName)
+        && equalObjects(((ElementNode) o).field, field)
+        && equalObjects(((ElementNode) o).type, type);
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    try {
+      return field.getBoolean(t.containsElem);
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    try {
+      return field.getLong(t.containsElem);
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    try {
+      return field.get(t.containsElem);
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    try {
+      return field.getDouble(t.containsElem);
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    try {
+      return wrapNullString(field.get(t.containsElem));
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  Field getField() {
+    return field;
+  }
+
+  @Override
+  String getFieldName() {
+    return arrayName != null ? arrayName + "." + field.getName() : null;
+  }
+
+  @Override
+  Class getType() {
+    return type;
+  }
+
+}
+
+
+class EmptyNode extends Node {
+  EmptyNode() {
+    super(tpBool, opTrue);
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    return true;
+  }
+}
+
+
+class ExistsNode extends Node {
+  Node expr;
+  int loopId;
+
+  ExistsNode(Node expr, int loopId) {
+    super(tpBool, opExists);
+    this.expr = expr;
+    this.loopId = loopId;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof ExistsNode && ((ExistsNode) o).expr.equals(expr)
+        && ((ExistsNode) o).loopId == loopId;
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    t.indexVar[loopId] = 0;
+    try {
+      while (!expr.evaluateBool(t)) {
+        t.indexVar[loopId] += 1;
+      }
+      return true;
+    } catch (IndexOutOfRangeError x) {
+      if (x.loopId != loopId) {
+        throw x;
+      }
+      return false;
+    }
+  }
+}
+
+
+class FilterIterator<T> extends IterableIterator<T> {
+  final static int maxIndexVars = 32;
+  Iterator iterator;
+  Node condition;
+  QueryImpl<T> query;
+  int[] indexVar;
+  long[] intAggregateFuncValue;
+  double[] realAggregateFuncValue;
+  Object[] containsArray;
+  T currObj;
+
+  Object containsElem;
+
+  FilterIterator(QueryImpl query, Iterator iterator, Node condition) {
+    this.query = query;
+    this.iterator = iterator;
+    this.condition = condition;
+    indexVar = new int[maxIndexVars];
+  }
+
+  FilterIterator(T obj) {
+    currObj = obj;
+  }
+
+  @Override
+  public boolean hasNext() {
+    if (currObj != null) {
+      return true;
+    }
+    while (iterator.hasNext()) {
+      Object obj = iterator.next();
+      if (query.cls.isInstance(obj)) {
+        currObj = (T) obj;
+        if (condition == null) {
+          return true;
+        }
+        try {
+          if (condition.evaluateBool(this)) {
+            return true;
+          }
+        } catch (JSQLRuntimeException x) {
+          query.reportRuntimeError(x);
+        }
+        currObj = null;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public T next() {
+    if (!hasNext()) {
+      throw new NoSuchElementException();
+    }
+    T obj = currObj;
+    currObj = null;
+    return obj;
+  }
+
+  @Override
+  public void remove() {
+    throw new UnsupportedOperationException();
+  }
+}
+
+
+class GetAtNode extends Node {
+  Node left;
+  Node right;
+
+  GetAtNode(int type, int tag, Node base, Node index) {
+    super(type, tag);
+    left = base;
+    right = index;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof GetAtNode && ((GetAtNode) o).left.equals(left)
+        && ((GetAtNode) o).right.equals(right);
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    boolean[] arr = (boolean[]) left.evaluateObj(t);
+    long index = right.evaluateInt(t);
+
+    if (right.tag == opIndexVar) {
+      try {
+        if (index >= arr.length) {
+          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
+        }
+      } catch (IllegalArgumentException x) {
+        throw new Error("Argument is not array");
+      }
+    }
+    return arr[(int) index];
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    Object arr = left.evaluateObj(t);
+    long idx = right.evaluateInt(t);
+
+    if (right.tag == opIndexVar) {
+      try {
+        if (idx >= Array.getLength(arr)) {
+          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
+        }
+      } catch (IllegalArgumentException x) {
+        throw new Error("Argument is not array");
+      }
+    }
+    int index = (int) idx;
+    switch (tag) {
+      case opGetAtInt1:
+        return ((byte[]) arr)[index];
+      case opGetAtInt2:
+        return ((short[]) arr)[index];
+      case opGetAtInt4:
+        return ((int[]) arr)[index];
+      case opGetAtInt8:
+        return ((long[]) arr)[index];
+      case opGetAtChar:
+        return ((char[]) arr)[index];
+      case opStrGetAt:
+        return ((String) arr).charAt(index);
+      default:
+        throw new Error("Invalid tag " + tag);
+    }
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    Object arr = left.evaluateObj(t);
+    long index = right.evaluateInt(t);
+
+    try {
+      if (right.tag == Node.opIndexVar) {
+        if (index >= Array.getLength(arr)) {
+          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
+        }
+      }
+      return Array.get(arr, (int) index);
+    } catch (IllegalArgumentException x) {
+      throw new Error("Argument is not array");
+    }
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    Object arr = left.evaluateObj(t);
+    long index = right.evaluateInt(t);
+
+    if (right.tag == opIndexVar) {
+      try {
+        if (index >= Array.getLength(arr)) {
+          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
+        }
+      } catch (IllegalArgumentException x) {
+        throw new Error("Argument is not array");
+      }
+    }
+    switch (tag) {
+      case opGetAtReal4:
+        return ((float[]) arr)[(int) index];
+      case opGetAtReal8:
+        return ((double[]) arr)[(int) index];
+      default:
+        throw new Error("Invalid tag " + tag);
+    }
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    String[] arr = (String[]) left.evaluateObj(t);
+    long index = right.evaluateInt(t);
+
+    if (right.tag == opIndexVar) {
+      try {
+        if (index >= arr.length) {
+          throw new IndexOutOfRangeError(((IndexNode) right).loopId);
+        }
+      } catch (IllegalArgumentException x) {
+        throw new Error("Argument is not array");
+      }
+    }
+    return wrapNullString(arr[(int) index]);
+  }
+}
+
+
+class IndexNode extends Node {
+  int loopId;
+
+  IndexNode(int loop) {
+    super(tpInt, opIndexVar);
+    loopId = loop;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof IndexNode && ((IndexNode) o).loopId == loopId;
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    return t.indexVar[loopId];
+  }
+}
+
+
+class IndexOutOfRangeError extends Error {
+  int loopId;
+
+  IndexOutOfRangeError(int loop) {
+    loopId = loop;
+  }
+}
+
+
+class IntLiteralNode extends LiteralNode {
+  long value;
+
+  IntLiteralNode(long value) {
+    super(tpInt, opIntConst);
+    this.value = value;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof IntLiteralNode && ((IntLiteralNode) o).value == value;
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    return value;
+  }
+
+  @Override
+  Object getValue() {
+    return new Long(value);
+  }
+}
+
+
+class InvokeAnyNode extends Node {
+  Node target;
+  Node[] arguments;
+  Class[] profile;
+  String methodName;
+  String containsFieldName;
+
+  InvokeAnyNode(Node target, String name, Node arguments[], String containsFieldName) {
+    super(tpAny, opInvokeAny);
+    this.target = target;
+    this.containsFieldName = containsFieldName;
+    methodName = name;
+    this.arguments = arguments;
+    profile = new Class[arguments.length];
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof InvokeAnyNode)) {
+      return false;
+    }
+    InvokeAnyNode node = (InvokeAnyNode) o;
+    return equalObjects(node.target, target) && Arrays.equals(node.arguments, arguments)
+        && Arrays.equals(node.profile, profile) && equalObjects(node.methodName, methodName)
+        && equalObjects(node.containsFieldName, containsFieldName);
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    Class cls;
+    Method m;
+    Object obj = t.currObj;
+    if (target != null) {
+      obj = target.evaluateObj(t);
+      if (obj == null) {
+        throw new JSQLNullPointerException(null, methodName);
+      }
+    }
+    Object[] parameters = null;
+    int n = arguments.length;
+    if (n > 0) {
+      parameters = new Object[n];
+      for (int i = 0; i < n; i++) {
+        Node arg = arguments[i];
+        Object value;
+        Class type;
+        switch (arg.type) {
+          case Node.tpInt:
+            value = new Long(arg.evaluateInt(t));
+            type = long.class;
+            break;
+          case Node.tpReal:
+            value = new Double(arg.evaluateReal(t));
+            type = double.class;
+            break;
+          case Node.tpStr:
+            value = arg.evaluateStr(t);
+            type = String.class;
+            break;
+          case Node.tpDate:
+            value = arg.evaluateDate(t);
+            type = Date.class;
+            break;
+          case Node.tpBool:
+            value = new Boolean(arg.evaluateBool(t));
+            type = boolean.class;
+            break;
+          default:
+            value = arg.evaluateObj(t);
+            if (value != null) {
+              type = value.getClass();
+              if (type.equals(Long.class) || type.equals(Integer.class) || type.equals(Byte.class)
+                  || type.equals(Character.class) || type.equals(Short.class)) {
+                type = long.class;
+              } else if (type.equals(Float.class) || type.equals(Double.class)) {
+                type = double.class;
+              } else if (type.equals(Boolean.class)) {
+                type = boolean.class;
+              }
+            } else {
+              type = Object.class;
+            }
+        }
+        parameters[i] = value;
+        profile[i] = type;
+      }
+    }
+    try {
+      if (target == null && t.containsElem != null) {
+        if ((m = QueryImpl.lookupMethod(t.containsElem.getClass(), methodName, profile)) != null) {
+          return t.query.resolve(m.invoke(t.containsElem, parameters));
+        }
+      }
+      cls = obj.getClass();
+      if ((m = QueryImpl.lookupMethod(cls, methodName, profile)) != null) {
+        return t.query.resolve(m.invoke(t.containsElem, parameters));
+      }
+    } catch (InvocationTargetException x) {
+      x.printStackTrace();
+      throw new IllegalAccessError();
+    } catch (IllegalAccessException x) {
+      x.printStackTrace();
+      throw new IllegalAccessError();
+    }
+
+    throw new JSQLNoSuchFieldException(cls, methodName);
+  }
+
+  @Override
+  String getFieldName() {
+    if (target != null) {
+      if (target.tag != opCurrent) {
+        String baseName = target.getFieldName();
+        return (baseName != null) ? baseName + "." + methodName : null;
+      } else {
+        return methodName;
+      }
+    } else {
+      return containsFieldName != null ? containsFieldName + "." + methodName : methodName;
+    }
+  }
+
+  @Override
+  Class getType() {
+    return Object.class;
+  }
+}
+
+
+class InvokeElementNode extends InvokeNode {
+  String containsArrayName;
+
+  InvokeElementNode(Method mth, Node arguments[], String arrayName) {
+    super(null, mth, arguments);
+    containsArrayName = arrayName;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof InvokeElementNode && super.equals(o);
+  }
+
+  @Override
+  String getFieldName() {
+    if (containsArrayName != null) {
+      return containsArrayName + "." + mth.getName();
+    } else {
+      return null;
+    }
+  }
+
+  @Override
+  Object getTarget(FilterIterator t) {
+    return t.containsElem;
+  }
+}
+
+
+class InvokeNode extends Node {
+  Node target;
+  Node[] arguments;
+  Method mth;
+
+  InvokeNode(Node target, Method mth, Node arguments[]) {
+    super(getFieldType(mth.getReturnType()), opInvoke);
+    this.target = target;
+    this.arguments = arguments;
+    this.mth = mth;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof InvokeNode && equalObjects(((InvokeNode) o).target, target)
+        && Arrays.equals(((InvokeNode) o).arguments, arguments)
+        && equalObjects(((InvokeNode) o).mth, mth);
+  }
+
+  Object[] evaluateArguments(FilterIterator t) {
+    Object[] parameters = null;
+    int n = arguments.length;
+    if (n > 0) {
+      parameters = new Object[n];
+      for (int i = 0; i < n; i++) {
+        Node arg = arguments[i];
+        Object value;
+        switch (arg.type) {
+          case Node.tpInt:
+            value = new Long(arg.evaluateInt(t));
+            break;
+          case Node.tpReal:
+            value = new Double(arg.evaluateReal(t));
+            break;
+          case Node.tpStr:
+            value = arg.evaluateStr(t);
+            break;
+          case Node.tpDate:
+            value = arg.evaluateDate(t);
+            break;
+          case Node.tpBool:
+            value = new Boolean(arg.evaluateBool(t));
+            break;
+          default:
+            value = arg.evaluateObj(t);
+        }
+        parameters[i] = value;
+      }
+    }
+    return parameters;
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    Object obj = getTarget(t);
+    Object[] parameters = evaluateArguments(t);
+    try {
+      return ((Boolean) mth.invoke(obj, parameters)).booleanValue();
+    } catch (Exception x) {
+      x.printStackTrace();
+      throw new Error("Method invocation error");
+    }
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    Object obj = getTarget(t);
+    Object[] parameters = evaluateArguments(t);
+    try {
+      return ((Number) mth.invoke(obj, parameters)).longValue();
+    } catch (Exception x) {
+      x.printStackTrace();
+      throw new Error("Method invocation error");
+    }
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    Object obj = getTarget(t);
+    Object[] parameters = evaluateArguments(t);
+    try {
+      return mth.invoke(obj, parameters);
+    } catch (Exception x) {
+      x.printStackTrace();
+      throw new Error("Method invocation error");
+    }
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    Object obj = getTarget(t);
+    Object[] parameters = evaluateArguments(t);
+    try {
+      return ((Number) mth.invoke(obj, parameters)).doubleValue();
+    } catch (Exception x) {
+      x.printStackTrace();
+      throw new Error("Method invocation error");
+    }
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    Object obj = getTarget(t);
+    Object[] parameters = evaluateArguments(t);
+    try {
+      return wrapNullString(mth.invoke(obj, parameters));
+    } catch (Exception x) {
+      x.printStackTrace();
+      throw new Error("Method invocation error");
+    }
+  }
+
+  @Override
+  String getFieldName() {
+    if (target != null && target.tag != opCurrent) {
+      String baseName = target.getFieldName();
+      return (baseName != null) ? baseName + "." + mth.getName() : null;
+    } else {
+      return mth.getName();
+    }
+  }
+
+  Object getTarget(FilterIterator t) {
+    if (target == null) {
+      return t.currObj;
+    }
+    Object obj = target.evaluateObj(t);
+    if (obj == null) {
+      throw new JSQLNullPointerException(target.getType(), mth.toString());
+    }
+    return obj;
+  }
+
+  @Override
+  Class getType() {
+    return mth.getReturnType();
+  }
+}
+
+
+class JoinIterator implements Iterator {
+  GenericIndex joinIndex;
+  Iterator iterator;
+  Iterator joinIterator;
+  Object currObj;
+
+  @Override
+  public boolean hasNext() {
+    if (currObj != null) {
+      return true;
+    }
+    while (joinIterator == null || !joinIterator.hasNext()) {
+      if (!iterator.hasNext()) {
+        return false;
+      }
+      Object obj = iterator.next();
+      Key key = new Key(obj);
+      joinIterator = joinIndex.iterator(key, key, GenericIndex.ASCENT_ORDER);
+    }
+    currObj = joinIterator.next();
+    return true;
+  }
+
+  @Override
+  public Object next() {
+    if (!hasNext()) {
+      throw new NoSuchElementException();
+    }
+    Object obj = currObj;
+    currObj = null;
+    return obj;
+  }
+
+  @Override
+  public void remove() {
+    throw new UnsupportedOperationException();
+  }
+}
+
+
+abstract class LiteralNode extends Node {
+  LiteralNode(int type, int tag) {
+    super(type, tag);
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    return getValue();
+  }
+
+  abstract Object getValue();
+}
+
+
+class LoadAnyNode extends Node {
+  String fieldName;
+  String containsFieldName;
+  Node base;
+  Field f;
+  Method m;
+
+  LoadAnyNode(Node base, String name, String containsFieldName) {
+    super(tpAny, opLoadAny);
+    fieldName = name;
+    this.containsFieldName = containsFieldName;
+    this.base = base;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof LoadAnyNode)) {
+      return false;
+    }
+    LoadAnyNode node = (LoadAnyNode) o;
+    return equalObjects(node.base, base) && equalObjects(node.fieldName, fieldName)
+        && equalObjects(node.f, f) && equalObjects(node.m, m);
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    Object obj;
+    Class cls;
+    Field f = this.f;
+    Method m = this.m;
+    try {
+      if (base == null) {
+        if (t.containsElem != null) {
+          obj = t.containsElem;
+          cls = obj.getClass();
+          if (f != null && f.getDeclaringClass().equals(cls)) {
+            return t.query.resolve(f.get(obj));
+          }
+          if (m != null && m.getDeclaringClass().equals(cls)) {
+            return t.query.resolve(m.invoke(obj));
+          }
+          if ((f = ClassDescriptor.locateField(cls, fieldName)) != null) {
+            this.f = f;
+            return t.query.resolve(f.get(obj));
+          }
+          if ((m = QueryImpl.lookupMethod(cls, fieldName, QueryImpl.defaultProfile)) != null) {
+            this.m = m;
+            return t.query.resolve(m.invoke(obj));
+          }
+        }
+        obj = t.currObj;
+      } else {
+        obj = base.evaluateObj(t);
+        if (obj == null) {
+          throw new JSQLNullPointerException(null, fieldName);
+        }
+      }
+      cls = obj.getClass();
+      if (f != null && f.getDeclaringClass().equals(cls)) {
+        return t.query.resolve(f.get(obj));
+      }
+      if (m != null && m.getDeclaringClass().equals(cls)) {
+        return t.query.resolve(m.invoke(obj));
+      }
+      if ((f = ClassDescriptor.locateField(cls, fieldName)) != null) {
+        this.f = f;
+        return t.query.resolve(f.get(obj));
+      }
+      if ((m = QueryImpl.lookupMethod(cls, fieldName, QueryImpl.defaultProfile)) != null) {
+        this.m = m;
+        return t.query.resolve(m.invoke(obj));
+      }
+    } catch (IllegalAccessException x) {
+      x.printStackTrace();
+      throw new IllegalAccessError();
+    } catch (InvocationTargetException x) {
+      x.printStackTrace();
+      throw new IllegalAccessError();
+    }
+
+    throw new JSQLNoSuchFieldException(cls, fieldName);
+  }
+
+  @Override
+  Field getField() {
+    return f;
+  }
+
+  @Override
+  String getFieldName() {
+    if (base != null) {
+      if (base.tag != opCurrent) {
+        String baseName = base.getFieldName();
+        return (baseName != null) ? baseName + "." + fieldName : null;
+      } else {
+        return fieldName;
+      }
+    } else {
+      return containsFieldName != null ? containsFieldName + "." + fieldName : fieldName;
+    }
+  }
+
+  @Override
+  Class getType() {
+    return Object.class;
+  }
+
+
+  @Override
+  public String toString() {
+    return "LoadAnyNode: fieldName='" + fieldName + "', containsFieldName='" + containsFieldName
+        + "', base=(" + base + "), f=" + f + ", m=" + m;
+  }
+}
+
+
+class LoadNode extends Node {
+  Field field;
+  Node base;
+
+  LoadNode(Node base, Field f) {
+    super(getFieldType(f.getType()), opLoad);
+    field = f;
+    this.base = base;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof LoadNode && super.equals(o) && ((LoadNode) o).field.equals(field)
+        && equalObjects(((LoadNode) o).base, base);
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    try {
+      return field.getBoolean(getBase(t));
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  long evaluateInt(FilterIterator t) {
+    try {
+      return field.getLong(getBase(t));
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    try {
+      return field.get(getBase(t));
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    try {
+      return field.getDouble(getBase(t));
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    try {
+      return wrapNullString(field.get(getBase(t)));
+    } catch (IllegalAccessException x) {
+      throw new IllegalAccessError();
+    }
+  }
+
+  final Object getBase(FilterIterator t) {
+    if (base == null) {
+      return t.currObj;
+    }
+    Object obj = base.evaluateObj(t);
+    if (obj == null) {
+      throw new JSQLNullPointerException(base.getType(), field.getName());
+    }
+    return obj;
+  }
+
+  Class getDeclaringClass() {
+    return field.getDeclaringClass();
+  }
+
+  @Override
+  Field getField() {
+    return field;
+  }
+
+  @Override
+  String getFieldName() {
+    if (base != null && base.tag != opCurrent) {
+      String baseName = base.getFieldName();
+      return (baseName != null) ? baseName + "." + field.getName() : null;
+    } else {
+      return field.getName();
+    }
+  }
+
+  @Override
+  int getIndirectionLevel() {
+    return base == null ? 0 : base.getIndirectionLevel() + 1;
+  }
+
+  @Override
+  Class getType() {
+    return field.getType();
+  }
+
+  public boolean isSelfField() {
+    return base == null || base.tag == opCurrent;
+  }
+}
+
+
+class Node implements CodeGenerator.Code {
+  final static int tpBool = 0;
+  final static int tpInt = 1;
+
+  final static int tpReal = 2;
+  final static int tpFreeVar = 3;
+  final static int tpList = 4;
+  final static int tpObj = 5;
+  final static int tpStr = 6;
+  final static int tpDate = 7;
+  final static int tpArrayBool = 8;
+  final static int tpArrayChar = 9;
+  final static int tpArrayInt1 = 10;
+  final static int tpArrayInt2 = 11;
+  final static int tpArrayInt4 = 12;
+  final static int tpArrayInt8 = 13;
+  final static int tpArrayReal4 = 14;
+  final static int tpArrayReal8 = 15;
+  final static int tpArrayStr = 16;
+  final static int tpArrayObj = 17;
+  final static int tpCollection = 18;
+  final static int tpUnknown = 19;
+  final static int tpAny = 20;
+  final static String typeNames[] = {"boolean", "integer", "real", "index variable", "list",
+      "object", "string", "date", "array of boolean", "array of char", "array of byte",
+      "array of short", "array of int", "array of long", "array of float", "array of double",
+      "array of string", "array of object", "collection", "unknown", "any"};
+  final static int opNop = 0;
+
+  final static int opIntAdd = 1;
+
+  final static int opIntSub = 2;
+  final static int opIntMul = 3;
+  final static int opIntDiv = 4;
+  final static int opIntAnd = 5;
+  final static int opIntOr = 6;
+  final static int opIntNeg = 7;
+  final static int opIntNot = 8;
+  final static int opIntAbs = 9;
+  final static int opIntPow = 10;
+  final static int opIntEq = 11;
+  final static int opIntNe = 12;
+  final static int opIntGt = 13;
+  final static int opIntGe = 14;
+  final static int opIntLt = 15;
+  final static int opIntLe = 16;
+  final static int opIntBetween = 17;
+  final static int opRealEq = 18;
+  final static int opRealNe = 19;
+
+  final static int opRealGt = 20;
+  final static int opRealGe = 21;
+  final static int opRealLt = 22;
+  final static int opRealLe = 23;
+  final static int opRealBetween = 24;
+  final static int opStrEq = 25;
+  final static int opStrNe = 26;
+
+  final static int opStrGt = 27;
+  final static int opStrGe = 28;
+  final static int opStrLt = 29;
+  final static int opStrLe = 30;
+  final static int opStrBetween = 31;
+  final static int opStrLike = 32;
+  final static int opStrLikeEsc = 33;
+  final static int opBoolEq = 34;
+  final static int opBoolNe = 35;
+
+  final static int opObjEq = 36;
+  final static int opObjNe = 37;
+
+  final static int opRealAdd = 38;
+  final static int opRealSub = 39;
+
+  final static int opRealMul = 40;
+  final static int opRealDiv = 41;
+  final static int opRealNeg = 42;
+  final static int opRealAbs = 43;
+  final static int opRealPow = 44;
+  final static int opIntToReal = 45;
+  final static int opRealToInt = 46;
+
+  final static int opIntToStr = 47;
+  final static int opRealToStr = 48;
+  final static int opIsNull = 49;
+  final static int opStrGetAt = 50;
+
+  final static int opGetAtBool = 51;
+
+  final static int opGetAtChar = 52;
+  final static int opGetAtInt1 = 53;
+  final static int opGetAtInt2 = 54;
+  final static int opGetAtInt4 = 55;
+  final static int opGetAtInt8 = 56;
+  final static int opGetAtReal4 = 57;
+  final static int opGetAtReal8 = 58;
+  final static int opGetAtStr = 59;
+  final static int opGetAtObj = 60;
+  final static int opLength = 61;
+  final static int opExists = 62;
+
+  final static int opIndexVar = 63;
+  final static int opFalse = 64;
+  final static int opTrue = 65;
+
+  final static int opNull = 66;
+  final static int opCurrent = 67;
+  final static int opIntConst = 68;
+  final static int opRealConst = 69;
+
+  final static int opStrConst = 70;
+  final static int opInvoke = 71;
+  final static int opScanArrayBool = 72;
+
+  final static int opScanArrayChar = 73;
+
+  final static int opScanArrayInt1 = 74;
+  final static int opScanArrayInt2 = 75;
+  final static int opScanArrayInt4 = 76;
+  final static int opScanArrayInt8 = 77;
+  final static int opScanArrayReal4 = 78;
+  final static int opScanArrayReal8 = 79;
+  final static int opScanArrayStr = 80;
+  final static int opScanArrayObj = 81;
+  final static int opInString = 82;
+  final static int opRealSin = 83;
+  final static int opRealCos = 84;
+
+  final static int opRealTan = 85;
+  final static int opRealAsin = 86;
+  final static int opRealAcos = 87;
+  final static int opRealAtan = 88;
+  final static int opRealSqrt = 89;
+  final static int opRealExp = 90;
+  final static int opRealLog = 91;
+  final static int opRealCeil = 92;
+  final static int opRealFloor = 93;
+  final static int opBoolAnd = 94;
+  final static int opBoolOr = 95;
+
+  final static int opBoolNot = 96;
+  final static int opStrLower = 97;
+  final static int opStrUpper = 98;
+
+  final static int opStrConcat = 99;
+  final static int opStrLength = 100;
+  final static int opLoad = 100;
+  final static int opLoadAny = 101;
+
+  final static int opInvokeAny = 102;
+
+  final static int opContains = 111;
+  final static int opElement = 112;
+
+  final static int opAvg = 114;
+  final static int opCount = 115;
+
+  final static int opMax = 116;
+  final static int opMin = 117;
+  final static int opSum = 118;
+  final static int opParameter = 119;
+  final static int opAnyAdd = 121;
+
+  final static int opAnySub = 122;
+
+  final static int opAnyMul = 123;
+  final static int opAnyDiv = 124;
+  final static int opAnyAnd = 125;
+  final static int opAnyOr = 126;
+  final static int opAnyNeg = 127;
+  final static int opAnyNot = 128;
+  final static int opAnyAbs = 129;
+  final static int opAnyPow = 130;
+  final static int opAnyEq = 131;
+  final static int opAnyNe = 132;
+  final static int opAnyGt = 133;
+  final static int opAnyGe = 134;
+  final static int opAnyLt = 135;
+  final static int opAnyLe = 136;
+  final static int opAnyBetween = 137;
+  final static int opAnyLength = 138;
+  final static int opInAny = 139;
+  final static int opAnyToStr = 140;
+  final static int opConvertAny = 141;
+  final static int opResolve = 142;
+  final static int opScanCollection = 143;
+
+  final static int opDateEq = 145;
+  final static int opDateNe = 146;
+
+  final static int opDateGt = 147;
+  final static int opDateGe = 148;
+  final static int opDateLt = 149;
+  final static int opDateLe = 150;
+  final static int opDateBetween = 151;
+  final static int opDateToStr = 152;
+  final static int opStrToDate = 153;
+  final static int opDateConst = 154;
+  final static int opStrIgnoreCaseEq = 155;
+  final static int opStrIgnoreCaseNe = 156;
+
+  final static int opStrIgnoreCaseGt = 157;
+  final static int opStrIgnoreCaseGe = 158;
+  final static int opStrIgnoreCaseLt = 159;
+  final static int opStrIgnoreCaseLe = 160;
+  final static int opStrIgnoreCaseBetween = 161;
+  final static int opStrIgnoreCaseLike = 162;
+  final static int opStrIgnoreCaseLikeEsc = 163;
+  final static int opByteArrayEq = 164;
+  final static int opByteArrayNe = 165;
+
+  static final boolean equalObjects(Object a, Object b) {
+    return a == b || (a != null && a.equals(b));
+  }
+  static final int getFieldType(Class type) {
+    if (type.equals(byte.class) || type.equals(short.class) || type.equals(int.class)
+        || type.equals(long.class)) {
+      return tpInt;
+    } else if (type.equals(boolean.class)) {
+      return tpBool;
+    } else if (type.equals(double.class) || type.equals(float.class)) {
+      return tpReal;
+    } else if (type.equals(String.class)) {
+      return tpStr;
+    } else if (type.equals(Date.class)) {
+      return tpDate;
+    } else if (type.equals(boolean[].class)) {
+      return tpArrayBool;
+    } else if (type.equals(byte[].class)) {
+      return tpArrayInt1;
+    } else if (type.equals(short[].class)) {
+      return tpArrayInt2;
+    } else if (type.equals(char[].class)) {
+      return tpArrayChar;
+    } else if (type.equals(int[].class)) {
+      return tpArrayInt4;
+    } else if (type.equals(long[].class)) {
+      return tpArrayInt8;
+    } else if (type.equals(float[].class)) {
+      return tpArrayReal4;
+    } else if (type.equals(double[].class)) {
+      return tpArrayReal8;
+    } else if (type.equals(String[].class)) {
+      return tpArrayStr;
+    } else if (Collection.class.isAssignableFrom(type)) {
+      return tpCollection;
+    } else if (type.isArray()) {
+      return tpArrayObj;
+    } else if (type.equals(Object.class)) {
+      return tpAny;
+    } else {
+      return tpObj;
+    }
+  }
+
+  static String wrapNullString(Object val) {
+    return val == null ? "" : (String) val;
+  }
+
+  int type;
+
+  int tag;
+
+
+  Node(int type, int tag) {
+    this.type = type;
+    this.tag = tag;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof Node && ((Node) o).tag == tag && ((Node) o).type == type;
+  }
+
+  boolean evaluateBool(FilterIterator t) {
+    throw new AbstractMethodError();
+  }
+
+  Date evaluateDate(FilterIterator t) {
+    return (Date) evaluateObj(t);
+  }
+
+  long evaluateInt(FilterIterator t) {
+    throw new AbstractMethodError();
+  }
+
+  Object evaluateObj(FilterIterator t) {
+    switch (type) {
+      case tpStr:
+        return evaluateStr(t);
+      case tpDate:
+        return evaluateDate(t);
+      case tpInt:
+        return new Long(evaluateInt(t));
+      case tpReal:
+        return new Double(evaluateReal(t));
+      case tpBool:
+        return evaluateBool(t) ? Boolean.TRUE : Boolean.FALSE;
+      default:
+        throw new AbstractMethodError();
+    }
+  }
+
+  double evaluateReal(FilterIterator t) {
+    throw new AbstractMethodError();
+  }
+
+  String evaluateStr(FilterIterator t) {
+    return wrapNullString(evaluateObj(t));
+  }
+
+  Field getField() {
+    return null;
+  }
+
+  String getFieldName() {
+    return null;
+  }
+
+  int getIndirectionLevel() {
+    return 0;
+  }
+
+  Class getType() {
+    return null;
+  }
+
+  @Override
+  public String toString() {
+    return "Node tag=" + tag + ", type=" + type;
   }
 }
 
@@ -2609,6 +2327,35 @@ class OrderNode {
   Node expr;
   int type;
   boolean isCaseInsensitive;
+
+  OrderNode(Field field) {
+    this.type = ClassDescriptor.getTypeCode(field.getType());
+    this.field = field;
+    checkCaseInsensitive();
+    ascent = true;
+  }
+
+  OrderNode(Method method) {
+    this.method = method;
+    ascent = true;
+  }
+
+
+  OrderNode(Node expr) {
+    this.expr = expr;
+  }
+
+  OrderNode(String name) {
+    fieldName = name;
+    ascent = true;
+  }
+
+  void checkCaseInsensitive() {
+    if (field != null) {
+      Indexable idx = field.getAnnotation(Indexable.class);
+      isCaseInsensitive = idx != null && idx.caseInsensitive();
+    }
+  }
 
   final int compare(Object a, Object b) {
     int diff;
@@ -2715,13 +2462,9 @@ class OrderNode {
     return diff;
   }
 
-  void checkCaseInsensitive() {
-    if (field != null) {
-      Indexable idx = field.getAnnotation(Indexable.class);
-      isCaseInsensitive = idx != null && idx.caseInsensitive();
-    }
+  String getName() {
+    return fieldName != null ? fieldName : field != null ? field.getName() : method.getName();
   }
-
 
   void resolveName(Class cls) {
     field = ClassDescriptor.locateField(cls, fieldName);
@@ -2734,37 +2477,28 @@ class OrderNode {
       checkCaseInsensitive();
     }
   }
-
-  String getName() {
-    return fieldName != null ? fieldName : field != null ? field.getName() : method.getName();
-  }
-
-  OrderNode(Node expr) {
-    this.expr = expr;
-  }
-
-  OrderNode(Field field) {
-    this.type = ClassDescriptor.getTypeCode(field.getType());
-    this.field = field;
-    checkCaseInsensitive();
-    ascent = true;
-  }
-
-  OrderNode(Method method) {
-    this.method = method;
-    ascent = true;
-  }
-
-  OrderNode(String name) {
-    fieldName = name;
-    ascent = true;
-  }
 }
 
 
 class ParameterNode extends LiteralNode {
   ArrayList params;
   int index;
+
+  ParameterNode(ArrayList parameterList) {
+    super(tpUnknown, opParameter);
+    params = parameterList;
+    index = params.size();
+    params.add(null);
+  }
+
+  ParameterNode(ArrayList parameterList, int index, int type) {
+    super(type, opParameter);
+    params = parameterList;
+    this.index = index;
+    while (index >= parameterList.size()) {
+      parameterList.add(null);
+    }
+  }
 
   @Override
   public boolean equals(Object o) {
@@ -2774,6 +2508,11 @@ class ParameterNode extends LiteralNode {
   @Override
   boolean evaluateBool(FilterIterator t) {
     return ((Boolean) params.get(index)).booleanValue();
+  }
+
+  @Override
+  Date evaluateDate(FilterIterator t) {
+    return (Date) params.get(index);
   }
 
   @Override
@@ -2792,267 +2531,21 @@ class ParameterNode extends LiteralNode {
   }
 
   @Override
-  Date evaluateDate(FilterIterator t) {
-    return (Date) params.get(index);
-  }
-
-  @Override
   Object getValue() {
     return params.get(index);
-  }
-
-  ParameterNode(ArrayList parameterList, int index, int type) {
-    super(type, opParameter);
-    params = parameterList;
-    this.index = index;
-    while (index >= parameterList.size()) {
-      parameterList.add(null);
-    }
-  }
-
-  ParameterNode(ArrayList parameterList) {
-    super(tpUnknown, opParameter);
-    params = parameterList;
-    index = params.size();
-    params.add(null);
-  }
-}
-
-
-class Symbol {
-  int tkn;
-
-  Symbol(int tkn) {
-    this.tkn = tkn;
-  }
-}
-
-
-class Binding {
-  Binding next;
-  String name;
-  boolean used;
-  int loopId;
-
-  Binding(String ident, int loop, Binding chain) {
-    name = ident;
-    used = false;
-    next = chain;
-    loopId = loop;
   }
 }
 
 
 public class QueryImpl<T> implements Query<T> {
-  @Override
-  public IterableIterator<T> select(Class cls, Iterator<T> iterator, String query)
-      throws CompileError {
-    this.query = query;
-    buf = query.toCharArray();
-    str = new char[buf.length];
-    this.cls = cls;
+  class IndexSearchResult {
+    IterableIterator<T> iterator;
+    Field key;
 
-    compile();
-    return execute(iterator);
-  }
-
-  @Override
-  public IterableIterator<T> select(String className, Iterator<T> iterator, String query)
-      throws CompileError
-
-  {
-    cls = ClassDescriptor.loadClass(storage, className);
-    return select(cls, iterator, query);
-  }
-
-  @Override
-  public void setParameter(int index, Object value) {
-    parameters.set(index - 1, value);
-  }
-
-  @Override
-  public void setIntParameter(int index, long value) {
-    setParameter(index, new Long(value));
-  }
-
-  @Override
-  public void setRealParameter(int index, double value) {
-    setParameter(index, new Double(value));
-  }
-
-  @Override
-  public void setBoolParameter(int index, boolean value) {
-    setParameter(index, new Boolean(value));
-  }
-
-  @Override
-  public void prepare(Class cls, String query) {
-    this.query = query;
-    buf = query.toCharArray();
-    str = new char[buf.length];
-    this.cls = cls;
-    compile();
-  }
-
-  @Override
-  public void prepare(String className, String query) {
-    cls = ClassDescriptor.loadClass(storage, className);
-    this.query = query;
-    buf = query.toCharArray();
-    str = new char[buf.length];
-    compile();
-  }
-
-  @Override
-  public Iterator<T> iterator() {
-    return execute();
-  }
-
-  @Override
-  public IterableIterator<T> execute() {
-    switch (classExtentLock) {
-      case None:
-        break;
-      case Shared:
-        ((IResource) classExtent).sharedLock();
-        break;
-      case Exclusive:
-        ((IResource) classExtent).exclusiveLock();
-        break;
+    IndexSearchResult(IterableIterator<T> iterator, Field key) {
+      this.iterator = iterator;
+      this.key = key;
     }
-    return execute(classExtent.iterator());
-  }
-
-  @Override
-  public IterableIterator<T> execute(Iterator<T> iterator) {
-    long start = 0;
-    boolean sequentialSearch = false;
-    if (storage.listener != null) {
-      start = System.currentTimeMillis();
-    }
-    try {
-      IndexSearchResult result = tree != null ? applyIndex(tree, tree, null) : null;
-      IterableIterator<T> resultIterator;
-      if (result == null) {
-        if (tree == null && order != null && order.next == null) {
-          GenericIndex index = getIndex(cls, order.getName());
-          if (index != null) {
-            return filter(index.iterator(null, null,
-                order.ascent ? GenericIndex.ASCENT_ORDER : GenericIndex.DESCENT_ORDER), null);
-          }
-        }
-        if (storage.listener != null) {
-          sequentialSearch = true;
-          storage.listener.sequentialSearchPerformed(cls, query);
-        }
-        resultIterator = filter(iterator, tree);
-      } else {
-        resultIterator = result.iterator;
-        if (order == null
-            || (result.key != null && order.field.equals(result.key) && order.next == null)) {
-          return resultIterator;
-        }
-      }
-      if (order != null) {
-        ArrayList<T> list = new ArrayList<T>();
-        while (resultIterator.hasNext()) {
-          list.add(resultIterator.next());
-        }
-        if (storage.listener != null) {
-          storage.listener.sortResultSetPerformed(cls, query);
-        }
-        sort(list);
-        return new IteratorWrapper<T>(list.iterator());
-      }
-      return resultIterator;
-    } finally {
-      if (storage.listener != null) {
-        storage.listener.queryExecution(cls, query, System.currentTimeMillis() - start,
-            sequentialSearch);
-      }
-    }
-  }
-
-  private void sort(ArrayList<T> selection) {
-    int i, j, k, n;
-    OrderNode order = this.order;
-    T top;
-
-    if (selection.size() == 0) {
-      return;
-    }
-    for (OrderNode ord = order; ord != null; ord = ord.next) {
-      if (ord.fieldName != null) {
-        ord.resolveName(selection.get(0).getClass());
-      }
-    }
-
-    for (n = selection.size(), i = n / 2, j = i; i >= 1; i--) {
-      k = i;
-      top = selection.get(k - 1);
-      do {
-        if (k * 2 == n || order.compare(selection.get(k * 2 - 1), selection.get(k * 2)) > 0) {
-          if (order.compare(top, selection.get(k * 2 - 1)) >= 0) {
-            break;
-          }
-          selection.set(k - 1, selection.get(k * 2 - 1));
-          k = k * 2;
-        } else {
-          if (order.compare(top, selection.get(k * 2)) >= 0) {
-            break;
-          }
-          selection.set(k - 1, selection.get(k * 2));
-          k = k * 2 + 1;
-        }
-      } while (k <= j);
-      selection.set(k - 1, top);
-    }
-    for (i = n; i >= 2; i--) {
-      top = selection.get(i - 1);
-      selection.set(i - 1, selection.get(0));
-      selection.set(0, top);
-      for (k = 1, j = (i - 1) / 2; k <= j;) {
-        if (k * 2 == i - 1 || order.compare(selection.get(k * 2 - 1), selection.get(k * 2)) > 0) {
-          if (order.compare(top, selection.get(k * 2 - 1)) >= 0) {
-            break;
-          }
-          selection.set(k - 1, selection.get(k * 2 - 1));
-          k = k * 2;
-        } else {
-          if (order.compare(top, selection.get(k * 2)) >= 0) {
-            break;
-          }
-          selection.set(k - 1, selection.get(k * 2));
-          k = k * 2 + 1;
-        }
-      }
-      selection.set(k - 1, top);
-    }
-  }
-
-  public void reportRuntimeError(JSQLRuntimeException x) {
-    if (runtimeErrorsReporting) {
-      StringBuffer buf = new StringBuffer();
-      buf.append(x.getMessage());
-      Class cls = x.getTarget();
-      if (cls != null) {
-        buf.append(cls.getName());
-        buf.append('.');
-      }
-      String fieldName = x.getFieldName();
-      if (fieldName != null) {
-        buf.append(fieldName);
-      }
-      System.err.println(buf);
-    }
-    if (storage != null && storage.listener != null) {
-      storage.listener.JSQLRuntimeError(x);
-    }
-  }
-
-  @Override
-  public void enableRuntimeErrorReporting(boolean enabled) {
-    runtimeErrorsReporting = enabled;
   }
 
   static class ResolveMapping {
@@ -3063,151 +2556,54 @@ public class QueryImpl<T> implements Query<T> {
       this.resolved = resolved;
       this.resolver = resolver;
     }
-  };
-
-  @Override
-  public void setResolver(Class original, Class resolved, Resolver resolver) {
-    if (resolveMap == null) {
-      resolveMap = new HashMap();
-    }
-    resolveMap.put(original, new ResolveMapping(resolved, resolver));
   }
-
-  @Override
-  public void setIndexProvider(IndexProvider indexProvider) {
-    this.indexProvider = indexProvider;
-  }
-
-  @Override
-  public void setClassExtent(Collection<T> set, ClassExtentLockType lock) {
-    classExtent = set;
-    classExtentLock = lock;
-  }
-
-  @Override
-  public void setClass(Class cls) {
-    this.cls = cls;
-  }
-
-  @Override
-  public CodeGenerator getCodeGenerator() {
-    return getCodeGenerator(cls);
-  }
-
-  @Override
-  public CodeGenerator getCodeGenerator(Class cls) {
-    order = null;
-    tree = null;
-    parameters.clear();
-    return new CodeGeneratorImpl(this, cls);
-  }
-
-  @Override
-  public void addIndex(String key, GenericIndex<T> index) {
-    if (indices == null) {
-      indices = new HashMap();
-    }
-    indices.put(key, index);
-  }
-
-  private final GenericIndex getIndex(Class ctx, String key) {
-    if (indices != null && cls == ctx) {
-      GenericIndex index = indices.get(key);
-      if (index != null) {
-        return index;
-      }
-    }
-    if (indexProvider != null) {
-      return indexProvider.getIndex(ctx, key);
-    }
-    return null;
-  }
-
-  private static Key keyLiteral(Class type, Node node, boolean inclusive) {
-    Object value = ((LiteralNode) node).getValue();
-    if (type.equals(long.class)) {
-      return new Key(((Number) value).longValue(), inclusive);
-    } else if (type.equals(int.class)) {
-      return new Key(((Number) value).intValue(), inclusive);
-    } else if (type.equals(byte.class)) {
-      return new Key(((Number) value).byteValue(), inclusive);
-    } else if (type.equals(short.class)) {
-      return new Key(((Number) value).shortValue(), inclusive);
-    } else if (type.equals(char.class)) {
-      return new Key(value instanceof Number ? (char) ((Number) value).intValue()
-          : ((Character) value).charValue(), inclusive);
-    } else if (type.equals(float.class)) {
-      return new Key(((Number) value).floatValue(), inclusive);
-    } else if (type.equals(double.class)) {
-      return new Key(((Number) value).doubleValue(), inclusive);
-    } else if (type.equals(boolean.class)) {
-      return new Key(((Boolean) value).booleanValue(), inclusive);
-    } else if (type.equals(String.class)) {
-      return new Key((String) value, inclusive);
-    } else if (type.equals(Date.class)) {
-      return new Key((Date) value, inclusive);
-    } else {
-      return new Key(value, inclusive);
-    }
-  }
-
-  public QueryImpl(Storage storage) {
-    this.storage = (StorageImpl) storage;
-    parameters = new ArrayList();
-    runtimeErrorsReporting = true;
-  }
-
-  int pos;
-  char[] buf;
-  char[] str;
-  String query;
-  long ivalue;
-  String svalue;
-  double fvalue;
-  Class cls;
-  Node tree;
-  String ident;
-  int lex;
-  int vars;
-  Binding bindings;
-  OrderNode order;
-  ContainsNode contains;
-  Node singleElementList;
-  ArrayList parameters;
-  boolean runtimeErrorsReporting;
-  HashMap resolveMap;
-  IndexProvider indexProvider;
-  Collection<T> classExtent;
-  Query.ClassExtentLockType classExtentLock;
-
-  HashMap<String, GenericIndex<T>> indices;
-  StorageImpl storage;
 
   static DateFormat dateFormat;
+
   static Hashtable symtab;
+
   static Class[] defaultProfile = new Class[0];
+
   static Node[] noArguments = new Node[0];
 
   final static Object dummyKeyValue = new Object();
 
   final static int tknIdent = 1;
+
   final static int tknLpar = 2;
+
   final static int tknRpar = 3;
+
   final static int tknLbr = 4;
+
   final static int tknRbr = 5;
+
   final static int tknDot = 6;
+
   final static int tknComma = 7;
-  final static int tknPower = 8;
+
+  final static int tknPower = 8;;
+
   final static int tknIconst = 9;
+
   final static int tknSconst = 10;
+
   final static int tknFconst = 11;
+
   final static int tknAdd = 12;
+
   final static int tknSub = 13;
+
   final static int tknMul = 14;
+
   final static int tknDiv = 15;
+
   final static int tknAnd = 16;
+
   final static int tknOr = 17;
+
   final static int tknNot = 18;
+
   final static int tknNull = 19;
   final static int tknNeg = 20;
   final static int tknEq = 21;
@@ -3230,13 +2626,17 @@ public class QueryImpl<T> implements Query<T> {
   final static int tknReal = 38;
   final static int tknString = 39;
   final static int tknFirst = 40;
+
   final static int tknLast = 41;
   final static int tknCurrent = 42;
+
   final static int tknCol = 44;
   final static int tknTrue = 45;
   final static int tknFalse = 46;
   final static int tknWhere = 47;
+
   final static int tknOrder = 48;
+
   final static int tknAsc = 49;
   final static int tknDesc = 50;
   final static int tknEof = 51;
@@ -3262,7 +2662,6 @@ public class QueryImpl<T> implements Query<T> {
   final static int tknWith = 71;
   final static int tknParam = 72;
   final static int tknContains = 73;
-
   static {
     symtab = new Hashtable();
     symtab.put("abs", new Symbol(tknAbs));
@@ -3311,205 +2710,12 @@ public class QueryImpl<T> implements Query<T> {
     symtab.put("with", new Symbol(tknWith));
     dateFormat = DateFormat.getDateTimeInstance();
   }
-
-  static Date parseDate(String source) {
-    ParsePosition pos = new ParsePosition(0);
-    Date result;
-    synchronized (dateFormat) {
-      result = dateFormat.parse(source, pos);
-    }
-    if (pos.getIndex() == 0) {
-      throw new Error("Parse error for date \"" + source + "\" at position " + pos.getErrorIndex());
-    }
-    return result;
-  }
-
-  final int scan() {
-    int p = pos;
-    int eol = buf.length;
-    char ch = 0;
-    int i;
-    while (p < eol && Character.isWhitespace(ch = buf[p])) {
-      p += 1;
-    }
-    if (p == eol) {
-      return tknEof;
-    }
-    pos = ++p;
-    switch (ch) {
-      case '+':
-        return tknAdd;
-      case '-':
-        return tknSub;
-      case '*':
-        return tknMul;
-      case '/':
-        return tknDiv;
-      case '.':
-        return tknDot;
-      case ',':
-        return tknComma;
-      case '(':
-        return tknLpar;
-      case ')':
-        return tknRpar;
-      case '[':
-        return tknLbr;
-      case ']':
-        return tknRbr;
-      case ':':
-        return tknCol;
-      case '^':
-        return tknPower;
-      case '?':
-        return tknParam;
-      case '<':
-        if (p < eol) {
-          if (buf[p] == '=') {
-            pos += 1;
-            return tknLe;
-          }
-          if (buf[p] == '>') {
-            pos += 1;
-            return tknNe;
-          }
-        }
-        return tknLt;
-      case '>':
-        if (p < eol && buf[p] == '=') {
-          pos += 1;
-          return tknGe;
-        }
-        return tknGt;
-      case '=':
-        return tknEq;
-      case '!':
-        if (p == eol || buf[p] != '=') {
-          throw new CompileError("Invalid token '!'", p - 1);
-        }
-        pos += 1;
-        return tknNe;
-      case '|':
-        if (p == eol || buf[p] != '|') {
-          throw new CompileError("Invalid token '!'", p - 1);
-        }
-        pos += 1;
-        return tknAdd;
-      case '\'':
-        i = 0;
-        while (true) {
-          if (p == eol) {
-            throw new CompileError("Unexpected end of string constant", p);
-          }
-          if (buf[p] == '\'') {
-            if (++p == eol || buf[p] != '\'') {
-              svalue = new String(str, 0, i);
-              pos = p;
-              return tknSconst;
-            }
-          }
-          str[i++] = buf[p++];
-        }
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-        i = p - 1;
-        while (p < eol && Character.isDigit(ch = buf[p])) {
-          p += 1;
-        }
-        if (ch == '.' || ch == 'e' || ch == 'E') {
-          while (++p < eol && (Character.isDigit(buf[p]) || buf[p] == 'e' || buf[p] == 'E'
-              || buf[p] == '.' || ((ch == 'e' || ch == 'E') && (buf[p] == '-' || buf[p] == '+'))));
-          pos = p;
-          try {
-            fvalue = Double.valueOf(query.substring(i, p)).doubleValue();
-          } catch (NumberFormatException x) {
-            throw new CompileError("Bad floating point constant", i);
-          }
-          return tknFconst;
-        } else {
-          pos = p;
-          try {
-            ivalue = Long.parseLong(query.substring(i, p), 10);
-          } catch (NumberFormatException x) {
-            throw new CompileError("Bad floating point constant", i);
-          }
-          return tknIconst;
-        }
-      default:
-        if (Character.isLetter(ch) || ch == '$' || ch == '_') {
-          i = p - 1;
-          while (p < eol && (Character.isLetterOrDigit(ch = buf[p]) || ch == '$' || ch == '_')) {
-            p += 1;
-          }
-          pos = p;
-          ident = query.substring(i, p);
-          Symbol s = (Symbol) symtab.get(ident.toLowerCase());
-          return (s == null) ? tknIdent : s.tkn;
-        } else {
-          throw new CompileError("Invalid symbol: " + ch, p - 1);
-        }
-    }
-  }
-
-
-  final Node disjunction() {
-    Node left = conjunction();
-    if (lex == tknOr) {
-      int p = pos;
-      Node right = disjunction();
-      if (left.type == Node.tpInt && right.type == Node.tpInt) {
-        left = new BinOpNode(Node.tpInt, Node.opIntOr, left, right);
-      } else if (left.type == Node.tpBool && right.type == Node.tpBool) {
-        left = new BinOpNode(Node.tpBool, Node.opBoolOr, left, right);
-      } else if (left.type == Node.tpAny || right.type == Node.tpAny) {
-        left = new BinOpNode(Node.tpAny, Node.opAnyOr, left, right);
-      } else {
-        throw new CompileError("Bad operands for OR operator", p);
-      }
-    }
-    return left;
-  }
-
-  final Node conjunction() {
-    Node left = comparison();
-    if (lex == tknAnd) {
-      int p = pos;
-      Node right = conjunction();
-      if (left.type == Node.tpInt && right.type == Node.tpInt) {
-        left = new BinOpNode(Node.tpInt, Node.opIntAnd, left, right);
-      } else if (left.type == Node.tpBool && right.type == Node.tpBool) {
-        left = new BinOpNode(Node.tpBool, Node.opBoolAnd, left, right);
-      } else if (left.type == Node.tpAny || right.type == Node.tpAny) {
-        left = new BinOpNode(Node.tpAny, Node.opAnyAnd, left, right);
-      } else {
-        throw new CompileError("Bad operands for AND operator", p);
-      }
-    }
-    return left;
-  }
-
   final static Node int2real(Node expr) {
     if (expr.tag == Node.opIntConst) {
       return new RealLiteralNode(((IntLiteralNode) expr).value);
     }
     return new UnaryOpNode(Node.tpReal, Node.opIntToReal, expr);
   }
-
-  final static Node str2date(Node expr) {
-    if (expr.tag == Node.opStrConst) {
-      return new DateLiteralNode(parseDate(((StrLiteralNode) expr).value));
-    }
-    return new UnaryOpNode(Node.tpDate, Node.opStrToDate, expr);
-  }
-
   static boolean isCaseInsensitive(Node node) {
     Field f = node.getField();
     if (f != null) {
@@ -3518,19 +2724,6 @@ public class QueryImpl<T> implements Query<T> {
     }
     return false;
   }
-
-  static boolean isPatternMatch(Node node) {
-    switch (node.tag) {
-      case Node.opStrLike:
-      case Node.opStrLikeEsc:
-      case Node.opStrIgnoreCaseLike:
-      case Node.opStrIgnoreCaseLikeEsc:
-        return true;
-      default:
-        return false;
-    }
-  }
-
   static boolean isEqComparison(Node node) {
     switch (node.tag) {
       case Node.opAnyEq:
@@ -3546,7 +2739,594 @@ public class QueryImpl<T> implements Query<T> {
         return false;
     }
   }
-
+  static boolean isPatternMatch(Node node) {
+    switch (node.tag) {
+      case Node.opStrLike:
+      case Node.opStrLikeEsc:
+      case Node.opStrIgnoreCaseLike:
+      case Node.opStrIgnoreCaseLikeEsc:
+        return true;
+      default:
+        return false;
+    }
+  }
+  private static Key keyLiteral(Class type, Node node, boolean inclusive) {
+    Object value = ((LiteralNode) node).getValue();
+    if (type.equals(long.class)) {
+      return new Key(((Number) value).longValue(), inclusive);
+    } else if (type.equals(int.class)) {
+      return new Key(((Number) value).intValue(), inclusive);
+    } else if (type.equals(byte.class)) {
+      return new Key(((Number) value).byteValue(), inclusive);
+    } else if (type.equals(short.class)) {
+      return new Key(((Number) value).shortValue(), inclusive);
+    } else if (type.equals(char.class)) {
+      return new Key(value instanceof Number ? (char) ((Number) value).intValue()
+          : ((Character) value).charValue(), inclusive);
+    } else if (type.equals(float.class)) {
+      return new Key(((Number) value).floatValue(), inclusive);
+    } else if (type.equals(double.class)) {
+      return new Key(((Number) value).doubleValue(), inclusive);
+    } else if (type.equals(boolean.class)) {
+      return new Key(((Boolean) value).booleanValue(), inclusive);
+    } else if (type.equals(String.class)) {
+      return new Key((String) value, inclusive);
+    } else if (type.equals(Date.class)) {
+      return new Key((Date) value, inclusive);
+    } else {
+      return new Key(value, inclusive);
+    }
+  }
+  static Method lookupMethod(Class cls, String ident, Class[] profile) {
+    Method m = null;
+    for (Class scope = cls; scope != null; scope = scope.getSuperclass()) {
+      try {
+        m = scope.getDeclaredMethod(ident, profile);
+        if (m.isBridge()) {
+          Method[] methods = scope.getDeclaredMethods();
+          for (Method method : methods) {
+            if (method.getName() == ident && Arrays.equals(method.getParameterTypes(), profile)
+                && !method.isBridge()) {
+              m = method;
+              break;
+            }
+          }
+          Assert.that(!m.isBridge());
+        }
+        break;
+      } catch (Exception x) {
+      }
+    }
+    if (m == null && profile.length == 0) {
+      ident = "get" + Character.toUpperCase(ident.charAt(0)) + ident.substring(1);
+      for (Class scope = cls; scope != null; scope = scope.getSuperclass()) {
+        try {
+          m = scope.getDeclaredMethod(ident, profile);
+          if (m.isBridge()) {
+            Method[] methods = scope.getDeclaredMethods();
+            for (Method method : methods) {
+              if (method.getName() == ident && method.getParameterTypes().length == 0
+                  && !method.isBridge()) {
+                m = method;
+                break;
+              }
+            }
+            Assert.that(!m.isBridge());
+          }
+          break;
+        } catch (Exception x) {
+        }
+      }
+    }
+    if (m != null) {
+      try {
+        m.setAccessible(true);
+      } catch (Exception x) {
+      }
+    }
+    return m;
+  }
+  static Date parseDate(String source) {
+    ParsePosition pos = new ParsePosition(0);
+    Date result;
+    synchronized (dateFormat) {
+      result = dateFormat.parse(source, pos);
+    }
+    if (pos.getIndex() == 0) {
+      throw new Error("Parse error for date \"" + source + "\" at position " + pos.getErrorIndex());
+    }
+    return result;
+  }
+  final static Node str2date(Node expr) {
+    if (expr.tag == Node.opStrConst) {
+      return new DateLiteralNode(parseDate(((StrLiteralNode) expr).value));
+    }
+    return new UnaryOpNode(Node.tpDate, Node.opStrToDate, expr);
+  }
+  int pos;
+  char[] buf;
+  char[] str;
+  String query;
+  long ivalue;
+  String svalue;
+  double fvalue;
+  Class cls;
+  Node tree;
+  String ident;
+  int lex;
+  int vars;
+  Binding bindings;
+  OrderNode order;
+  ContainsNode contains;
+  Node singleElementList;
+  ArrayList parameters;
+  boolean runtimeErrorsReporting;
+  HashMap resolveMap;
+  IndexProvider indexProvider;
+  Collection<T> classExtent;
+  Query.ClassExtentLockType classExtentLock;
+  HashMap<String, GenericIndex<T>> indices;
+  StorageImpl storage;
+  public QueryImpl(Storage storage) {
+    this.storage = (StorageImpl) storage;
+    parameters = new ArrayList();
+    runtimeErrorsReporting = true;
+  }
+  @Override
+  public void addIndex(String key, GenericIndex<T> index) {
+    if (indices == null) {
+      indices = new HashMap();
+    }
+    indices.put(key, index);
+  }
+  final Node addition() {
+    int leftPos = pos;
+    Node left = multiplication();
+    while (lex == tknAdd || lex == tknSub) {
+      int cop = lex;
+      int rightPos = pos;
+      Node right = multiplication();
+      if (left.type == Node.tpAny || right.type == Node.tpAny) {
+        left =
+            new BinOpNode(Node.tpAny, cop == tknAdd ? Node.opAnyAdd : Node.opAnySub, left, right);
+      } else if (left.type == Node.tpReal || right.type == Node.tpReal) {
+        if (left.type == Node.tpInt) {
+          left = int2real(left);
+        } else if (left.type != Node.tpReal) {
+          throw new CompileError(
+              "operands of arithmetic operators should be of integer or real type", leftPos);
+        }
+        if (right.type == Node.tpInt) {
+          right = int2real(right);
+        } else if (right.type != Node.tpReal) {
+          throw new CompileError(
+              "operands of arithmetic operator should be of integer or real type", rightPos);
+        }
+        left = new BinOpNode(Node.tpReal, cop == tknAdd ? Node.opRealAdd : Node.opRealSub, left,
+            right);
+      } else if (left.type == Node.tpInt && right.type == Node.tpInt) {
+        left =
+            new BinOpNode(Node.tpInt, cop == tknAdd ? Node.opIntAdd : Node.opIntSub, left, right);
+      } else if (left.type == Node.tpStr && right.type == Node.tpStr) {
+        if (cop == tknAdd) {
+          left = new BinOpNode(Node.tpStr, Node.opStrConcat, left, right);
+        } else {
+          throw new CompileError("Operation - is not defined for strings", rightPos);
+        }
+      } else {
+        throw new CompileError("operands of arithmentic operator should be of integer or real type",
+            rightPos);
+      }
+      leftPos = rightPos;
+    }
+    return left;
+  }
+  final Node aggregateFunction(int cop) {
+    int p = pos;
+    AggregateFunctionNode agr;
+    if (contains == null || (contains.groupByField == null && contains.groupByMethod == null
+        && contains.groupByFieldName == null)) {
+      throw new CompileError("Aggregate function can be used only inside HAVING clause", p);
+    }
+    if (cop == tknCount) {
+      if (scan() != tknLpar || scan() != tknMul || scan() != tknRpar) {
+        throw new CompileError("'count(*)' expected", p);
+      }
+      lex = scan();
+      agr = new AggregateFunctionNode(Node.tpInt, Node.opCount, null);
+    } else {
+      Node arg = term();
+      if (arg.type == Node.tpAny) {
+        arg = new ConvertAnyNode(Node.tpReal, arg);
+      } else if (arg.type != Node.tpInt && arg.type != Node.tpReal) {
+        throw new CompileError("Argument of aggregate function should have scalar type", p);
+      }
+      agr = new AggregateFunctionNode(arg.type, cop + Node.opAvg - tknAvg, arg);
+    }
+    agr.index = contains.aggregateFunctions.size();
+    contains.aggregateFunctions.add(agr);
+    return agr;
+  }
+  final IndexSearchResult applyIndex(Node condition, Node predicate, Node filterCondition) {
+    ArrayList alternatives = null;
+    switch (condition.tag) {
+      case Node.opBoolAnd: {
+        BinOpNode and = (BinOpNode) condition;
+        if (storage.sqlOptimizerParameters.enableCostBasedOptimization
+            && calculateCost(and.left) > calculateCost(and.right)) {
+          IndexSearchResult result =
+              applyIndex(and.right, predicate, filterCondition == null ? and.left : predicate);
+          if (result != null) {
+            return result;
+          }
+          return applyIndex(and.left, predicate, filterCondition == null ? and.right : predicate);
+        } else {
+          IndexSearchResult result =
+              applyIndex(and.left, predicate, filterCondition == null ? and.right : predicate);
+          if (result != null) {
+            return result;
+          }
+          return applyIndex(and.right, predicate, filterCondition == null ? and.left : predicate);
+        }
+      }
+      case Node.opContains: {
+        ContainsNode contains = (ContainsNode) condition;
+        if (contains.withExpr == null) {
+          return null;
+        }
+        if (filterCondition == null && contains.havingExpr != null) {
+          filterCondition = condition;
+        }
+        return applyIndex(contains.withExpr, predicate, filterCondition);
+      }
+      case Node.opBoolOr: {
+        BinOpNode or = (BinOpNode) condition;
+        if (isEqComparison(or.left) && ((BinOpNode) or.left).right instanceof LiteralNode) {
+          int cop = or.left.tag;
+          Node base = ((BinOpNode) or.left).left;
+          Node right = or.right;
+          alternatives = new ArrayList();
+          condition = or.left;
+          while (right instanceof BinOpNode) {
+            Node cmp;
+            if (right.tag == Node.opBoolOr) {
+              or = (BinOpNode) right;
+              right = or.right;
+              cmp = or.left;
+            } else {
+              cmp = right;
+              right = null;
+            }
+            if (cmp.tag != cop || !base.equals(((BinOpNode) cmp).left)
+                || !(((BinOpNode) cmp).right instanceof LiteralNode)) {
+              return null;
+            }
+            alternatives.add(((LiteralNode) ((BinOpNode) cmp).right).getValue());
+          }
+          if (right != null) {
+            return null;
+          }
+        } else {
+          return null;
+        }
+        break;
+      }
+      case Node.opIsNull: {
+        UnaryOpNode unary = (UnaryOpNode) condition;
+        String key = unary.opd.getFieldName();
+        if (key != null) {
+          GenericIndex index = getIndex(cls, key);
+          Key nil = new Key((IPersistent) null);
+          if (index == null) {
+            if (unary.opd.tag == Node.opLoad) {
+              LoadNode deref = (LoadNode) unary.opd;
+              index = getIndex(deref.getDeclaringClass(), deref.field.getName());
+              if (index != null) {
+                JoinIterator lastJoinIterator = new JoinIterator();
+                JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
+                if (firstJoinIterator != null) {
+                  Iterator iterator = index.iterator(nil, nil, GenericIndex.ASCENT_ORDER);
+                  if (iterator != null) {
+                    lastJoinIterator.iterator = iterator;
+                    return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
+                  }
+                }
+              }
+            }
+          } else {
+            Iterator iterator = index.iterator(nil, nil, GenericIndex.ASCENT_ORDER);
+            if (iterator != null) {
+              return new IndexSearchResult(filter(iterator, filterCondition), unary.opd.getField());
+            }
+          }
+        }
+        return null;
+      }
+      case Node.opBoolNot: {
+        UnaryOpNode unary = (UnaryOpNode) condition;
+        if (unary.opd.tag == Node.opLoad) {
+          String key = unary.opd.getFieldName();
+          if (key != null) {
+            GenericIndex index = getIndex(cls, key);
+            Key f = new Key(false);
+            if (index == null) {
+              LoadNode deref = (LoadNode) unary.opd;
+              index = getIndex(deref.getDeclaringClass(), deref.field.getName());
+              if (index != null) {
+                JoinIterator lastJoinIterator = new JoinIterator();
+                JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
+                if (firstJoinIterator != null) {
+                  Iterator iterator = index.iterator(f, f, GenericIndex.ASCENT_ORDER);
+                  if (iterator != null) {
+                    lastJoinIterator.iterator = iterator;
+                    return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
+                  }
+                }
+              }
+            } else {
+              Iterator iterator = index.iterator(f, f, GenericIndex.ASCENT_ORDER);
+              if (iterator != null) {
+                return new IndexSearchResult(filter(iterator, filterCondition),
+                    unary.opd.getField());
+              }
+            }
+          }
+        }
+        return null;
+      }
+      case Node.opLoad: {
+        String key = condition.getFieldName();
+        if (key != null) {
+          GenericIndex index = getIndex(cls, key);
+          Key t = new Key(true);
+          if (index == null) {
+            LoadNode deref = (LoadNode) condition;
+            index = getIndex(deref.getDeclaringClass(), deref.field.getName());
+            if (index != null) {
+              JoinIterator lastJoinIterator = new JoinIterator();
+              JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
+              if (firstJoinIterator != null) {
+                Iterator iterator = index.iterator(t, t, GenericIndex.ASCENT_ORDER);
+                if (iterator != null) {
+                  lastJoinIterator.iterator = iterator;
+                  return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
+                }
+              }
+            }
+          } else {
+            Iterator iterator = index.iterator(t, t, GenericIndex.ASCENT_ORDER);
+            if (iterator != null) {
+              return new IndexSearchResult(filter(iterator, filterCondition), condition.getField());
+            }
+          }
+        }
+        return null;
+      }
+    }
+    if (condition instanceof BinOpNode) {
+      BinOpNode cmp = (BinOpNode) condition;
+      String key = cmp.left.getFieldName();
+      if (key != null && cmp.right instanceof LiteralNode) {
+        GenericIndex index = getIndex(cls, key);
+        if (index == null) {
+          if (cmp.left.tag == Node.opLoad) {
+            LoadNode deref = (LoadNode) cmp.left;
+            index = getIndex(deref.getDeclaringClass(), deref.field.getName());
+            if (index != null) {
+              JoinIterator lastJoinIterator = new JoinIterator();
+              JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
+              if (firstJoinIterator != null) {
+                Iterator iterator = binOpIndex(index, cmp);
+                if (iterator != null) {
+                  if (alternatives != null) {
+                    iterator = new UnionIterator(index, iterator, alternatives);
+                  }
+                  lastJoinIterator.iterator = iterator;
+                  return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
+                }
+              }
+            }
+          }
+        } else {
+          Iterator iterator = binOpIndex(index, cmp);
+          if (iterator != null) {
+            if (alternatives != null) {
+              iterator = new UnionIterator(index, iterator, alternatives);
+            }
+            return new IndexSearchResult(filter(iterator, filterCondition),
+                iterator instanceof UnionIterator ? null : cmp.left.getField());
+          }
+        }
+      }
+    } else if (condition instanceof CompareNode) {
+      CompareNode cmp = (CompareNode) condition;
+      String key = cmp.o1.getFieldName();
+      if (key != null && cmp.o2 instanceof LiteralNode
+          && (cmp.o3 == null || cmp.o3 instanceof LiteralNode)) {
+        GenericIndex index = getIndex(cls, key);
+        if (index == null) {
+          if (cmp.o1.tag == Node.opLoad) {
+            LoadNode deref = (LoadNode) cmp.o1;
+            index = getIndex(deref.getDeclaringClass(), deref.field.getName());
+            if (index != null) {
+              JoinIterator lastJoinIterator = new JoinIterator();
+              JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
+              if (firstJoinIterator != null) {
+                Iterator iterator = tripleOpIndex(index, cmp);
+                if (iterator != null) {
+                  lastJoinIterator.iterator = iterator;
+                  return new IndexSearchResult(filter(firstJoinIterator,
+                      (filterCondition == null && isPatternMatch(cmp)) ? condition
+                          : filterCondition),
+                      null);
+                }
+              }
+            }
+          }
+        } else {
+          Iterator iterator = tripleOpIndex(index, cmp);
+          if (iterator != null) {
+            return new IndexSearchResult(
+                filter(iterator,
+                    (filterCondition == null && isPatternMatch(cmp)) ? condition : filterCondition),
+                cmp.o1.getField());
+          }
+        }
+      }
+    }
+    return null;
+  }
+  final Iterator binOpIndex(GenericIndex index, BinOpNode cmp) {
+    Key key;
+    int sort = GenericIndex.ASCENT_ORDER;
+    if (order != null && order.field != null && order.field.equals(cmp.left.getField())
+        && !order.ascent) {
+      sort = GenericIndex.DESCENT_ORDER;
+    }
+    switch (cmp.tag) {
+      case Node.opInAny:
+      case Node.opScanCollection:
+        return new UnionIterator(index, null, (Iterable) ((LiteralNode) cmp.right).getValue());
+      case Node.opAnyEq:
+      case Node.opIntEq:
+      case Node.opRealEq:
+      case Node.opStrEq:
+      case Node.opStrIgnoreCaseEq:
+      case Node.opDateEq:
+      case Node.opBoolEq:
+      case Node.opObjEq:
+      case Node.opByteArrayEq:
+        if ((key = keyLiteral(index.getKeyType(), cmp.right, true)) != null) {
+          return index.iterator(key, key, sort);
+        }
+        break;
+      case Node.opIntGt:
+      case Node.opRealGt:
+      case Node.opStrGt:
+      case Node.opStrIgnoreCaseGt:
+      case Node.opDateGt:
+      case Node.opAnyGt:
+        if ((key = keyLiteral(index.getKeyType(), cmp.right, false)) != null) {
+          return index.iterator(key, null, sort);
+        }
+        break;
+      case Node.opIntGe:
+      case Node.opRealGe:
+      case Node.opStrGe:
+      case Node.opStrIgnoreCaseGe:
+      case Node.opDateGe:
+      case Node.opAnyGe:
+        if ((key = keyLiteral(index.getKeyType(), cmp.right, true)) != null) {
+          return index.iterator(key, null, sort);
+        }
+        break;
+      case Node.opIntLt:
+      case Node.opRealLt:
+      case Node.opStrLt:
+      case Node.opStrIgnoreCaseLt:
+      case Node.opDateLt:
+      case Node.opAnyLt:
+        if ((key = keyLiteral(index.getKeyType(), cmp.right, false)) != null) {
+          return index.iterator(null, key, sort);
+        }
+        break;
+      case Node.opIntLe:
+      case Node.opRealLe:
+      case Node.opStrLe:
+      case Node.opStrIgnoreCaseLe:
+      case Node.opDateLe:
+      case Node.opAnyLe:
+        if ((key = keyLiteral(index.getKeyType(), cmp.right, true)) != null) {
+          return index.iterator(null, key, sort);
+        }
+        break;
+    }
+    return null;
+  }
+  final int calculateCost(Node node) {
+    SqlOptimizerParameters params = storage.sqlOptimizerParameters;
+    switch (node.tag) {
+      case Node.opContains:
+        return params.containsCost
+            + ((ContainsNode) node).withExpr.getIndirectionLevel() * params.indirectionCost;
+      case Node.opBoolAnd:
+        return params.andCost + Math.min(calculateCost(((BinOpNode) node).left),
+            calculateCost(((BinOpNode) node).right));
+      case Node.opBoolOr:
+        return params.orCost + calculateCost(((BinOpNode) node).left)
+            + calculateCost(((BinOpNode) node).right);
+      case Node.opBoolEq:
+        return params.eqBoolCost + getEqualsCost(node);
+      case Node.opStrEq:
+      case Node.opStrIgnoreCaseEq:
+        return params.eqStringCost + getEqualsCost(node);
+      case Node.opRealEq:
+        return params.eqRealCost + getEqualsCost(node);
+      case Node.opStrIgnoreCaseGt:
+      case Node.opStrIgnoreCaseGe:
+      case Node.opStrIgnoreCaseLt:
+      case Node.opStrIgnoreCaseLe:
+      case Node.opStrGt:
+      case Node.opStrGe:
+      case Node.opStrLt:
+      case Node.opStrLe:
+      case Node.opIntGt:
+      case Node.opIntGe:
+      case Node.opIntLt:
+      case Node.opIntLe:
+      case Node.opRealGt:
+      case Node.opRealGe:
+      case Node.opRealLt:
+      case Node.opRealLe:
+      case Node.opDateGt:
+      case Node.opDateGe:
+      case Node.opDateLt:
+      case Node.opDateLe:
+        return params.openIntervalCost + Math.max(((BinOpNode) node).left.getIndirectionLevel(),
+            ((BinOpNode) node).right.getIndirectionLevel()) * params.indirectionCost;
+      case Node.opStrIgnoreCaseBetween:
+      case Node.opStrBetween:
+      case Node.opRealBetween:
+      case Node.opIntBetween:
+      case Node.opDateBetween:
+        return params.closeIntervalCost
+            + ((CompareNode) node).o1.getIndirectionLevel() * params.indirectionCost;
+      case Node.opStrLike:
+      case Node.opStrLikeEsc:
+      case Node.opStrIgnoreCaseLike:
+      case Node.opStrIgnoreCaseLikeEsc:
+        return params.patternMatchCost
+            + ((CompareNode) node).o1.getIndirectionLevel() * params.indirectionCost;
+      case Node.opByteArrayEq:
+      case Node.opObjEq:
+      case Node.opIntEq:
+      case Node.opDateEq:
+        return params.eqCost + getEqualsCost(node);
+      case Node.opIsNull:
+        return params.isNullCost
+            + ((UnaryOpNode) node).opd.getIndirectionLevel() * params.indirectionCost;
+      case Node.opBoolNot:
+        return params.eqBoolCost + params.notUniqCost
+            + ((UnaryOpNode) node).opd.getIndirectionLevel() * params.indirectionCost;
+      case Node.opLoad:
+        return params.eqBoolCost + params.notUniqCost
+            + node.getIndirectionLevel() * params.indirectionCost;
+      default:
+        return params.sequentialSearchCost;
+    }
+  }
+  final Node checkType(int type, Node expr) {
+    if (expr.type != type) {
+      if (expr.type == Node.tpAny) {
+        expr = new ConvertAnyNode(type, expr);
+      } else if (expr.type == Node.tpUnknown) {
+        expr.type = type;
+      } else {
+        throw new CompileError(Node.typeNames[type] + " expression expected", pos);
+      }
+    }
+    return expr;
+  }
   final Node compare(Node expr, BinOpNode list) {
     BinOpNode tree = null;
     int n = 1;
@@ -3597,8 +3377,6 @@ public class QueryImpl<T> implements Query<T> {
     } while ((list = (BinOpNode) list.left) != null);
     return tree;
   }
-
-
   final Node comparison() {
     int leftPos = pos;
     Node left, right;
@@ -3880,183 +3658,56 @@ public class QueryImpl<T> implements Query<T> {
     }
     return left;
   }
-
-
-  final Node addition() {
-    int leftPos = pos;
-    Node left = multiplication();
-    while (lex == tknAdd || lex == tknSub) {
-      int cop = lex;
-      int rightPos = pos;
-      Node right = multiplication();
-      if (left.type == Node.tpAny || right.type == Node.tpAny) {
-        left =
-            new BinOpNode(Node.tpAny, cop == tknAdd ? Node.opAnyAdd : Node.opAnySub, left, right);
-      } else if (left.type == Node.tpReal || right.type == Node.tpReal) {
-        if (left.type == Node.tpInt) {
-          left = int2real(left);
-        } else if (left.type != Node.tpReal) {
-          throw new CompileError(
-              "operands of arithmetic operators should be of integer or real type", leftPos);
-        }
-        if (right.type == Node.tpInt) {
-          right = int2real(right);
-        } else if (right.type != Node.tpReal) {
-          throw new CompileError(
-              "operands of arithmetic operator should be of integer or real type", rightPos);
-        }
-        left = new BinOpNode(Node.tpReal, cop == tknAdd ? Node.opRealAdd : Node.opRealSub, left,
-            right);
-      } else if (left.type == Node.tpInt && right.type == Node.tpInt) {
-        left =
-            new BinOpNode(Node.tpInt, cop == tknAdd ? Node.opIntAdd : Node.opIntSub, left, right);
-      } else if (left.type == Node.tpStr && right.type == Node.tpStr) {
-        if (cop == tknAdd) {
-          left = new BinOpNode(Node.tpStr, Node.opStrConcat, left, right);
-        } else {
-          throw new CompileError("Operation - is not defined for strings", rightPos);
-        }
+  final void compile() {
+    pos = 0;
+    vars = 0;
+    Node predicate = checkType(Node.tpBool, disjunction());
+    if (predicate.tag != Node.opTrue) {
+      tree = predicate;
+    }
+    OrderNode last = null;
+    order = null;
+    if (lex == tknEof) {
+      return;
+    }
+    if (lex != tknOrder) {
+      throw new CompileError("ORDER BY expected", pos);
+    }
+    int tkn;
+    int p = pos;
+    if (scan() != tknBy) {
+      throw new CompileError("BY expected after ORDER", p);
+    }
+    do {
+      p = pos;
+      OrderNode node;
+      Node orderExpr = disjunction();
+      if (orderExpr.tag == Node.opLoad && ((LoadNode) orderExpr).base == null) {
+        node = new OrderNode(orderExpr.getField());
+      } else if (orderExpr.tag == Node.opInvoke && ((InvokeNode) orderExpr).target == null) {
+        node = new OrderNode(((InvokeNode) orderExpr).mth);
       } else {
-        throw new CompileError("operands of arithmentic operator should be of integer or real type",
-            rightPos);
+        node = new OrderNode(orderExpr);
       }
-      leftPos = rightPos;
-    }
-    return left;
-  }
-
-
-  final Node multiplication() {
-    int leftPos = pos;
-    Node left = power();
-    while (lex == tknMul || lex == tknDiv) {
-      int cop = lex;
-      int rightPos = pos;
-      Node right = power();
-      if (left.type == Node.tpAny || right.type == Node.tpAny) {
-        left =
-            new BinOpNode(Node.tpAny, cop == tknMul ? Node.opAnyMul : Node.opAnyDiv, left, right);
-      } else if (left.type == Node.tpReal || right.type == Node.tpReal) {
-        if (left.type == Node.tpInt) {
-          left = int2real(left);
-        } else if (left.type != Node.tpReal) {
-          throw new CompileError(
-              "operands of arithmetic operators should be of integer or real type", leftPos);
-        }
-        if (right.type == Node.tpInt) {
-          right = int2real(right);
-        } else if (right.type != Node.tpReal) {
-          throw new CompileError(
-              "operands of arithmetic operator should be of integer or real type", rightPos);
-        }
-        left = new BinOpNode(Node.tpReal, cop == tknMul ? Node.opRealMul : Node.opRealDiv, left,
-            right);
-      } else if (left.type == Node.tpInt && right.type == Node.tpInt) {
-        left =
-            new BinOpNode(Node.tpInt, cop == tknMul ? Node.opIntMul : Node.opIntDiv, left, right);
+      if (last != null) {
+        last.next = node;
       } else {
-        throw new CompileError("operands of arithmentic operator should be of integer or real type",
-            rightPos);
+        order = node;
       }
-      leftPos = rightPos;
+      last = node;
+      p = pos;
+      tkn = lex;
+      if (tkn == tknDesc) {
+        node.ascent = false;
+        tkn = scan();
+      } else if (tkn == tknAsc) {
+        tkn = scan();
+      }
+    } while (tkn == tknComma);
+    if (tkn != tknEof) {
+      throw new CompileError("',' expected", p);
     }
-    return left;
   }
-
-
-  final Node power() {
-    int leftPos = pos;
-    Node left = term();
-    if (lex == tknPower) {
-      int rightPos = pos;
-      Node right = power();
-      if (left.type == Node.tpAny || right.type == Node.tpAny) {
-        left = new BinOpNode(Node.tpAny, Node.opAnyPow, left, right);
-      } else if (left.type == Node.tpReal || right.type == Node.tpReal) {
-        if (left.type == Node.tpInt) {
-          left = int2real(left);
-        } else if (left.type != Node.tpReal) {
-          throw new CompileError(
-              "operands of arithmetic operators should be of integer or real type", leftPos);
-        }
-        if (right.type == Node.tpInt) {
-          right = int2real(right);
-        } else if (right.type != Node.tpReal) {
-          throw new CompileError(
-              "operands of arithmetic operator should be of integer or real type", rightPos);
-        }
-        left = new BinOpNode(Node.tpReal, Node.opRealPow, left, right);
-      } else if (left.type == Node.tpInt && right.type == Node.tpInt) {
-        left = new BinOpNode(Node.tpInt, Node.opIntPow, left, right);
-      } else {
-        throw new CompileError("operands of arithmentic operator should be of integer or real type",
-            rightPos);
-      }
-    }
-    return left;
-  }
-
-  static Method lookupMethod(Class cls, String ident, Class[] profile) {
-    Method m = null;
-    for (Class scope = cls; scope != null; scope = scope.getSuperclass()) {
-      try {
-        m = scope.getDeclaredMethod(ident, profile);
-        if (m.isBridge()) {
-          Method[] methods = scope.getDeclaredMethods();
-          for (Method method : methods) {
-            if (method.getName() == ident && Arrays.equals(method.getParameterTypes(), profile)
-                && !method.isBridge()) {
-              m = method;
-              break;
-            }
-          }
-          Assert.that(!m.isBridge());
-        }
-        break;
-      } catch (Exception x) {
-      }
-    }
-    if (m == null && profile.length == 0) {
-      ident = "get" + Character.toUpperCase(ident.charAt(0)) + ident.substring(1);
-      for (Class scope = cls; scope != null; scope = scope.getSuperclass()) {
-        try {
-          m = scope.getDeclaredMethod(ident, profile);
-          if (m.isBridge()) {
-            Method[] methods = scope.getDeclaredMethods();
-            for (Method method : methods) {
-              if (method.getName() == ident && method.getParameterTypes().length == 0
-                  && !method.isBridge()) {
-                m = method;
-                break;
-              }
-            }
-            Assert.that(!m.isBridge());
-          }
-          break;
-        } catch (Exception x) {
-        }
-      }
-    }
-    if (m != null) {
-      try {
-        m.setAccessible(true);
-      } catch (Exception x) {
-      }
-    }
-    return m;
-  }
-
-  final Object resolve(Object obj) {
-    if (resolveMap != null) {
-      ResolveMapping rm = (ResolveMapping) resolveMap.get(obj.getClass());
-      if (rm != null) {
-        obj = rm.resolver.resolve(obj);
-      }
-    }
-    return obj;
-  }
-
-
   final Node component(Node base, Class cls) {
     String c;
     String ident = this.ident;
@@ -4192,7 +3843,180 @@ public class QueryImpl<T> implements Query<T> {
           + (cls == null ? contains.containsFieldClass : cls).getName(), pos);
     }
   }
+  final Node conjunction() {
+    Node left = comparison();
+    if (lex == tknAnd) {
+      int p = pos;
+      Node right = conjunction();
+      if (left.type == Node.tpInt && right.type == Node.tpInt) {
+        left = new BinOpNode(Node.tpInt, Node.opIntAnd, left, right);
+      } else if (left.type == Node.tpBool && right.type == Node.tpBool) {
+        left = new BinOpNode(Node.tpBool, Node.opBoolAnd, left, right);
+      } else if (left.type == Node.tpAny || right.type == Node.tpAny) {
+        left = new BinOpNode(Node.tpAny, Node.opAnyAnd, left, right);
+      } else {
+        throw new CompileError("Bad operands for AND operator", p);
+      }
+    }
+    return left;
+  }
+  final Node containsElement() {
+    int p = pos;
+    Node containsExpr = term();
+    Class arrClass = containsExpr.getType();
+    if (arrClass == null || (!arrClass.isArray() && !arrClass.equals(Object.class)
+        && !(Collection.class.isAssignableFrom(arrClass)))) {
+      throw new CompileError("Contains clause can be applied only to arrays or collections", p);
+    }
+    Class arrElemType = arrClass.isArray() ? arrClass.getComponentType() : Object.class;
+    p = pos;
+    Node withCondition = null;
 
+    ContainsNode outerContains = contains;
+    ContainsNode innerContains = new ContainsNode(containsExpr, arrElemType);
+    contains = innerContains;
+
+    if (resolveMap != null) {
+      ResolveMapping rm = (ResolveMapping) resolveMap.get(arrElemType);
+      if (rm != null) {
+        innerContains.resolver = rm.resolver;
+        arrElemType = rm.resolved;
+      }
+    }
+
+    if (lex == tknWith) {
+      innerContains.withExpr = checkType(Node.tpBool, disjunction());
+    }
+    if (lex == tknGroup) {
+      p = pos;
+      if (scan() != tknBy) {
+        throw new CompileError("GROUP BY expected", p);
+      }
+      p = pos;
+      if (scan() != tknIdent) {
+        throw new CompileError("GROUP BY field expected", p);
+      }
+      if (arrElemType.equals(Object.class)) {
+        innerContains.groupByFieldName = ident;
+      } else {
+        Field groupByField = ClassDescriptor.locateField(arrElemType, ident);
+        if (groupByField == null) {
+          Method groupByMethod = lookupMethod(arrElemType, ident, defaultProfile);
+          if (groupByMethod == null) {
+            throw new CompileError("Field '" + ident + "' is not found", p);
+          }
+          innerContains.groupByMethod = groupByMethod;
+          Class rt = groupByMethod.getReturnType();
+          if (rt.equals(void.class)
+              || !(rt.isPrimitive() && !Comparable.class.isAssignableFrom(rt))) {
+            throw new CompileError("Result type " + rt + " of sort method should be comparable", p);
+          }
+        } else {
+          Class type = groupByField.getType();
+          if (!type.isPrimitive() && !Comparable.class.isAssignableFrom(type)) {
+            throw new CompileError("Order by field type " + type + " should be comparable", p);
+          }
+          innerContains.groupByField = groupByField;
+          innerContains.groupByType = Node.getFieldType(type);
+        }
+      }
+      if (scan() != tknHaving) {
+        throw new CompileError("HAVING expected", pos);
+      }
+      innerContains.havingExpr = checkType(Node.tpBool, disjunction());
+    }
+    contains = outerContains;
+    return innerContains;
+  }
+
+  final Node disjunction() {
+    Node left = conjunction();
+    if (lex == tknOr) {
+      int p = pos;
+      Node right = disjunction();
+      if (left.type == Node.tpInt && right.type == Node.tpInt) {
+        left = new BinOpNode(Node.tpInt, Node.opIntOr, left, right);
+      } else if (left.type == Node.tpBool && right.type == Node.tpBool) {
+        left = new BinOpNode(Node.tpBool, Node.opBoolOr, left, right);
+      } else if (left.type == Node.tpAny || right.type == Node.tpAny) {
+        left = new BinOpNode(Node.tpAny, Node.opAnyOr, left, right);
+      } else {
+        throw new CompileError("Bad operands for OR operator", p);
+      }
+    }
+    return left;
+  }
+
+  @Override
+  public void enableRuntimeErrorReporting(boolean enabled) {
+    runtimeErrorsReporting = enabled;
+  }
+
+  @Override
+  public IterableIterator<T> execute() {
+    switch (classExtentLock) {
+      case None:
+        break;
+      case Shared:
+        ((IResource) classExtent).sharedLock();
+        break;
+      case Exclusive:
+        ((IResource) classExtent).exclusiveLock();
+        break;
+    }
+    return execute(classExtent.iterator());
+  }
+
+
+  @Override
+  public IterableIterator<T> execute(Iterator<T> iterator) {
+    long start = 0;
+    boolean sequentialSearch = false;
+    if (storage.listener != null) {
+      start = System.currentTimeMillis();
+    }
+    try {
+      IndexSearchResult result = tree != null ? applyIndex(tree, tree, null) : null;
+      IterableIterator<T> resultIterator;
+      if (result == null) {
+        if (tree == null && order != null && order.next == null) {
+          GenericIndex index = getIndex(cls, order.getName());
+          if (index != null) {
+            return filter(index.iterator(null, null,
+                order.ascent ? GenericIndex.ASCENT_ORDER : GenericIndex.DESCENT_ORDER), null);
+          }
+        }
+        if (storage.listener != null) {
+          sequentialSearch = true;
+          storage.listener.sequentialSearchPerformed(cls, query);
+        }
+        resultIterator = filter(iterator, tree);
+      } else {
+        resultIterator = result.iterator;
+        if (order == null
+            || (result.key != null && order.field.equals(result.key) && order.next == null)) {
+          return resultIterator;
+        }
+      }
+      if (order != null) {
+        ArrayList<T> list = new ArrayList<T>();
+        while (resultIterator.hasNext()) {
+          list.add(resultIterator.next());
+        }
+        if (storage.listener != null) {
+          storage.listener.sortResultSetPerformed(cls, query);
+        }
+        sort(list);
+        return new IteratorWrapper<T>(list.iterator());
+      }
+      return resultIterator;
+    } finally {
+      if (storage.listener != null) {
+        storage.listener.queryExecution(cls, query, System.currentTimeMillis() - start,
+            sequentialSearch);
+      }
+    }
+  }
 
   final Node field(Node expr) {
     int p = pos;
@@ -4300,114 +4124,463 @@ public class QueryImpl<T> implements Query<T> {
     }
   }
 
-  final Node containsElement() {
-    int p = pos;
-    Node containsExpr = term();
-    Class arrClass = containsExpr.getType();
-    if (arrClass == null || (!arrClass.isArray() && !arrClass.equals(Object.class)
-        && !(Collection.class.isAssignableFrom(arrClass)))) {
-      throw new CompileError("Contains clause can be applied only to arrays or collections", p);
+  final IterableIterator<T> filter(Iterator iterator, Node condition) {
+    return new FilterIterator<T>(this, iterator, condition);
+  }
+
+  @Override
+  public CodeGenerator getCodeGenerator() {
+    return getCodeGenerator(cls);
+  }
+
+  @Override
+  public CodeGenerator getCodeGenerator(Class cls) {
+    order = null;
+    tree = null;
+    parameters.clear();
+    return new CodeGeneratorImpl(this, cls);
+  }
+
+  final int getEqualsCost(Node node) {
+    BinOpNode bin = (BinOpNode) node;
+    int cost = Math.max(bin.left.getIndirectionLevel(), bin.right.getIndirectionLevel())
+        * storage.sqlOptimizerParameters.indirectionCost;
+    if (!isUniqueIndex(bin.left) && !isUniqueIndex(bin.right)) {
+      cost += storage.sqlOptimizerParameters.notUniqCost;
     }
-    Class arrElemType = arrClass.isArray() ? arrClass.getComponentType() : Object.class;
-    p = pos;
-    Node withCondition = null;
+    return cost;
+  }
 
-    ContainsNode outerContains = contains;
-    ContainsNode innerContains = new ContainsNode(containsExpr, arrElemType);
-    contains = innerContains;
-
-    if (resolveMap != null) {
-      ResolveMapping rm = (ResolveMapping) resolveMap.get(arrElemType);
-      if (rm != null) {
-        innerContains.resolver = rm.resolver;
-        arrElemType = rm.resolved;
+  private final GenericIndex getIndex(Class ctx, String key) {
+    if (indices != null && cls == ctx) {
+      GenericIndex index = indices.get(key);
+      if (index != null) {
+        return index;
       }
     }
-
-    if (lex == tknWith) {
-      innerContains.withExpr = checkType(Node.tpBool, disjunction());
+    if (indexProvider != null) {
+      return indexProvider.getIndex(ctx, key);
     }
-    if (lex == tknGroup) {
-      p = pos;
-      if (scan() != tknBy) {
-        throw new CompileError("GROUP BY expected", p);
-      }
-      p = pos;
-      if (scan() != tknIdent) {
-        throw new CompileError("GROUP BY field expected", p);
-      }
-      if (arrElemType.equals(Object.class)) {
-        innerContains.groupByFieldName = ident;
+    return null;
+  }
+
+  final boolean isUniqueIndex(Node node) {
+    String key = node.getFieldName();
+    if (key != null) {
+      GenericIndex index = getIndex(cls, key);
+      return index != null && index.isUnique();
+    }
+    return false;
+  }
+
+
+  @Override
+  public Iterator<T> iterator() {
+    return execute();
+  }
+
+
+  final JoinIterator join(LoadNode deref, JoinIterator parent) {
+    if (deref.base == null || deref.base.tag != Node.opLoad) {
+      return null;
+    }
+    deref = (LoadNode) deref.base;
+    GenericIndex joinIndex = getIndex(deref.getDeclaringClass(), deref.field.getName());
+    if (joinIndex == null) {
+      return null;
+    }
+    parent.joinIndex = joinIndex;
+    if (deref.isSelfField()) {
+      return parent;
+    }
+    JoinIterator child = new JoinIterator();
+    child.iterator = parent;
+    return join(deref, child);
+  }
+
+
+  final Node multiplication() {
+    int leftPos = pos;
+    Node left = power();
+    while (lex == tknMul || lex == tknDiv) {
+      int cop = lex;
+      int rightPos = pos;
+      Node right = power();
+      if (left.type == Node.tpAny || right.type == Node.tpAny) {
+        left =
+            new BinOpNode(Node.tpAny, cop == tknMul ? Node.opAnyMul : Node.opAnyDiv, left, right);
+      } else if (left.type == Node.tpReal || right.type == Node.tpReal) {
+        if (left.type == Node.tpInt) {
+          left = int2real(left);
+        } else if (left.type != Node.tpReal) {
+          throw new CompileError(
+              "operands of arithmetic operators should be of integer or real type", leftPos);
+        }
+        if (right.type == Node.tpInt) {
+          right = int2real(right);
+        } else if (right.type != Node.tpReal) {
+          throw new CompileError(
+              "operands of arithmetic operator should be of integer or real type", rightPos);
+        }
+        left = new BinOpNode(Node.tpReal, cop == tknMul ? Node.opRealMul : Node.opRealDiv, left,
+            right);
+      } else if (left.type == Node.tpInt && right.type == Node.tpInt) {
+        left =
+            new BinOpNode(Node.tpInt, cop == tknMul ? Node.opIntMul : Node.opIntDiv, left, right);
       } else {
-        Field groupByField = ClassDescriptor.locateField(arrElemType, ident);
-        if (groupByField == null) {
-          Method groupByMethod = lookupMethod(arrElemType, ident, defaultProfile);
-          if (groupByMethod == null) {
-            throw new CompileError("Field '" + ident + "' is not found", p);
+        throw new CompileError("operands of arithmentic operator should be of integer or real type",
+            rightPos);
+      }
+      leftPos = rightPos;
+    }
+    return left;
+  }
+
+
+  final Node power() {
+    int leftPos = pos;
+    Node left = term();
+    if (lex == tknPower) {
+      int rightPos = pos;
+      Node right = power();
+      if (left.type == Node.tpAny || right.type == Node.tpAny) {
+        left = new BinOpNode(Node.tpAny, Node.opAnyPow, left, right);
+      } else if (left.type == Node.tpReal || right.type == Node.tpReal) {
+        if (left.type == Node.tpInt) {
+          left = int2real(left);
+        } else if (left.type != Node.tpReal) {
+          throw new CompileError(
+              "operands of arithmetic operators should be of integer or real type", leftPos);
+        }
+        if (right.type == Node.tpInt) {
+          right = int2real(right);
+        } else if (right.type != Node.tpReal) {
+          throw new CompileError(
+              "operands of arithmetic operator should be of integer or real type", rightPos);
+        }
+        left = new BinOpNode(Node.tpReal, Node.opRealPow, left, right);
+      } else if (left.type == Node.tpInt && right.type == Node.tpInt) {
+        left = new BinOpNode(Node.tpInt, Node.opIntPow, left, right);
+      } else {
+        throw new CompileError("operands of arithmentic operator should be of integer or real type",
+            rightPos);
+      }
+    }
+    return left;
+  }
+
+  @Override
+  public void prepare(Class cls, String query) {
+    this.query = query;
+    buf = query.toCharArray();
+    str = new char[buf.length];
+    this.cls = cls;
+    compile();
+  }
+
+  @Override
+  public void prepare(String className, String query) {
+    cls = ClassDescriptor.loadClass(storage, className);
+    this.query = query;
+    buf = query.toCharArray();
+    str = new char[buf.length];
+    compile();
+  }
+
+
+  public void reportRuntimeError(JSQLRuntimeException x) {
+    if (runtimeErrorsReporting) {
+      StringBuffer buf = new StringBuffer();
+      buf.append(x.getMessage());
+      Class cls = x.getTarget();
+      if (cls != null) {
+        buf.append(cls.getName());
+        buf.append('.');
+      }
+      String fieldName = x.getFieldName();
+      if (fieldName != null) {
+        buf.append(fieldName);
+      }
+      System.err.println(buf);
+    }
+    if (storage != null && storage.listener != null) {
+      storage.listener.JSQLRuntimeError(x);
+    }
+  }
+
+
+  final Object resolve(Object obj) {
+    if (resolveMap != null) {
+      ResolveMapping rm = (ResolveMapping) resolveMap.get(obj.getClass());
+      if (rm != null) {
+        obj = rm.resolver.resolve(obj);
+      }
+    }
+    return obj;
+  }
+
+  final int scan() {
+    int p = pos;
+    int eol = buf.length;
+    char ch = 0;
+    int i;
+    while (p < eol && Character.isWhitespace(ch = buf[p])) {
+      p += 1;
+    }
+    if (p == eol) {
+      return tknEof;
+    }
+    pos = ++p;
+    switch (ch) {
+      case '+':
+        return tknAdd;
+      case '-':
+        return tknSub;
+      case '*':
+        return tknMul;
+      case '/':
+        return tknDiv;
+      case '.':
+        return tknDot;
+      case ',':
+        return tknComma;
+      case '(':
+        return tknLpar;
+      case ')':
+        return tknRpar;
+      case '[':
+        return tknLbr;
+      case ']':
+        return tknRbr;
+      case ':':
+        return tknCol;
+      case '^':
+        return tknPower;
+      case '?':
+        return tknParam;
+      case '<':
+        if (p < eol) {
+          if (buf[p] == '=') {
+            pos += 1;
+            return tknLe;
           }
-          innerContains.groupByMethod = groupByMethod;
-          Class rt = groupByMethod.getReturnType();
-          if (rt.equals(void.class)
-              || !(rt.isPrimitive() && !Comparable.class.isAssignableFrom(rt))) {
-            throw new CompileError("Result type " + rt + " of sort method should be comparable", p);
+          if (buf[p] == '>') {
+            pos += 1;
+            return tknNe;
           }
+        }
+        return tknLt;
+      case '>':
+        if (p < eol && buf[p] == '=') {
+          pos += 1;
+          return tknGe;
+        }
+        return tknGt;
+      case '=':
+        return tknEq;
+      case '!':
+        if (p == eol || buf[p] != '=') {
+          throw new CompileError("Invalid token '!'", p - 1);
+        }
+        pos += 1;
+        return tknNe;
+      case '|':
+        if (p == eol || buf[p] != '|') {
+          throw new CompileError("Invalid token '!'", p - 1);
+        }
+        pos += 1;
+        return tknAdd;
+      case '\'':
+        i = 0;
+        while (true) {
+          if (p == eol) {
+            throw new CompileError("Unexpected end of string constant", p);
+          }
+          if (buf[p] == '\'') {
+            if (++p == eol || buf[p] != '\'') {
+              svalue = new String(str, 0, i);
+              pos = p;
+              return tknSconst;
+            }
+          }
+          str[i++] = buf[p++];
+        }
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+        i = p - 1;
+        while (p < eol && Character.isDigit(ch = buf[p])) {
+          p += 1;
+        }
+        if (ch == '.' || ch == 'e' || ch == 'E') {
+          while (++p < eol && (Character.isDigit(buf[p]) || buf[p] == 'e' || buf[p] == 'E'
+              || buf[p] == '.' || ((ch == 'e' || ch == 'E') && (buf[p] == '-' || buf[p] == '+'))));
+          pos = p;
+          try {
+            fvalue = Double.valueOf(query.substring(i, p)).doubleValue();
+          } catch (NumberFormatException x) {
+            throw new CompileError("Bad floating point constant", i);
+          }
+          return tknFconst;
         } else {
-          Class type = groupByField.getType();
-          if (!type.isPrimitive() && !Comparable.class.isAssignableFrom(type)) {
-            throw new CompileError("Order by field type " + type + " should be comparable", p);
+          pos = p;
+          try {
+            ivalue = Long.parseLong(query.substring(i, p), 10);
+          } catch (NumberFormatException x) {
+            throw new CompileError("Bad floating point constant", i);
           }
-          innerContains.groupByField = groupByField;
-          innerContains.groupByType = Node.getFieldType(type);
+          return tknIconst;
+        }
+      default:
+        if (Character.isLetter(ch) || ch == '$' || ch == '_') {
+          i = p - 1;
+          while (p < eol && (Character.isLetterOrDigit(ch = buf[p]) || ch == '$' || ch == '_')) {
+            p += 1;
+          }
+          pos = p;
+          ident = query.substring(i, p);
+          Symbol s = (Symbol) symtab.get(ident.toLowerCase());
+          return (s == null) ? tknIdent : s.tkn;
+        } else {
+          throw new CompileError("Invalid symbol: " + ch, p - 1);
+        }
+    }
+  }
+
+  @Override
+  public IterableIterator<T> select(Class cls, Iterator<T> iterator, String query)
+      throws CompileError {
+    this.query = query;
+    buf = query.toCharArray();
+    str = new char[buf.length];
+    this.cls = cls;
+
+    compile();
+    return execute(iterator);
+  }
+
+  @Override
+  public IterableIterator<T> select(String className, Iterator<T> iterator, String query)
+      throws CompileError
+
+  {
+    cls = ClassDescriptor.loadClass(storage, className);
+    return select(cls, iterator, query);
+  }
+
+  @Override
+  public void setBoolParameter(int index, boolean value) {
+    setParameter(index, new Boolean(value));
+  }
+
+  @Override
+  public void setClass(Class cls) {
+    this.cls = cls;
+  }
+
+
+  @Override
+  public void setClassExtent(Collection<T> set, ClassExtentLockType lock) {
+    classExtent = set;
+    classExtentLock = lock;
+  }
+
+
+  @Override
+  public void setIndexProvider(IndexProvider indexProvider) {
+    this.indexProvider = indexProvider;
+  }
+
+
+
+  @Override
+  public void setIntParameter(int index, long value) {
+    setParameter(index, new Long(value));
+  }
+
+  @Override
+  public void setParameter(int index, Object value) {
+    parameters.set(index - 1, value);
+  }
+
+  @Override
+  public void setRealParameter(int index, double value) {
+    setParameter(index, new Double(value));
+  }
+
+  @Override
+  public void setResolver(Class original, Class resolved, Resolver resolver) {
+    if (resolveMap == null) {
+      resolveMap = new HashMap();
+    }
+    resolveMap.put(original, new ResolveMapping(resolved, resolver));
+  }
+
+  private void sort(ArrayList<T> selection) {
+    int i, j, k, n;
+    OrderNode order = this.order;
+    T top;
+
+    if (selection.size() == 0) {
+      return;
+    }
+    for (OrderNode ord = order; ord != null; ord = ord.next) {
+      if (ord.fieldName != null) {
+        ord.resolveName(selection.get(0).getClass());
+      }
+    }
+
+    for (n = selection.size(), i = n / 2, j = i; i >= 1; i--) {
+      k = i;
+      top = selection.get(k - 1);
+      do {
+        if (k * 2 == n || order.compare(selection.get(k * 2 - 1), selection.get(k * 2)) > 0) {
+          if (order.compare(top, selection.get(k * 2 - 1)) >= 0) {
+            break;
+          }
+          selection.set(k - 1, selection.get(k * 2 - 1));
+          k = k * 2;
+        } else {
+          if (order.compare(top, selection.get(k * 2)) >= 0) {
+            break;
+          }
+          selection.set(k - 1, selection.get(k * 2));
+          k = k * 2 + 1;
+        }
+      } while (k <= j);
+      selection.set(k - 1, top);
+    }
+    for (i = n; i >= 2; i--) {
+      top = selection.get(i - 1);
+      selection.set(i - 1, selection.get(0));
+      selection.set(0, top);
+      for (k = 1, j = (i - 1) / 2; k <= j;) {
+        if (k * 2 == i - 1 || order.compare(selection.get(k * 2 - 1), selection.get(k * 2)) > 0) {
+          if (order.compare(top, selection.get(k * 2 - 1)) >= 0) {
+            break;
+          }
+          selection.set(k - 1, selection.get(k * 2 - 1));
+          k = k * 2;
+        } else {
+          if (order.compare(top, selection.get(k * 2)) >= 0) {
+            break;
+          }
+          selection.set(k - 1, selection.get(k * 2));
+          k = k * 2 + 1;
         }
       }
-      if (scan() != tknHaving) {
-        throw new CompileError("HAVING expected", pos);
-      }
-      innerContains.havingExpr = checkType(Node.tpBool, disjunction());
+      selection.set(k - 1, top);
     }
-    contains = outerContains;
-    return innerContains;
   }
 
-  final Node aggregateFunction(int cop) {
-    int p = pos;
-    AggregateFunctionNode agr;
-    if (contains == null || (contains.groupByField == null && contains.groupByMethod == null
-        && contains.groupByFieldName == null)) {
-      throw new CompileError("Aggregate function can be used only inside HAVING clause", p);
-    }
-    if (cop == tknCount) {
-      if (scan() != tknLpar || scan() != tknMul || scan() != tknRpar) {
-        throw new CompileError("'count(*)' expected", p);
-      }
-      lex = scan();
-      agr = new AggregateFunctionNode(Node.tpInt, Node.opCount, null);
-    } else {
-      Node arg = term();
-      if (arg.type == Node.tpAny) {
-        arg = new ConvertAnyNode(Node.tpReal, arg);
-      } else if (arg.type != Node.tpInt && arg.type != Node.tpReal) {
-        throw new CompileError("Argument of aggregate function should have scalar type", p);
-      }
-      agr = new AggregateFunctionNode(arg.type, cop + Node.opAvg - tknAvg, arg);
-    }
-    agr.index = contains.aggregateFunctions.size();
-    contains.aggregateFunctions.add(agr);
-    return agr;
-  }
 
-  final Node checkType(int type, Node expr) {
-    if (expr.type != type) {
-      if (expr.type == Node.tpAny) {
-        expr = new ConvertAnyNode(type, expr);
-      } else if (expr.type == Node.tpUnknown) {
-        expr.type = type;
-      } else {
-        throw new CompileError(Node.typeNames[type] + " expression expected", pos);
-      }
-    }
-    return expr;
-  }
 
   final Node term() {
     int cop = scan();
@@ -4611,100 +4784,6 @@ public class QueryImpl<T> implements Query<T> {
     return expr;
   }
 
-  final IterableIterator<T> filter(Iterator iterator, Node condition) {
-    return new FilterIterator<T>(this, iterator, condition);
-  }
-
-
-  final JoinIterator join(LoadNode deref, JoinIterator parent) {
-    if (deref.base == null || deref.base.tag != Node.opLoad) {
-      return null;
-    }
-    deref = (LoadNode) deref.base;
-    GenericIndex joinIndex = getIndex(deref.getDeclaringClass(), deref.field.getName());
-    if (joinIndex == null) {
-      return null;
-    }
-    parent.joinIndex = joinIndex;
-    if (deref.isSelfField()) {
-      return parent;
-    }
-    JoinIterator child = new JoinIterator();
-    child.iterator = parent;
-    return join(deref, child);
-  }
-
-
-  final Iterator binOpIndex(GenericIndex index, BinOpNode cmp) {
-    Key key;
-    int sort = GenericIndex.ASCENT_ORDER;
-    if (order != null && order.field != null && order.field.equals(cmp.left.getField())
-        && !order.ascent) {
-      sort = GenericIndex.DESCENT_ORDER;
-    }
-    switch (cmp.tag) {
-      case Node.opInAny:
-      case Node.opScanCollection:
-        return new UnionIterator(index, null, (Iterable) ((LiteralNode) cmp.right).getValue());
-      case Node.opAnyEq:
-      case Node.opIntEq:
-      case Node.opRealEq:
-      case Node.opStrEq:
-      case Node.opStrIgnoreCaseEq:
-      case Node.opDateEq:
-      case Node.opBoolEq:
-      case Node.opObjEq:
-      case Node.opByteArrayEq:
-        if ((key = keyLiteral(index.getKeyType(), cmp.right, true)) != null) {
-          return index.iterator(key, key, sort);
-        }
-        break;
-      case Node.opIntGt:
-      case Node.opRealGt:
-      case Node.opStrGt:
-      case Node.opStrIgnoreCaseGt:
-      case Node.opDateGt:
-      case Node.opAnyGt:
-        if ((key = keyLiteral(index.getKeyType(), cmp.right, false)) != null) {
-          return index.iterator(key, null, sort);
-        }
-        break;
-      case Node.opIntGe:
-      case Node.opRealGe:
-      case Node.opStrGe:
-      case Node.opStrIgnoreCaseGe:
-      case Node.opDateGe:
-      case Node.opAnyGe:
-        if ((key = keyLiteral(index.getKeyType(), cmp.right, true)) != null) {
-          return index.iterator(key, null, sort);
-        }
-        break;
-      case Node.opIntLt:
-      case Node.opRealLt:
-      case Node.opStrLt:
-      case Node.opStrIgnoreCaseLt:
-      case Node.opDateLt:
-      case Node.opAnyLt:
-        if ((key = keyLiteral(index.getKeyType(), cmp.right, false)) != null) {
-          return index.iterator(null, key, sort);
-        }
-        break;
-      case Node.opIntLe:
-      case Node.opRealLe:
-      case Node.opStrLe:
-      case Node.opStrIgnoreCaseLe:
-      case Node.opDateLe:
-      case Node.opAnyLe:
-        if ((key = keyLiteral(index.getKeyType(), cmp.right, true)) != null) {
-          return index.iterator(null, key, sort);
-        }
-        break;
-    }
-    return null;
-  }
-
-
-
   final Iterator tripleOpIndex(GenericIndex index, CompareNode cmp) {
     int sort = GenericIndex.ASCENT_ORDER;
     if (order != null && order.field != null && order.field.equals(cmp.o1.getField())
@@ -4758,389 +4837,310 @@ public class QueryImpl<T> implements Query<T> {
     }
     return null;
   }
+}
 
-  class IndexSearchResult {
-    IterableIterator<T> iterator;
-    Field key;
 
-    IndexSearchResult(IterableIterator<T> iterator, Field key) {
-      this.iterator = iterator;
-      this.key = key;
-    }
+class RealLiteralNode extends LiteralNode {
+  double value;
+
+  RealLiteralNode(double value) {
+    super(tpReal, opRealConst);
+    this.value = value;
   }
 
-  final boolean isUniqueIndex(Node node) {
-    String key = node.getFieldName();
-    if (key != null) {
-      GenericIndex index = getIndex(cls, key);
-      return index != null && index.isUnique();
-    }
-    return false;
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof RealLiteralNode && ((RealLiteralNode) o).value == value;
   }
 
-  final int getEqualsCost(Node node) {
-    BinOpNode bin = (BinOpNode) node;
-    int cost = Math.max(bin.left.getIndirectionLevel(), bin.right.getIndirectionLevel())
-        * storage.sqlOptimizerParameters.indirectionCost;
-    if (!isUniqueIndex(bin.left) && !isUniqueIndex(bin.right)) {
-      cost += storage.sqlOptimizerParameters.notUniqCost;
-    }
-    return cost;
+  @Override
+  double evaluateReal(FilterIterator t) {
+    return value;
   }
 
-  final int calculateCost(Node node) {
-    SqlOptimizerParameters params = storage.sqlOptimizerParameters;
-    switch (node.tag) {
-      case Node.opContains:
-        return params.containsCost
-            + ((ContainsNode) node).withExpr.getIndirectionLevel() * params.indirectionCost;
-      case Node.opBoolAnd:
-        return params.andCost + Math.min(calculateCost(((BinOpNode) node).left),
-            calculateCost(((BinOpNode) node).right));
-      case Node.opBoolOr:
-        return params.orCost + calculateCost(((BinOpNode) node).left)
-            + calculateCost(((BinOpNode) node).right);
-      case Node.opBoolEq:
-        return params.eqBoolCost + getEqualsCost(node);
-      case Node.opStrEq:
-      case Node.opStrIgnoreCaseEq:
-        return params.eqStringCost + getEqualsCost(node);
-      case Node.opRealEq:
-        return params.eqRealCost + getEqualsCost(node);
-      case Node.opStrIgnoreCaseGt:
-      case Node.opStrIgnoreCaseGe:
-      case Node.opStrIgnoreCaseLt:
-      case Node.opStrIgnoreCaseLe:
-      case Node.opStrGt:
-      case Node.opStrGe:
-      case Node.opStrLt:
-      case Node.opStrLe:
-      case Node.opIntGt:
-      case Node.opIntGe:
-      case Node.opIntLt:
-      case Node.opIntLe:
-      case Node.opRealGt:
-      case Node.opRealGe:
-      case Node.opRealLt:
-      case Node.opRealLe:
-      case Node.opDateGt:
-      case Node.opDateGe:
-      case Node.opDateLt:
-      case Node.opDateLe:
-        return params.openIntervalCost + Math.max(((BinOpNode) node).left.getIndirectionLevel(),
-            ((BinOpNode) node).right.getIndirectionLevel()) * params.indirectionCost;
-      case Node.opStrIgnoreCaseBetween:
-      case Node.opStrBetween:
-      case Node.opRealBetween:
-      case Node.opIntBetween:
-      case Node.opDateBetween:
-        return params.closeIntervalCost
-            + ((CompareNode) node).o1.getIndirectionLevel() * params.indirectionCost;
-      case Node.opStrLike:
-      case Node.opStrLikeEsc:
-      case Node.opStrIgnoreCaseLike:
-      case Node.opStrIgnoreCaseLikeEsc:
-        return params.patternMatchCost
-            + ((CompareNode) node).o1.getIndirectionLevel() * params.indirectionCost;
-      case Node.opByteArrayEq:
-      case Node.opObjEq:
-      case Node.opIntEq:
-      case Node.opDateEq:
-        return params.eqCost + getEqualsCost(node);
-      case Node.opIsNull:
-        return params.isNullCost
-            + ((UnaryOpNode) node).opd.getIndirectionLevel() * params.indirectionCost;
-      case Node.opBoolNot:
-        return params.eqBoolCost + params.notUniqCost
-            + ((UnaryOpNode) node).opd.getIndirectionLevel() * params.indirectionCost;
-      case Node.opLoad:
-        return params.eqBoolCost + params.notUniqCost
-            + node.getIndirectionLevel() * params.indirectionCost;
+  @Override
+  Object getValue() {
+    return new Double(value);
+  }
+}
+
+
+class ResolveNode extends Node {
+  Resolver resolver;
+  Class resolvedClass;
+  Node expr;
+
+  ResolveNode(Node expr, Resolver resolver, Class resolvedClass) {
+    super(tpObj, opResolve);
+    this.expr = expr;
+    this.resolver = resolver;
+    this.resolvedClass = resolvedClass;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof ResolveNode && ((ResolveNode) o).expr.equals(expr)
+        && ((ResolveNode) o).resolver.equals(resolver)
+        && ((ResolveNode) o).resolvedClass.equals(resolvedClass);
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    return resolver.resolve(expr.evaluateObj(t));
+  }
+
+  @Override
+  Field getField() {
+    return (expr != null) ? expr.getField() : null;
+  }
+
+  @Override
+  String getFieldName() {
+    return (expr != null) ? expr.getFieldName() : null;
+  }
+
+  @Override
+  Class getType() {
+    return resolvedClass;
+  }
+}
+
+
+class StrLiteralNode extends LiteralNode {
+  String value;
+
+  StrLiteralNode(String value) {
+    super(tpStr, opStrConst);
+    this.value = value;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof StrLiteralNode && ((StrLiteralNode) o).value.equals(value);
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    return value;
+  }
+
+  @Override
+  Object getValue() {
+    return value;
+  }
+}
+
+
+class Symbol {
+  int tkn;
+
+  Symbol(int tkn) {
+    this.tkn = tkn;
+  }
+}
+
+
+class UnaryOpNode extends Node {
+  Node opd;
+
+  UnaryOpNode(int type, int tag, Node node) {
+    super(type, tag);
+    opd = node;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof UnaryOpNode && super.equals(o) && ((UnaryOpNode) o).opd.equals(opd);
+  }
+
+  @Override
+  boolean evaluateBool(FilterIterator t) {
+    switch (tag) {
+      case opBoolNot:
+        return !opd.evaluateBool(t);
+      case opIsNull:
+        return opd.evaluateObj(t) == null;
       default:
-        return params.sequentialSearchCost;
+        throw new Error("Invalid tag " + tag);
     }
   }
 
-
-
-  final IndexSearchResult applyIndex(Node condition, Node predicate, Node filterCondition) {
-    ArrayList alternatives = null;
-    switch (condition.tag) {
-      case Node.opBoolAnd: {
-        BinOpNode and = (BinOpNode) condition;
-        if (storage.sqlOptimizerParameters.enableCostBasedOptimization
-            && calculateCost(and.left) > calculateCost(and.right)) {
-          IndexSearchResult result =
-              applyIndex(and.right, predicate, filterCondition == null ? and.left : predicate);
-          if (result != null) {
-            return result;
-          }
-          return applyIndex(and.left, predicate, filterCondition == null ? and.right : predicate);
-        } else {
-          IndexSearchResult result =
-              applyIndex(and.left, predicate, filterCondition == null ? and.right : predicate);
-          if (result != null) {
-            return result;
-          }
-          return applyIndex(and.right, predicate, filterCondition == null ? and.left : predicate);
-        }
-      }
-      case Node.opContains: {
-        ContainsNode contains = (ContainsNode) condition;
-        if (contains.withExpr == null) {
-          return null;
-        }
-        if (filterCondition == null && contains.havingExpr != null) {
-          filterCondition = condition;
-        }
-        return applyIndex(contains.withExpr, predicate, filterCondition);
-      }
-      case Node.opBoolOr: {
-        BinOpNode or = (BinOpNode) condition;
-        if (isEqComparison(or.left) && ((BinOpNode) or.left).right instanceof LiteralNode) {
-          int cop = or.left.tag;
-          Node base = ((BinOpNode) or.left).left;
-          Node right = or.right;
-          alternatives = new ArrayList();
-          condition = or.left;
-          while (right instanceof BinOpNode) {
-            Node cmp;
-            if (right.tag == Node.opBoolOr) {
-              or = (BinOpNode) right;
-              right = or.right;
-              cmp = or.left;
-            } else {
-              cmp = right;
-              right = null;
-            }
-            if (cmp.tag != cop || !base.equals(((BinOpNode) cmp).left)
-                || !(((BinOpNode) cmp).right instanceof LiteralNode)) {
-              return null;
-            }
-            alternatives.add(((LiteralNode) ((BinOpNode) cmp).right).getValue());
-          }
-          if (right != null) {
-            return null;
-          }
-        } else {
-          return null;
-        }
-        break;
-      }
-      case Node.opIsNull: {
-        UnaryOpNode unary = (UnaryOpNode) condition;
-        String key = unary.opd.getFieldName();
-        if (key != null) {
-          GenericIndex index = getIndex(cls, key);
-          Key nil = new Key((IPersistent) null);
-          if (index == null) {
-            if (unary.opd.tag == Node.opLoad) {
-              LoadNode deref = (LoadNode) unary.opd;
-              index = getIndex(deref.getDeclaringClass(), deref.field.getName());
-              if (index != null) {
-                JoinIterator lastJoinIterator = new JoinIterator();
-                JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
-                if (firstJoinIterator != null) {
-                  Iterator iterator = index.iterator(nil, nil, GenericIndex.ASCENT_ORDER);
-                  if (iterator != null) {
-                    lastJoinIterator.iterator = iterator;
-                    return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
-                  }
-                }
-              }
-            }
-          } else {
-            Iterator iterator = index.iterator(nil, nil, GenericIndex.ASCENT_ORDER);
-            if (iterator != null) {
-              return new IndexSearchResult(filter(iterator, filterCondition), unary.opd.getField());
-            }
-          }
-        }
-        return null;
-      }
-      case Node.opBoolNot: {
-        UnaryOpNode unary = (UnaryOpNode) condition;
-        if (unary.opd.tag == Node.opLoad) {
-          String key = unary.opd.getFieldName();
-          if (key != null) {
-            GenericIndex index = getIndex(cls, key);
-            Key f = new Key(false);
-            if (index == null) {
-              LoadNode deref = (LoadNode) unary.opd;
-              index = getIndex(deref.getDeclaringClass(), deref.field.getName());
-              if (index != null) {
-                JoinIterator lastJoinIterator = new JoinIterator();
-                JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
-                if (firstJoinIterator != null) {
-                  Iterator iterator = index.iterator(f, f, GenericIndex.ASCENT_ORDER);
-                  if (iterator != null) {
-                    lastJoinIterator.iterator = iterator;
-                    return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
-                  }
-                }
-              }
-            } else {
-              Iterator iterator = index.iterator(f, f, GenericIndex.ASCENT_ORDER);
-              if (iterator != null) {
-                return new IndexSearchResult(filter(iterator, filterCondition),
-                    unary.opd.getField());
-              }
-            }
-          }
-        }
-        return null;
-      }
-      case Node.opLoad: {
-        String key = condition.getFieldName();
-        if (key != null) {
-          GenericIndex index = getIndex(cls, key);
-          Key t = new Key(true);
-          if (index == null) {
-            LoadNode deref = (LoadNode) condition;
-            index = getIndex(deref.getDeclaringClass(), deref.field.getName());
-            if (index != null) {
-              JoinIterator lastJoinIterator = new JoinIterator();
-              JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
-              if (firstJoinIterator != null) {
-                Iterator iterator = index.iterator(t, t, GenericIndex.ASCENT_ORDER);
-                if (iterator != null) {
-                  lastJoinIterator.iterator = iterator;
-                  return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
-                }
-              }
-            }
-          } else {
-            Iterator iterator = index.iterator(t, t, GenericIndex.ASCENT_ORDER);
-            if (iterator != null) {
-              return new IndexSearchResult(filter(iterator, filterCondition), condition.getField());
-            }
-          }
-        }
-        return null;
-      }
+  @Override
+  Date evaluateDate(FilterIterator t) {
+    switch (tag) {
+      case opStrToDate:
+        return QueryImpl.parseDate(opd.evaluateStr(t));
+      default:
+        throw new Error("Invalid tag " + tag);
     }
-    if (condition instanceof BinOpNode) {
-      BinOpNode cmp = (BinOpNode) condition;
-      String key = cmp.left.getFieldName();
-      if (key != null && cmp.right instanceof LiteralNode) {
-        GenericIndex index = getIndex(cls, key);
-        if (index == null) {
-          if (cmp.left.tag == Node.opLoad) {
-            LoadNode deref = (LoadNode) cmp.left;
-            index = getIndex(deref.getDeclaringClass(), deref.field.getName());
-            if (index != null) {
-              JoinIterator lastJoinIterator = new JoinIterator();
-              JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
-              if (firstJoinIterator != null) {
-                Iterator iterator = binOpIndex(index, cmp);
-                if (iterator != null) {
-                  if (alternatives != null) {
-                    iterator = new UnionIterator(index, iterator, alternatives);
-                  }
-                  lastJoinIterator.iterator = iterator;
-                  return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
-                }
-              }
-            }
-          }
-        } else {
-          Iterator iterator = binOpIndex(index, cmp);
-          if (iterator != null) {
-            if (alternatives != null) {
-              iterator = new UnionIterator(index, iterator, alternatives);
-            }
-            return new IndexSearchResult(filter(iterator, filterCondition),
-                iterator instanceof UnionIterator ? null : cmp.left.getField());
-          }
-        }
-      }
-    } else if (condition instanceof CompareNode) {
-      CompareNode cmp = (CompareNode) condition;
-      String key = cmp.o1.getFieldName();
-      if (key != null && cmp.o2 instanceof LiteralNode
-          && (cmp.o3 == null || cmp.o3 instanceof LiteralNode)) {
-        GenericIndex index = getIndex(cls, key);
-        if (index == null) {
-          if (cmp.o1.tag == Node.opLoad) {
-            LoadNode deref = (LoadNode) cmp.o1;
-            index = getIndex(deref.getDeclaringClass(), deref.field.getName());
-            if (index != null) {
-              JoinIterator lastJoinIterator = new JoinIterator();
-              JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
-              if (firstJoinIterator != null) {
-                Iterator iterator = tripleOpIndex(index, cmp);
-                if (iterator != null) {
-                  lastJoinIterator.iterator = iterator;
-                  return new IndexSearchResult(filter(firstJoinIterator,
-                      (filterCondition == null && isPatternMatch(cmp)) ? condition
-                          : filterCondition),
-                      null);
-                }
-              }
-            }
-          }
-        } else {
-          Iterator iterator = tripleOpIndex(index, cmp);
-          if (iterator != null) {
-            return new IndexSearchResult(
-                filter(iterator,
-                    (filterCondition == null && isPatternMatch(cmp)) ? condition : filterCondition),
-                cmp.o1.getField());
-          }
-        }
-      }
-    }
-    return null;
   }
 
-  final void compile() {
-    pos = 0;
-    vars = 0;
-    Node predicate = checkType(Node.tpBool, disjunction());
-    if (predicate.tag != Node.opTrue) {
-      tree = predicate;
-    }
-    OrderNode last = null;
-    order = null;
-    if (lex == tknEof) {
-      return;
-    }
-    if (lex != tknOrder) {
-      throw new CompileError("ORDER BY expected", pos);
-    }
-    int tkn;
-    int p = pos;
-    if (scan() != tknBy) {
-      throw new CompileError("BY expected after ORDER", p);
-    }
-    do {
-      p = pos;
-      OrderNode node;
-      Node orderExpr = disjunction();
-      if (orderExpr.tag == Node.opLoad && ((LoadNode) orderExpr).base == null) {
-        node = new OrderNode(orderExpr.getField());
-      } else if (orderExpr.tag == Node.opInvoke && ((InvokeNode) orderExpr).target == null) {
-        node = new OrderNode(((InvokeNode) orderExpr).mth);
-      } else {
-        node = new OrderNode(orderExpr);
+  @Override
+  long evaluateInt(FilterIterator t) {
+    long val;
+    switch (tag) {
+      case opIntNot:
+        return ~opd.evaluateInt(t);
+      case opIntNeg:
+        return -opd.evaluateInt(t);
+      case opIntAbs:
+        val = opd.evaluateInt(t);
+        return val < 0 ? -val : val;
+      case opRealToInt:
+        return (long) opd.evaluateReal(t);
+      case opAnyLength: {
+        Object obj = opd.evaluateObj(t);
+        if (obj instanceof String) {
+          return ((String) obj).length();
+        } else {
+          try {
+            return Array.getLength(obj);
+          } catch (IllegalArgumentException x) {
+            throw new Error("Argument is not array");
+          }
+        }
       }
-      if (last != null) {
-        last.next = node;
-      } else {
-        order = node;
-      }
-      last = node;
-      p = pos;
-      tkn = lex;
-      if (tkn == tknDesc) {
-        node.ascent = false;
-        tkn = scan();
-      } else if (tkn == tknAsc) {
-        tkn = scan();
-      }
-    } while (tkn == tknComma);
-    if (tkn != tknEof) {
-      throw new CompileError("',' expected", p);
+      case opLength:
+        try {
+          return Array.getLength(opd.evaluateObj(t));
+        } catch (IllegalArgumentException x) {
+          throw new Error("Argument is not array");
+        }
+      case opStrLength:
+        return opd.evaluateStr(t).length();
+      default:
+        throw new Error("Invalid tag " + tag);
     }
+  }
+
+  @Override
+  Object evaluateObj(FilterIterator t) {
+    Object val = opd.evaluateObj(t);
+    switch (tag) {
+      case opAnyNeg:
+        return val instanceof Double || val instanceof Float
+            ? (Object) new Double(-((Number) val).doubleValue())
+            : (Object) new Long(-((Number) val).longValue());
+      case opAnyAbs:
+        if (val instanceof Double || val instanceof Float) {
+          double rval = ((Number) val).doubleValue();
+          return new Double(rval < 0 ? -rval : rval);
+        } else {
+          long ival = ((Number) val).longValue();
+          return new Long(ival < 0 ? -ival : ival);
+        }
+      case opAnyNot:
+        return val instanceof Boolean
+            ? ((Boolean) val).booleanValue() ? Boolean.FALSE : Boolean.TRUE
+            : (Object) new Long(~((Number) val).longValue());
+      default:
+        throw new Error("Invalid tag " + tag);
+    }
+  }
+
+  @Override
+  double evaluateReal(FilterIterator t) {
+    double val;
+    switch (tag) {
+      case opRealNeg:
+        return -opd.evaluateReal(t);
+      case opRealAbs:
+        val = opd.evaluateReal(t);
+        return val < 0 ? -val : val;
+      case opRealSin:
+        return Math.sin(opd.evaluateReal(t));
+      case opRealCos:
+        return Math.cos(opd.evaluateReal(t));
+      case opRealTan:
+        return Math.tan(opd.evaluateReal(t));
+      case opRealAsin:
+        return Math.asin(opd.evaluateReal(t));
+      case opRealAcos:
+        return Math.acos(opd.evaluateReal(t));
+      case opRealAtan:
+        return Math.atan(opd.evaluateReal(t));
+      case opRealExp:
+        return Math.exp(opd.evaluateReal(t));
+      case opRealLog:
+        return Math.log(opd.evaluateReal(t));
+      case opRealSqrt:
+        return Math.sqrt(opd.evaluateReal(t));
+      case opRealCeil:
+        return Math.ceil(opd.evaluateReal(t));
+      case opRealFloor:
+        return Math.floor(opd.evaluateReal(t));
+      case opIntToReal:
+        return opd.evaluateInt(t);
+      default:
+        throw new Error("Invalid tag " + tag);
+    }
+  }
+
+  @Override
+  String evaluateStr(FilterIterator t) {
+    switch (tag) {
+      case opStrUpper:
+        return opd.evaluateStr(t).toUpperCase();
+      case opStrLower:
+        return opd.evaluateStr(t).toLowerCase();
+      case opIntToStr:
+        return Long.toString(opd.evaluateInt(t), 10);
+      case opRealToStr:
+        return Double.toString(opd.evaluateReal(t));
+      case opDateToStr:
+        return opd.evaluateDate(t).toString();
+      case opAnyToStr:
+        return opd.evaluateObj(t).toString();
+      default:
+        throw new Error("Invalid tag " + tag);
+    }
+  }
+}
+
+
+class UnionIterator implements Iterator {
+  GenericIndex index;
+  Iterator currIterator;
+  Class keyType;
+  Iterator alternativesIterator;
+  Object currObj;
+
+  UnionIterator(GenericIndex index, Iterator currIterator, Iterable alternatives) {
+    this.index = index;
+    this.currIterator = currIterator;
+    this.alternativesIterator = alternatives.iterator();
+    keyType = index.getKeyType();
+  }
+
+  @Override
+  public boolean hasNext() {
+    if (currObj != null) {
+      return true;
+    }
+    while (currIterator == null || !currIterator.hasNext()) {
+      if (!alternativesIterator.hasNext()) {
+        return false;
+      }
+      Object value = alternativesIterator.next();
+      currIterator = index.iterator(value, value, GenericIndex.ASCENT_ORDER);
+    }
+    currObj = currIterator.next();
+    return true;
+  }
+
+  @Override
+  public Object next() {
+    if (!hasNext()) {
+      throw new NoSuchElementException();
+    }
+    Object obj = currObj;
+    currObj = null;
+    return obj;
+  }
+
+
+  @Override
+  public void remove() {
+    throw new UnsupportedOperationException();
   }
 }

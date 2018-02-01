@@ -26,11 +26,6 @@ public class ConfigPageToadlet extends Toadlet {
   }
 
   @Override
-  public String path() {
-    return "/spider/config";
-  }
-
-  @Override
   public void handleMethodGET(URI uri, final HTTPRequest request, final ToadletContext ctx)
       throws ToadletContextClosedException, IOException, RedirectException {
     ClassLoader origClassLoader = Thread.currentThread().getContextClassLoader();
@@ -74,5 +69,10 @@ public class ConfigPageToadlet extends Toadlet {
     } finally {
       Thread.currentThread().setContextClassLoader(origClassLoader);
     }
+  }
+
+  @Override
+  public String path() {
+    return "/spider/config";
   }
 }

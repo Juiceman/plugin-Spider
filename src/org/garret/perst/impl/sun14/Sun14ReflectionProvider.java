@@ -9,12 +9,12 @@ import sun.reflect.ReflectionFactory;
 
 
 public class Sun14ReflectionProvider implements ReflectionProvider {
+  static final Class[] defaultConstructorProfile = new Class[0];
   private Constructor javaLangObjectConstructor;
   private Unsafe unsafe;
   private ReflectionFactory factory;
-  private HashMap constructorHash;
 
-  static final Class[] defaultConstructorProfile = new Class[0];
+  private HashMap constructorHash;
 
   public Sun14ReflectionProvider() {
     try {
@@ -51,6 +51,36 @@ public class Sun14ReflectionProvider implements ReflectionProvider {
   }
 
   @Override
+  public void set(Field field, Object object, Object value) throws Exception {
+    unsafe.putObject(object, unsafe.objectFieldOffset(field), value);
+  }
+
+  @Override
+  public void setBoolean(Field field, Object object, boolean value) throws Exception {
+    unsafe.putBoolean(object, unsafe.objectFieldOffset(field), value);
+  }
+
+  @Override
+  public void setByte(Field field, Object object, byte value) throws Exception {
+    unsafe.putByte(object, unsafe.objectFieldOffset(field), value);
+  }
+
+  @Override
+  public void setChar(Field field, Object object, char value) throws Exception {
+    unsafe.putChar(object, unsafe.objectFieldOffset(field), value);
+  }
+
+  @Override
+  public void setDouble(Field field, Object object, double value) throws Exception {
+    unsafe.putDouble(object, unsafe.objectFieldOffset(field), value);
+  }
+
+  @Override
+  public void setFloat(Field field, Object object, float value) throws Exception {
+    unsafe.putFloat(object, unsafe.objectFieldOffset(field), value);
+  }
+
+  @Override
   public void setInt(Field field, Object object, int value) throws Exception {
     unsafe.putInt(object, unsafe.objectFieldOffset(field), value);
   }
@@ -63,35 +93,5 @@ public class Sun14ReflectionProvider implements ReflectionProvider {
   @Override
   public void setShort(Field field, Object object, short value) throws Exception {
     unsafe.putShort(object, unsafe.objectFieldOffset(field), value);
-  }
-
-  @Override
-  public void setChar(Field field, Object object, char value) throws Exception {
-    unsafe.putChar(object, unsafe.objectFieldOffset(field), value);
-  }
-
-  @Override
-  public void setByte(Field field, Object object, byte value) throws Exception {
-    unsafe.putByte(object, unsafe.objectFieldOffset(field), value);
-  }
-
-  @Override
-  public void setFloat(Field field, Object object, float value) throws Exception {
-    unsafe.putFloat(object, unsafe.objectFieldOffset(field), value);
-  }
-
-  @Override
-  public void setDouble(Field field, Object object, double value) throws Exception {
-    unsafe.putDouble(object, unsafe.objectFieldOffset(field), value);
-  }
-
-  @Override
-  public void setBoolean(Field field, Object object, boolean value) throws Exception {
-    unsafe.putBoolean(object, unsafe.objectFieldOffset(field), value);
-  }
-
-  @Override
-  public void set(Field field, Object object, Object value) throws Exception {
-    unsafe.putObject(object, unsafe.objectFieldOffset(field), value);
   }
 }

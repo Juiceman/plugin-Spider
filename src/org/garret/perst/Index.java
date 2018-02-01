@@ -21,48 +21,6 @@ public interface Index<T> extends GenericIndex<T> {
   public boolean put(Key key, T obj);
 
   /**
-   * Associate new value with the key. If there is already object with such key in the index, then
-   * it will be removed from the index and new value associated with this key.
-   * 
-   * @param key object key
-   * @param obj object associated with this key. Object can be not yet peristent, in this case its
-   *        forced to become persistent by assigning OID to it.
-   * @return object previously associated with this key, <code>null</code> if there was no such
-   *         object
-   */
-  public T set(Key key, T obj);
-
-  /**
-   * Remove object with specified key from the index
-   * 
-   * @param key value of the key of removed object
-   * @param obj object removed from the index
-   * @exception StorageError (StorageError.KEY_NOT_FOUND) exception if there is no such key in the
-   *            index
-   */
-  public void remove(Key key, T obj);
-
-  /**
-   * Remove object with specified key from the index. The only difference with remove is that it
-   * doesn't throw an exception when key is not found but return false
-   * 
-   * @param key value of the key of removed object
-   * @param obj object removed from the index
-   * @return true if object was successfully deleted, false if it is not found in the index
-   */
-  public boolean unlink(Key key, T obj);
-
-  /**
-   * Remove key from the unique index.
-   * 
-   * @param key value of removed key
-   * @return removed object
-   * @exception StorageError (StorageError.KEY_NOT_FOUND) exception if there is no such key in the
-   *            index, or StorageError(StorageError.KEY_NOT_UNIQUE) if index is not unique.
-   */
-  public T remove(Key key);
-
-  /**
    * Put new object in the index.
    * 
    * @param key packed key
@@ -75,16 +33,24 @@ public interface Index<T> extends GenericIndex<T> {
   public boolean put(Object key, T obj);
 
   /**
-   * Associate new value with specified key. If there is already object with such key in the index,
-   * then it will be removed from the index and new value associated with this key.
+   * Remove key from the unique index.
    * 
-   * @param key packed key
-   * @param obj object associated with this key. Object can be not yet peristent, in this case its
-   *        forced to become persistent by assigning OID to it.
-   * @return object previously associated with this key, <code>null</code> if there was no such
-   *         object
+   * @param key value of removed key
+   * @return removed object
+   * @exception StorageError (StorageError.KEY_NOT_FOUND) exception if there is no such key in the
+   *            index, or StorageError(StorageError.KEY_NOT_UNIQUE) if index is not unique.
    */
-  public T set(Object key, T obj);
+  public T remove(Key key);
+
+  /**
+   * Remove object with specified key from the index
+   * 
+   * @param key value of the key of removed object
+   * @param obj object removed from the index
+   * @exception StorageError (StorageError.KEY_NOT_FOUND) exception if there is no such key in the
+   *            index
+   */
+  public void remove(Key key, T obj);
 
   /**
    * Remove object with specified key from the index
@@ -115,6 +81,40 @@ public interface Index<T> extends GenericIndex<T> {
    *            index, or StorageError(StorageError.KEY_NOT_UNIQUE) if index is not unique.
    */
   public T removeKey(Object key);
+
+  /**
+   * Associate new value with the key. If there is already object with such key in the index, then
+   * it will be removed from the index and new value associated with this key.
+   * 
+   * @param key object key
+   * @param obj object associated with this key. Object can be not yet peristent, in this case its
+   *        forced to become persistent by assigning OID to it.
+   * @return object previously associated with this key, <code>null</code> if there was no such
+   *         object
+   */
+  public T set(Key key, T obj);
+
+  /**
+   * Associate new value with specified key. If there is already object with such key in the index,
+   * then it will be removed from the index and new value associated with this key.
+   * 
+   * @param key packed key
+   * @param obj object associated with this key. Object can be not yet peristent, in this case its
+   *        forced to become persistent by assigning OID to it.
+   * @return object previously associated with this key, <code>null</code> if there was no such
+   *         object
+   */
+  public T set(Object key, T obj);
+
+  /**
+   * Remove object with specified key from the index. The only difference with remove is that it
+   * doesn't throw an exception when key is not found but return false
+   * 
+   * @param key value of the key of removed object
+   * @param obj object removed from the index
+   * @return true if object was successfully deleted, false if it is not found in the index
+   */
+  public boolean unlink(Key key, T obj);
 }
 
 

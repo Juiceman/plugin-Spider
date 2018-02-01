@@ -14,73 +14,14 @@ public class MultiFile implements IFile {
     long size;
   }
 
-  long seek(long pos) {
-    currSeg = 0;
-    while (pos >= segment[currSeg].size) {
-      pos -= segment[currSeg].size;
-      currSeg += 1;
-    }
-    return pos;
-  }
+  MultiFileSegment segment[];
 
 
-  @Override
-  public void write(long pos, byte[] b) {
-    pos = seek(pos);
-    segment[currSeg].f.write(pos, b);
-  }
+  long fixedSize;
 
-  @Override
-  public int read(long pos, byte[] b) {
-    pos = seek(pos);
-    return segment[currSeg].f.read(pos, b);
-  }
+  int currSeg;
 
-  @Override
-  public void sync() {
-    if (!noFlush) {
-      for (int i = segment.length; --i >= 0;) {
-        segment[i].f.sync();
-      }
-    }
-  }
-
-  @Override
-  public boolean tryLock(boolean shared) {
-    return segment[0].f.tryLock(shared);
-  }
-
-  @Override
-  public void lock(boolean shared) {
-    segment[0].f.lock(shared);
-  }
-
-  @Override
-  public void unlock() {
-    segment[0].f.unlock();
-  }
-
-
-  @Override
-  public void close() {
-    for (int i = segment.length; --i >= 0;) {
-      segment[i].f.close();
-    }
-  }
-
-  public MultiFile(String[] segmentPath, long[] segmentSize, boolean readOnly, boolean noFlush) {
-    this.noFlush = noFlush;
-    segment = new MultiFileSegment[segmentPath.length];
-    for (int i = 0; i < segment.length; i++) {
-      MultiFileSegment seg = new MultiFileSegment();
-      seg.f = new OSFile(segmentPath[i], readOnly, noFlush);
-      seg.size = segmentSize[i];
-      fixedSize += seg.size;
-      segment[i] = seg;
-    }
-    fixedSize -= segment[segment.length - 1].size;
-    segment[segment.length - 1].size = Long.MAX_VALUE;
-  }
+  boolean noFlush;
 
   public MultiFile(MultiFileSegment[] segments) {
     segment = segments;
@@ -136,13 +77,72 @@ public class MultiFile implements IFile {
     }
   }
 
+  public MultiFile(String[] segmentPath, long[] segmentSize, boolean readOnly, boolean noFlush) {
+    this.noFlush = noFlush;
+    segment = new MultiFileSegment[segmentPath.length];
+    for (int i = 0; i < segment.length; i++) {
+      MultiFileSegment seg = new MultiFileSegment();
+      seg.f = new OSFile(segmentPath[i], readOnly, noFlush);
+      seg.size = segmentSize[i];
+      fixedSize += seg.size;
+      segment[i] = seg;
+    }
+    fixedSize -= segment[segment.length - 1].size;
+    segment[segment.length - 1].size = Long.MAX_VALUE;
+  }
+
+
+  @Override
+  public void close() {
+    for (int i = segment.length; --i >= 0;) {
+      segment[i].f.close();
+    }
+  }
+
   @Override
   public long length() {
     return fixedSize + segment[segment.length - 1].f.length();
   }
 
-  MultiFileSegment segment[];
-  long fixedSize;
-  int currSeg;
-  boolean noFlush;
+  @Override
+  public void lock(boolean shared) {
+    segment[0].f.lock(shared);
+  }
+
+  @Override
+  public int read(long pos, byte[] b) {
+    pos = seek(pos);
+    return segment[currSeg].f.read(pos, b);
+  }
+
+  long seek(long pos) {
+    currSeg = 0;
+    while (pos >= segment[currSeg].size) {
+      pos -= segment[currSeg].size;
+      currSeg += 1;
+    }
+    return pos;
+  }
+
+  @Override
+  public void sync() {
+    if (!noFlush) {
+      for (int i = segment.length; --i >= 0;) {
+        segment[i].f.sync();
+      }
+    }
+  }
+  @Override
+  public boolean tryLock(boolean shared) {
+    return segment[0].f.tryLock(shared);
+  }
+  @Override
+  public void unlock() {
+    segment[0].f.unlock();
+  }
+  @Override
+  public void write(long pos, byte[] b) {
+    pos = seek(pos);
+    segment[currSeg].f.write(pos, b);
+  }
 }

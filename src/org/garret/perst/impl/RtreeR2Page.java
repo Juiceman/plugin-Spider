@@ -15,6 +15,8 @@ public class RtreeR2Page extends Persistent {
   RectangleR2[] b;
   Link branch;
 
+  RtreeR2Page() {}
+
   RtreeR2Page(Storage storage, Object obj, RectangleR2 r) {
     branch = storage.createLink(card);
     branch.setSize(card);
@@ -38,7 +40,39 @@ public class RtreeR2Page extends Persistent {
     }
   }
 
-  RtreeR2Page() {}
+  final RtreeR2Page addBranch(Storage storage, RectangleR2 r, Object obj) {
+    if (n < card) {
+      setBranch(n++, r, obj);
+      return null;
+    } else {
+      return splitPage(storage, r, obj);
+    }
+  }
+
+  final RectangleR2 cover() {
+    RectangleR2 r = new RectangleR2(b[0]);
+    for (int i = 1; i < n; i++) {
+      r.join(b[i]);
+    }
+    return r;
+  }
+
+
+  void find(RectangleR2 r, ArrayList result, int level) {
+    if (--level != 0) { /* this is an internal node in the tree */
+      for (int i = 0; i < n; i++) {
+        if (r.intersects(b[i])) {
+          ((RtreeR2Page) branch.get(i)).find(r, result, level);
+        }
+      }
+    } else { /* this is a leaf node */
+      for (int i = 0; i < n; i++) {
+        if (r.intersects(b[i])) {
+          result.add(branch.get(i));
+        }
+      }
+    }
+  }
 
   RtreeR2Page insert(Storage storage, RectangleR2 r, Object obj, int level) {
     modify();
@@ -75,6 +109,34 @@ public class RtreeR2Page extends Persistent {
     }
   }
 
+  public void print(int level, int height) {
+    if (level + 1 < height) {
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < level; j++) {
+          System.out.print('\t');
+        }
+        System.out.println(b[i]);
+        ((RtreeR2Page) branch.get(i)).print(level + 1, height);
+      }
+    } else {
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < level; j++) {
+          System.out.print('\t');
+        }
+        System.out.println(b[i]);
+      }
+    }
+  }
+
+  void purge(int level) {
+    if (--level != 0) { /* this is an internal node in the tree */
+      for (int i = 0; i < n; i++) {
+        ((RtreeR2Page) branch.get(i)).purge(level);
+      }
+    }
+    deallocate();
+  }
+
   int remove(RectangleR2 r, Object obj, int level, ArrayList reinsertList) {
     if (--level != 0) {
       for (int i = 0; i < n; i++) {
@@ -106,37 +168,6 @@ public class RtreeR2Page extends Persistent {
     return -1;
   }
 
-
-  void find(RectangleR2 r, ArrayList result, int level) {
-    if (--level != 0) { /* this is an internal node in the tree */
-      for (int i = 0; i < n; i++) {
-        if (r.intersects(b[i])) {
-          ((RtreeR2Page) branch.get(i)).find(r, result, level);
-        }
-      }
-    } else { /* this is a leaf node */
-      for (int i = 0; i < n; i++) {
-        if (r.intersects(b[i])) {
-          result.add(branch.get(i));
-        }
-      }
-    }
-  }
-
-  void purge(int level) {
-    if (--level != 0) { /* this is an internal node in the tree */
-      for (int i = 0; i < n; i++) {
-        ((RtreeR2Page) branch.get(i)).purge(level);
-      }
-    }
-    deallocate();
-  }
-
-  final void setBranch(int i, RectangleR2 r, Object obj) {
-    b[i] = r;
-    branch.setObject(i, obj);
-  }
-
   final void removeBranch(int i) {
     n -= 1;
     System.arraycopy(b, i + 1, b, i, n - i);
@@ -145,13 +176,9 @@ public class RtreeR2Page extends Persistent {
     modify();
   }
 
-  final RtreeR2Page addBranch(Storage storage, RectangleR2 r, Object obj) {
-    if (n < card) {
-      setBranch(n++, r, obj);
-      return null;
-    } else {
-      return splitPage(storage, r, obj);
-    }
+  final void setBranch(int i, RectangleR2 r, Object obj) {
+    b[i] = r;
+    branch.setObject(i, obj);
   }
 
   final RtreeR2Page splitPage(Storage storage, RectangleR2 r, Object obj) {
@@ -266,33 +293,6 @@ public class RtreeR2Page extends Persistent {
     branch.setSize(groupCard1);
     branch.setSize(card);
     return pg;
-  }
-
-  final RectangleR2 cover() {
-    RectangleR2 r = new RectangleR2(b[0]);
-    for (int i = 1; i < n; i++) {
-      r.join(b[i]);
-    }
-    return r;
-  }
-
-  public void print(int level, int height) {
-    if (level + 1 < height) {
-      for (int i = 0; i < n; i++) {
-        for (int j = 0; j < level; j++) {
-          System.out.print('\t');
-        }
-        System.out.println(b[i]);
-        ((RtreeR2Page) branch.get(i)).print(level + 1, height);
-      }
-    } else {
-      for (int i = 0; i < n; i++) {
-        for (int j = 0; j < level; j++) {
-          System.out.print('\t');
-        }
-        System.out.println(b[i]);
-      }
-    }
   }
 }
 

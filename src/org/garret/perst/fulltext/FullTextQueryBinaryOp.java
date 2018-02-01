@@ -9,13 +9,16 @@ public class FullTextQueryBinaryOp extends FullTextQuery {
   public FullTextQuery right;
 
   /**
-   * Query node visitor.
+   * Binary node constructor
+   * 
+   * @param op operation code
+   * @param left left operand
+   * @param right right operand
    */
-  @Override
-  public void visit(FullTextQueryVisitor visitor) {
-    visitor.visit(this);
-    left.visit(visitor);
-    right.visit(visitor);
+  public FullTextQueryBinaryOp(int op, FullTextQuery left, FullTextQuery right) {
+    super(op);
+    this.left = left;
+    this.right = right;
   }
 
   /**
@@ -36,16 +39,13 @@ public class FullTextQueryBinaryOp extends FullTextQuery {
   }
 
   /**
-   * Binary node constructor
-   * 
-   * @param op operation code
-   * @param left left operand
-   * @param right right operand
+   * Query node visitor.
    */
-  public FullTextQueryBinaryOp(int op, FullTextQuery left, FullTextQuery right) {
-    super(op);
-    this.left = left;
-    this.right = right;
+  @Override
+  public void visit(FullTextQueryVisitor visitor) {
+    visitor.visit(this);
+    left.visit(visitor);
+    right.visit(visitor);
   }
 }
 

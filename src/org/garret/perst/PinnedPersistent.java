@@ -12,138 +12,22 @@ import org.garret.perst.impl.StorageImpl;
  * performance of your application.
  */
 public class PinnedPersistent implements IPersistent, ICloneable {
-  @Override
-  public synchronized void load() {
-    if (oid != 0 && (state & RAW) != 0) {
-      storage.loadObject(this);
-    }
-  }
+  static public final int RAW = 1;
 
-  @Override
-  public synchronized void loadAndModify() {
-    load();
-    modify();
-  }
+  static public final int DIRTY = 2;
 
-  @Override
-  public final boolean isRaw() {
-    return (state & RAW) != 0;
-  }
+  static public final int DELETED = 4;
 
-  @Override
-  public final boolean isModified() {
-    return (state & DIRTY) != 0;
-  }
+  transient Storage storage;
 
-  @Override
-  public final boolean isDeleted() {
-    return (state & DELETED) != 0;
-  }
+  transient int oid;
 
-  @Override
-  public final boolean isPersistent() {
-    return oid != 0;
-  }
-
-  @Override
-  public void makePersistent(Storage storage) {
-    if (oid == 0) {
-      storage.makePersistent(this);
-    }
-  }
-
-  @Override
-  public void store() {
-    if ((state & RAW) != 0) {
-      throw new StorageError(StorageError.ACCESS_TO_STUB);
-    }
-    if (storage != null) {
-      storage.storeObject(this);
-      state &= ~DIRTY;
-    }
-  }
-
-  @Override
-  public void modify() {
-    if ((state & DIRTY) == 0 && oid != 0) {
-      if ((state & RAW) != 0) {
-        throw new StorageError(StorageError.ACCESS_TO_STUB);
-      }
-      Assert.that((state & DELETED) == 0);
-      storage.modifyObject(this);
-      state |= DIRTY;
-    }
-  }
+  transient int state;
 
   public PinnedPersistent() {}
 
   public PinnedPersistent(Storage storage) {
     this.storage = storage;
-  }
-
-  @Override
-  public final int getOid() {
-    return oid;
-  }
-
-  @Override
-  public void deallocate() {
-    if (oid != 0) {
-      storage.deallocateObject(this);
-    }
-  }
-
-  @Override
-  public boolean recursiveLoading() {
-    return true;
-  }
-
-  @Override
-  public final Storage getStorage() {
-    return storage;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (o == this) {
-      return true;
-    }
-    if (oid == 0) {
-      return super.equals(o);
-    }
-    return o instanceof IPersistent && ((IPersistent) o).getOid() == oid;
-  }
-
-  @Override
-  public int hashCode() {
-    return oid;
-  }
-
-  @Override
-  public void onLoad() {}
-
-  @Override
-  public void onStore() {}
-
-  @Override
-  public void invalidate() {
-    state &= ~DIRTY;
-    state |= RAW;
-  }
-
-  transient Storage storage;
-  transient int oid;
-  transient int state;
-
-  static public final int RAW = 1;
-  static public final int DIRTY = 2;
-  static public final int DELETED = 4;
-
-  @Override
-  public void unassignOid() {
-    oid = 0;
-    state = DELETED;
-    storage = null;
   }
 
   @Override
@@ -171,9 +55,125 @@ public class PinnedPersistent implements IPersistent, ICloneable {
   }
 
   @Override
+  public void deallocate() {
+    if (oid != 0) {
+      storage.deallocateObject(this);
+    }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == this) {
+      return true;
+    }
+    if (oid == 0) {
+      return super.equals(o);
+    }
+    return o instanceof IPersistent && ((IPersistent) o).getOid() == oid;
+  }
+
+  @Override
+  public final int getOid() {
+    return oid;
+  }
+
+  @Override
+  public final Storage getStorage() {
+    return storage;
+  }
+
+  @Override
+  public int hashCode() {
+    return oid;
+  }
+
+  @Override
+  public void invalidate() {
+    state &= ~DIRTY;
+    state |= RAW;
+  }
+
+  @Override
+  public final boolean isDeleted() {
+    return (state & DELETED) != 0;
+  }
+
+  @Override
+  public final boolean isModified() {
+    return (state & DIRTY) != 0;
+  }
+
+  @Override
+  public final boolean isPersistent() {
+    return oid != 0;
+  }
+
+  @Override
+  public final boolean isRaw() {
+    return (state & RAW) != 0;
+  }
+  @Override
+  public synchronized void load() {
+    if (oid != 0 && (state & RAW) != 0) {
+      storage.loadObject(this);
+    }
+  }
+  @Override
+  public synchronized void loadAndModify() {
+    load();
+    modify();
+  }
+
+  @Override
+  public void makePersistent(Storage storage) {
+    if (oid == 0) {
+      storage.makePersistent(this);
+    }
+  }
+  @Override
+  public void modify() {
+    if ((state & DIRTY) == 0 && oid != 0) {
+      if ((state & RAW) != 0) {
+        throw new StorageError(StorageError.ACCESS_TO_STUB);
+      }
+      Assert.that((state & DELETED) == 0);
+      storage.modifyObject(this);
+      state |= DIRTY;
+    }
+  }
+  @Override
+  public void onLoad() {}
+
+  @Override
+  public void onStore() {}
+
+  @Override
   public void readExternal(java.io.ObjectInput s)
       throws java.io.IOException, ClassNotFoundException {
     oid = s.readInt();
+  }
+
+  @Override
+  public boolean recursiveLoading() {
+    return true;
+  }
+
+  @Override
+  public void store() {
+    if ((state & RAW) != 0) {
+      throw new StorageError(StorageError.ACCESS_TO_STUB);
+    }
+    if (storage != null) {
+      storage.storeObject(this);
+      state &= ~DIRTY;
+    }
+  }
+
+  @Override
+  public void unassignOid() {
+    oid = 0;
+    state = DELETED;
+    storage = null;
   }
 
   @Override

@@ -4,6 +4,12 @@ package org.garret.perst;
  * Exception thrown during import of data from XML file in database
  */
 public class XMLImportException extends Exception {
+  private int line;
+
+  private int column;
+
+  private String message;
+
   public XMLImportException(int line, int column, String message) {
     super("In line " + line + " column " + column + ": " + message);
     this.line = line;
@@ -11,19 +17,13 @@ public class XMLImportException extends Exception {
     this.message = message;
   }
 
-  public String getMessageText() {
-    return message;
-  }
-
-  public int getLine() {
-    return line;
-  }
-
   public int getColumn() {
     return column;
   }
-
-  private int line;
-  private int column;
-  private String message;
+  public int getLine() {
+    return line;
+  }
+  public String getMessageText() {
+    return message;
+  }
 }

@@ -1,163 +1,19 @@
 package org.garret.perst;
 
 /**
- * Floating point operations with error
- */
-class FP {
-  static final double EPSILON = 1.0E-06;
-
-  static final boolean zero(double x) {
-    return Math.abs(x) <= EPSILON;
-  }
-
-  static final boolean eq(double x, double y) {
-    return zero(x - y);
-  }
-
-  static final boolean ne(double x, double y) {
-    return !eq(x, y);
-  }
-
-  static final boolean lt(double x, double y) {
-    return y - x > EPSILON;
-  }
-
-  static final boolean le(double x, double y) {
-    return x - y <= EPSILON;
-  }
-
-  static final boolean gt(double x, double y) {
-    return x - y > EPSILON;
-  }
-
-  static final boolean ge(double x, double y) {
-    return y - x <= EPSILON;
-  }
-};
-
-
-/**
- * Point in 3D
- */
-class Point3D {
-  double x;
-  double y;
-  double z;
-
-  final Point3D cross(Point3D p) {
-    return new Point3D(y * p.z - z * p.y, z * p.x - x * p.z, x * p.y - y * p.x);
-  }
-
-  final double distance() {
-    return Math.sqrt(x * x + y * y + z * z);
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (o instanceof Point3D) {
-      Point3D p = (Point3D) o;
-      return FP.eq(x, p.x) && FP.eq(y, p.y) && FP.eq(z, p.z);
-    }
-    return false;
-  }
-
-  final RectangleRn toRectangle() {
-    return new RectangleRn(new double[] {x, y, z, x, y, z});
-  }
-
-  final Sphere.Point toSpherePoint() {
-    double rho = Math.sqrt(x * x + y * y);
-    double lat, lng;
-    if (0.0 == rho) {
-      if (FP.zero(z)) {
-        lat = 0.0;
-      } else if (z > 0) {
-        lat = Math.PI / 2;
-      } else {
-        lat = -Math.PI / 2;
-      }
-    } else {
-      lat = Math.atan(z / rho);
-    }
-
-    lng = Math.atan2(y, x);
-    if (FP.zero(lng)) {
-      lng = 0.0;
-    } else {
-      if (lng < 0.0) {
-        lng += Math.PI * 2;
-      }
-    }
-    return new Sphere.Point(lng, lat);
-  }
-
-
-  void addToRectangle(RectangleRn r) {
-    addToRectangle(r, x, y, z);
-  }
-
-  static void addToRectangle(RectangleRn r, double ra, double dec) {
-    double x = Math.cos(ra) * Math.cos(dec);
-    double y = Math.sin(ra) * Math.cos(dec);
-    double z = Math.sin(dec);
-    addToRectangle(r, x, y, z);
-  }
-
-  static void addToRectangle(RectangleRn r, double x, double y, double z) {
-    if (x < r.coords[0]) {
-      r.coords[0] = x;
-    }
-    if (y < r.coords[1]) {
-      r.coords[1] = y;
-    }
-    if (z < r.coords[2]) {
-      r.coords[2] = z;
-    }
-    if (x > r.coords[3]) {
-      r.coords[3] = x;
-    }
-    if (y > r.coords[4]) {
-      r.coords[4] = y;
-    }
-    if (z > r.coords[5]) {
-      r.coords[5] = z;
-    }
-  }
-
-  Point3D(double ra, double dec) {
-    x = Math.cos(ra) * Math.cos(dec);
-    y = Math.sin(ra) * Math.cos(dec);
-    z = Math.sin(dec);
-  }
-
-  Point3D() {}
-
-  Point3D(Sphere.Point p) {
-    this(p.ra, p.dec);
-  }
-
-  Point3D(double x, double y, double z) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
-  }
-}
-
-
-/**
  * Euler transformation
  */
 class Euler {
-  int phi_a; // first axis
-  int theta_a; // second axis
-  int psi_a; // third axis
-  double phi; // first rotation angle
-  double theta; // second rotation angle
-  double psi; // third rotation angle
-
   static final int AXIS_X = 1;
   static final int AXIS_Y = 2;
   static final int AXIS_Z = 3;
+  int phi_a; // first axis
+  int theta_a; // second axis
+  int psi_a; // third axis
+
+  double phi; // first rotation angle
+  double theta; // second rotation angle
+  double psi; // third rotation angle
 
   void transform(Point3D out, Point3D in) {
     int t = 0;
@@ -217,6 +73,150 @@ class Euler {
     out.y = y1;
     out.z = z1;
   }
+};
+
+
+/**
+ * Floating point operations with error
+ */
+class FP {
+  static final double EPSILON = 1.0E-06;
+
+  static final boolean eq(double x, double y) {
+    return zero(x - y);
+  }
+
+  static final boolean ge(double x, double y) {
+    return y - x <= EPSILON;
+  }
+
+  static final boolean gt(double x, double y) {
+    return x - y > EPSILON;
+  }
+
+  static final boolean le(double x, double y) {
+    return x - y <= EPSILON;
+  }
+
+  static final boolean lt(double x, double y) {
+    return y - x > EPSILON;
+  }
+
+  static final boolean ne(double x, double y) {
+    return !eq(x, y);
+  }
+
+  static final boolean zero(double x) {
+    return Math.abs(x) <= EPSILON;
+  }
+}
+
+
+/**
+ * Point in 3D
+ */
+class Point3D {
+  static void addToRectangle(RectangleRn r, double ra, double dec) {
+    double x = Math.cos(ra) * Math.cos(dec);
+    double y = Math.sin(ra) * Math.cos(dec);
+    double z = Math.sin(dec);
+    addToRectangle(r, x, y, z);
+  }
+  static void addToRectangle(RectangleRn r, double x, double y, double z) {
+    if (x < r.coords[0]) {
+      r.coords[0] = x;
+    }
+    if (y < r.coords[1]) {
+      r.coords[1] = y;
+    }
+    if (z < r.coords[2]) {
+      r.coords[2] = z;
+    }
+    if (x > r.coords[3]) {
+      r.coords[3] = x;
+    }
+    if (y > r.coords[4]) {
+      r.coords[4] = y;
+    }
+    if (z > r.coords[5]) {
+      r.coords[5] = z;
+    }
+  }
+  double x;
+
+  double y;
+
+  double z;
+
+  Point3D() {}
+
+  Point3D(double ra, double dec) {
+    x = Math.cos(ra) * Math.cos(dec);
+    y = Math.sin(ra) * Math.cos(dec);
+    z = Math.sin(dec);
+  }
+
+  Point3D(double x, double y, double z) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+
+
+  Point3D(Sphere.Point p) {
+    this(p.ra, p.dec);
+  }
+
+  void addToRectangle(RectangleRn r) {
+    addToRectangle(r, x, y, z);
+  }
+
+  final Point3D cross(Point3D p) {
+    return new Point3D(y * p.z - z * p.y, z * p.x - x * p.z, x * p.y - y * p.x);
+  }
+
+  final double distance() {
+    return Math.sqrt(x * x + y * y + z * z);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o instanceof Point3D) {
+      Point3D p = (Point3D) o;
+      return FP.eq(x, p.x) && FP.eq(y, p.y) && FP.eq(z, p.z);
+    }
+    return false;
+  }
+
+  final RectangleRn toRectangle() {
+    return new RectangleRn(new double[] {x, y, z, x, y, z});
+  }
+
+  final Sphere.Point toSpherePoint() {
+    double rho = Math.sqrt(x * x + y * y);
+    double lat, lng;
+    if (0.0 == rho) {
+      if (FP.zero(z)) {
+        lat = 0.0;
+      } else if (z > 0) {
+        lat = Math.PI / 2;
+      } else {
+        lat = -Math.PI / 2;
+      }
+    } else {
+      lat = Math.atan(z / rho);
+    }
+
+    lng = Math.atan2(y, x);
+    if (FP.zero(lng)) {
+      lng = 0.0;
+    } else {
+      if (lng < 0.0) {
+        lng += Math.PI * 2;
+      }
+    }
+    return new Sphere.Point(lng, lat);
+  }
 }
 
 
@@ -224,110 +224,13 @@ class Euler {
  * Class for conversion equatorial coordinates to Cartesian R3 coordinates
  */
 public class Sphere {
-  /**
-   * Common interface for all objects on sphere
-   */
-  public interface SphereObject extends IValue {
-    /**
-     * Get wrapping 3D rectangle for this object
-     */
-    public RectangleRn wrappingRectangle();
-
-    /**
-     * Check if object contains specified point ( @param p sphere point
-     */
-    public boolean contains(Point p);
-  };
-
-  /**
-   * Class representing point of equatorial coordinate system (astronomic or terrestrial)
-   */
-  public static class Point implements SphereObject {
-    /**
-     * Right ascension or longitude
-     */
-    public final double ra;
-    /**
-     * Declination or latitude
-     */
-    public final double dec;
-
-
-    public final double latitude() {
-      return dec;
-    }
-
-    public final double longitude() {
-      return ra;
-    }
-
-    // Fast implementation from Q3C
-    public final double distance(Point p) {
-      double x = Math.sin((ra - p.ra) / 2);
-      x *= x;
-      double y = Math.sin((dec - p.dec) / 2);
-      y *= y;
-      double z = Math.cos((dec + p.dec) / 2);
-      z *= z;
-      return 2 * Math.asin(Math.sqrt(x * (z - y) + y));
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (o instanceof Point) {
-        Point p = (Point) o;
-        return FP.eq(ra, p.ra) && FP.eq(dec, p.dec);
-      }
-      return false;
-    }
-
-    @Override
-    public RectangleRn wrappingRectangle() {
-      double x = Math.cos(ra) * Math.cos(dec);
-      double y = Math.sin(ra) * Math.cos(dec);
-      double z = Math.sin(dec);
-      return new RectangleRn(new double[] {x, y, z, x, y, z});
-    }
-
-    public PointRn toPointRn() {
-      double x = Math.cos(ra) * Math.cos(dec);
-      double y = Math.sin(ra) * Math.cos(dec);
-      double z = Math.sin(dec);
-      return new PointRn(new double[] {x, y, z});
-    }
-
-    @Override
-    public boolean contains(Point p) {
-      return equals(p);
-    }
-
-    @Override
-    public String toString() {
-      return "(" + ra + "," + dec + ")";
-    }
-
-    public Point(double ra, double dec) {
-      this.ra = ra;
-      this.dec = dec;
-    }
-  }
-
   public static class Box implements SphereObject {
     public final Point sw; // source-west
     public final Point ne; // nord-east
 
-    @Override
-    public boolean equals(Object o) {
-      if (o instanceof Box) {
-        Box b = (Box) o;
-        return sw.equals(b.sw) && ne.equals(b.ne);
-      }
-      return false;
-    }
-
-    @Override
-    public boolean contains(Point p) {
-      return contains(p.ra, p.dec);
+    public Box(Point sw, Point ne) {
+      this.sw = sw;
+      this.ne = ne;
     }
 
     public boolean contains(double ra, double dec) {
@@ -349,6 +252,20 @@ public class Sphere {
         }
       }
       return true;
+    }
+
+    @Override
+    public boolean contains(Point p) {
+      return contains(p.ra, p.dec);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o instanceof Box) {
+        Box b = (Box) o;
+        return sw.equals(b.sw) && ne.equals(b.ne);
+      }
+      return false;
     }
 
     @Override
@@ -375,11 +292,6 @@ public class Sphere {
       }
       return r;
     }
-
-    public Box(Point sw, Point ne) {
-      this.sw = sw;
-      this.ne = ne;
-    }
   };
 
   public static class Circle implements SphereObject {
@@ -392,8 +304,9 @@ public class Sphere {
     }
 
     @Override
-    public String toString() {
-      return "<" + center + "," + radius + ">";
+    public boolean contains(Point p) {
+      double distance = center.distance(p);
+      return FP.le(distance, radius);
     }
 
     @Override
@@ -406,9 +319,8 @@ public class Sphere {
     }
 
     @Override
-    public boolean contains(Point p) {
-      double distance = center.distance(p);
-      return FP.le(distance, radius);
+    public String toString() {
+      return "<" + center + "," + radius + ">";
     }
 
     @Override
@@ -609,9 +521,12 @@ public class Sphere {
       }
       return new RectangleRn(new double[] {min.x, min.y, min.z, max.x, max.y, max.z});
     }
-  }
+  };
 
   public static class Line implements SphereObject {
+    public static Line meridian(double ra) {
+      return new Line(-Math.PI / 2, Math.PI / 2, ra < 0.0 ? Math.PI * 2 + ra : ra, Math.PI);
+    }
     /**
      * The first rotation angle around z axis
      */
@@ -624,39 +539,11 @@ public class Sphere {
      * The last rotation angle around z axis
      */
     public final double psi;
+
     /**
      * The length of the line in radians
      */
     public final double length;
-
-    @Override
-    public boolean equals(Object o) {
-      if (o instanceof Line) {
-        Line l = (Line) o;
-        return FP.eq(phi, l.phi) && FP.eq(theta, l.theta) && FP.eq(psi, l.psi)
-            && FP.eq(length, l.length);
-      }
-      return false;
-    }
-
-    @Override
-    public boolean contains(Point p) {
-      Euler euler = new Euler();
-      Point3D spt = new Point3D();
-      euler.phi = -psi;
-      euler.theta = -theta;
-      euler.psi = -phi;
-      euler.psi_a = Euler.AXIS_Z;
-      euler.theta_a = Euler.AXIS_X;
-      euler.phi_a = Euler.AXIS_Z;
-      euler.transform(spt, new Point3D(p));
-      Point sp = spt.toSpherePoint();
-      return FP.zero(sp.dec) && FP.ge(sp.ra, 0.0) && FP.le(sp.ra, length);
-    }
-
-    public static Line meridian(double ra) {
-      return new Line(-Math.PI / 2, Math.PI / 2, ra < 0.0 ? Math.PI * 2 + ra : ra, Math.PI);
-    }
 
     public Line(double phi, double theta, double psi, double length) {
       this.phi = phi;
@@ -701,6 +588,31 @@ public class Sphere {
         psi = -euler.phi;
         length = l;
       }
+    }
+
+    @Override
+    public boolean contains(Point p) {
+      Euler euler = new Euler();
+      Point3D spt = new Point3D();
+      euler.phi = -psi;
+      euler.theta = -theta;
+      euler.psi = -phi;
+      euler.psi_a = Euler.AXIS_Z;
+      euler.theta_a = Euler.AXIS_X;
+      euler.phi_a = Euler.AXIS_Z;
+      euler.transform(spt, new Point3D(p));
+      Point sp = spt.toSpherePoint();
+      return FP.zero(sp.dec) && FP.ge(sp.ra, 0.0) && FP.le(sp.ra, length);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o instanceof Line) {
+        Line l = (Line) o;
+        return FP.eq(phi, l.phi) && FP.eq(theta, l.theta) && FP.eq(psi, l.psi)
+            && FP.eq(length, l.length);
+      }
+      return false;
     }
 
     @Override
@@ -783,6 +695,79 @@ public class Sphere {
     }
   }
 
+  /**
+   * Class representing point of equatorial coordinate system (astronomic or terrestrial)
+   */
+  public static class Point implements SphereObject {
+    /**
+     * Right ascension or longitude
+     */
+    public final double ra;
+    /**
+     * Declination or latitude
+     */
+    public final double dec;
+
+
+    public Point(double ra, double dec) {
+      this.ra = ra;
+      this.dec = dec;
+    }
+
+    @Override
+    public boolean contains(Point p) {
+      return equals(p);
+    }
+
+    // Fast implementation from Q3C
+    public final double distance(Point p) {
+      double x = Math.sin((ra - p.ra) / 2);
+      x *= x;
+      double y = Math.sin((dec - p.dec) / 2);
+      y *= y;
+      double z = Math.cos((dec + p.dec) / 2);
+      z *= z;
+      return 2 * Math.asin(Math.sqrt(x * (z - y) + y));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o instanceof Point) {
+        Point p = (Point) o;
+        return FP.eq(ra, p.ra) && FP.eq(dec, p.dec);
+      }
+      return false;
+    }
+
+    public final double latitude() {
+      return dec;
+    }
+
+    public final double longitude() {
+      return ra;
+    }
+
+    public PointRn toPointRn() {
+      double x = Math.cos(ra) * Math.cos(dec);
+      double y = Math.sin(ra) * Math.cos(dec);
+      double z = Math.sin(dec);
+      return new PointRn(new double[] {x, y, z});
+    }
+
+    @Override
+    public String toString() {
+      return "(" + ra + "," + dec + ")";
+    }
+
+    @Override
+    public RectangleRn wrappingRectangle() {
+      double x = Math.cos(ra) * Math.cos(dec);
+      double y = Math.sin(ra) * Math.cos(dec);
+      double z = Math.sin(dec);
+      return new RectangleRn(new double[] {x, y, z, x, y, z});
+    }
+  }
+
   public static class Polygon implements SphereObject {
     public final Point[] points;
 
@@ -809,5 +794,20 @@ public class Sphere {
       }
       return wr;
     }
+  }
+
+  /**
+   * Common interface for all objects on sphere
+   */
+  public interface SphereObject extends IValue {
+    /**
+     * Check if object contains specified point ( @param p sphere point
+     */
+    public boolean contains(Point p);
+
+    /**
+     * Get wrapping 3D rectangle for this object
+     */
+    public RectangleRn wrappingRectangle();
   }
 }

@@ -5,38 +5,17 @@ package org.garret.perst;
  * index.
  */
 public class RectangleRn implements IValue, Cloneable {
-  double[] coords;
-
   /**
-   * Get N - number of dimensions
+   * Non destructive join of two rectangles.
+   * 
+   * @param a first joined rectangle
+   * @param b second joined rectangle
+   * @return rectangle containing cover of these two rectangles
    */
-  public int nDimensions() {
-    return coords.length / 2;
-  }
-
-  /**
-   * Get minimal value for i-th coordinate of rectangle
-   */
-  public final double getMinCoord(int i) {
-    return coords[i];
-  }
-
-  /**
-   * Get maximal value for i-th coordinate of rectangle
-   */
-  public final double getMaxCoord(int i) {
-    return coords[coords.length / 2 + i];
-  }
-
-  /**
-   * Rectangle area
-   */
-  public final double area() {
-    double a = 1.0;
-    for (int i = 0, n = coords.length / 2; i < n; i++) {
-      a *= coords[n + i] - coords[i];
-    }
-    return a;
+  public static RectangleRn join(RectangleRn a, RectangleRn b) {
+    RectangleRn r = new RectangleRn(a);
+    r.join(b);
+    return r;
   }
 
   /**
@@ -52,43 +31,7 @@ public class RectangleRn implements IValue, Cloneable {
     return area;
   }
 
-  /**
-   * Calculate dostance from the specified poin to the rectange
-   */
-  public double distance(PointRn point) {
-    double d = 0;
-    for (int i = 0, n = point.coords.length; i < n; i++) {
-      if (point.coords[i] < coords[i]) {
-        d += (coords[i] - point.coords[i]) * (coords[i] - point.coords[i]);
-      } else if (point.coords[i] > coords[n + i]) {
-        d += (coords[n + i] - point.coords[i]) * (coords[n + i] - point.coords[i]);
-      }
-    }
-    return Math.sqrt(d);
-  }
-
-  /**
-   * Clone rectangle
-   */
-  @Override
-  public Object clone() {
-    try {
-      RectangleRn r = (RectangleRn) super.clone();
-      r.coords = this.coords;
-      return r;
-    } catch (CloneNotSupportedException e) {
-      // this shouldn't happen, since we are Cloneable
-      throw new InternalError();
-    }
-  }
-
-  /**
-   * Create copy of the rectangle
-   */
-  public RectangleRn(RectangleRn r) {
-    coords = new double[r.coords.length];
-    System.arraycopy(r.coords, 0, coords, 0, coords.length);
-  }
+  double[] coords;
 
   /**
    * Construct rectangle with specified coordinates
@@ -116,42 +59,37 @@ public class RectangleRn implements IValue, Cloneable {
   }
 
   /**
-   * Join two rectangles. This rectangle is updates to contain cover of this and specified
-   * rectangle.
-   * 
-   * @param r rectangle to be joined with this rectangle
+   * Create copy of the rectangle
    */
-  public final void join(RectangleRn r) {
-    for (int i = 0, n = coords.length / 2; i < n; i++) {
-      coords[i] = Math.min(coords[i], r.coords[i]);
-      coords[i + n] = Math.max(coords[i + n], r.coords[i + n]);
-    }
-  }
-
-
-  /**
-   * Non destructive join of two rectangles.
-   * 
-   * @param a first joined rectangle
-   * @param b second joined rectangle
-   * @return rectangle containing cover of these two rectangles
-   */
-  public static RectangleRn join(RectangleRn a, RectangleRn b) {
-    RectangleRn r = new RectangleRn(a);
-    r.join(b);
-    return r;
+  public RectangleRn(RectangleRn r) {
+    coords = new double[r.coords.length];
+    System.arraycopy(r.coords, 0, coords, 0, coords.length);
   }
 
   /**
-   * Checks if this rectangle intersects with specified rectangle
+   * Rectangle area
    */
-  public final boolean intersects(RectangleRn r) {
+  public final double area() {
+    double a = 1.0;
     for (int i = 0, n = coords.length / 2; i < n; i++) {
-      if (coords[i + n] < r.coords[i] || coords[i] > r.coords[i + n]) {
-        return false;
-      }
+      a *= coords[n + i] - coords[i];
     }
-    return true;
+    return a;
+  }
+
+  /**
+   * Clone rectangle
+   */
+  @Override
+  public Object clone() {
+    try {
+      RectangleRn r = (RectangleRn) super.clone();
+      r.coords = this.coords;
+      return r;
+    } catch (CloneNotSupportedException e) {
+      // this shouldn't happen, since we are Cloneable
+      throw new InternalError();
+    }
   }
 
   /**
@@ -164,6 +102,21 @@ public class RectangleRn implements IValue, Cloneable {
       }
     }
     return true;
+  }
+
+  /**
+   * Calculate dostance from the specified poin to the rectange
+   */
+  public double distance(PointRn point) {
+    double d = 0;
+    for (int i = 0, n = point.coords.length; i < n; i++) {
+      if (point.coords[i] < coords[i]) {
+        d += (coords[i] - point.coords[i]) * (coords[i] - point.coords[i]);
+      } else if (point.coords[i] > coords[n + i]) {
+        d += (coords[n + i] - point.coords[i]) * (coords[n + i] - point.coords[i]);
+      }
+    }
+    return Math.sqrt(d);
   }
 
   /**
@@ -184,6 +137,21 @@ public class RectangleRn implements IValue, Cloneable {
   }
 
   /**
+   * Get maximal value for i-th coordinate of rectangle
+   */
+  public final double getMaxCoord(int i) {
+    return coords[coords.length / 2 + i];
+  }
+
+
+  /**
+   * Get minimal value for i-th coordinate of rectangle
+   */
+  public final double getMinCoord(int i) {
+    return coords[i];
+  }
+
+  /**
    * Hash code consists of all rectangle coordinates
    */
   @Override
@@ -194,6 +162,38 @@ public class RectangleRn implements IValue, Cloneable {
       h ^= Double.doubleToLongBits(coords[i]);;
     }
     return (int) (h) ^ (int) (h >>> 32);
+  }
+
+  /**
+   * Checks if this rectangle intersects with specified rectangle
+   */
+  public final boolean intersects(RectangleRn r) {
+    for (int i = 0, n = coords.length / 2; i < n; i++) {
+      if (coords[i + n] < r.coords[i] || coords[i] > r.coords[i + n]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Join two rectangles. This rectangle is updates to contain cover of this and specified
+   * rectangle.
+   * 
+   * @param r rectangle to be joined with this rectangle
+   */
+  public final void join(RectangleRn r) {
+    for (int i = 0, n = coords.length / 2; i < n; i++) {
+      coords[i] = Math.min(coords[i], r.coords[i]);
+      coords[i + n] = Math.max(coords[i + n], r.coords[i + n]);
+    }
+  }
+
+  /**
+   * Get N - number of dimensions
+   */
+  public int nDimensions() {
+    return coords.length / 2;
   }
 
   @Override

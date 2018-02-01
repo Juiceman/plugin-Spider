@@ -26,6 +26,60 @@ class ConfigPage implements WebPage {
     config = spider.getConfig();
   }
 
+  private void addConfig(HTMLNode configUi, String shortDesc, String longDesc, String name,
+      String value) {
+    HTMLNode li = configUi.addChild("li");
+    li.addChild("span", "class", "configshortdesc", shortDesc);
+    li.addChild("span", "class", "config") //
+        .addChild("input", //
+            new String[] {"class", "type", "name", "value"}, //
+            new String[] {"config", "text", name, value});
+    li.addChild("span", "class", "configlongdesc", longDesc);
+  }
+
+  private void addConfig(HTMLNode configUi, String shortDesc, String longDesc, String name,
+      String[] value) {
+    StringBuilder value2 = new StringBuilder();
+    if (value.length > 0) {
+      value2.append(value[0]);
+      for (int i = 1; i < value.length; i++) {
+        value2.append(", ");
+        value2.append(value[i]);
+      }
+    }
+
+    HTMLNode li = configUi.addChild("li");
+    li.addChild("span", "class", "configshortdesc", shortDesc);
+    li.addChild("span", "class", "config") //
+        .addChild("input", //
+            new String[] {"class", "type", "name", "value"}, //
+            new String[] {"config", "text", name, value2.toString()});
+    li.addChild("span", "class", "configlongdesc", longDesc);
+  }
+
+
+  private void addConfig(HTMLNode configUi, String shortDesc, String longDesc, String name,
+      String[] values, String value) {
+    HTMLNode li = configUi.addChild("li");
+    li.addChild("span", "class", "configshortdesc", shortDesc);
+    HTMLNode select = li.addChild("span", "class", "config") //
+        .addChild("select", //
+            new String[] {"class", "name"}, //
+            new String[] {"config", name});
+    for (String v : values) {
+      HTMLNode o = select.addChild("option", "value", v, v);
+      if (v.equals(value))
+        o.addAttribute("selected", "selected");
+    }
+    li.addChild("span", "class", "configlongdesc", longDesc);
+  }
+
+  private void addHTML(HTMLNode configUi, String shortDesc, HTMLNode node) {
+    HTMLNode li = configUi.addChild("li");
+    li.addChild("span", "class", "configshortdesc", shortDesc);
+    li.addChild("span", "class", "config").addChild(node);
+  }
+
   /*
    * (non-Javadoc)
    * 
@@ -185,59 +239,5 @@ class ConfigPage implements WebPage {
     configForm.addChild("input", //
         new String[] {"type", "value"}, //
         new String[] {"submit", "Apply"});
-  }
-
-
-  private void addHTML(HTMLNode configUi, String shortDesc, HTMLNode node) {
-    HTMLNode li = configUi.addChild("li");
-    li.addChild("span", "class", "configshortdesc", shortDesc);
-    li.addChild("span", "class", "config").addChild(node);
-  }
-
-  private void addConfig(HTMLNode configUi, String shortDesc, String longDesc, String name,
-      String value) {
-    HTMLNode li = configUi.addChild("li");
-    li.addChild("span", "class", "configshortdesc", shortDesc);
-    li.addChild("span", "class", "config") //
-        .addChild("input", //
-            new String[] {"class", "type", "name", "value"}, //
-            new String[] {"config", "text", name, value});
-    li.addChild("span", "class", "configlongdesc", longDesc);
-  }
-
-  private void addConfig(HTMLNode configUi, String shortDesc, String longDesc, String name,
-      String[] values, String value) {
-    HTMLNode li = configUi.addChild("li");
-    li.addChild("span", "class", "configshortdesc", shortDesc);
-    HTMLNode select = li.addChild("span", "class", "config") //
-        .addChild("select", //
-            new String[] {"class", "name"}, //
-            new String[] {"config", name});
-    for (String v : values) {
-      HTMLNode o = select.addChild("option", "value", v, v);
-      if (v.equals(value))
-        o.addAttribute("selected", "selected");
-    }
-    li.addChild("span", "class", "configlongdesc", longDesc);
-  }
-
-  private void addConfig(HTMLNode configUi, String shortDesc, String longDesc, String name,
-      String[] value) {
-    StringBuilder value2 = new StringBuilder();
-    if (value.length > 0) {
-      value2.append(value[0]);
-      for (int i = 1; i < value.length; i++) {
-        value2.append(", ");
-        value2.append(value[i]);
-      }
-    }
-
-    HTMLNode li = configUi.addChild("li");
-    li.addChild("span", "class", "configshortdesc", shortDesc);
-    li.addChild("span", "class", "config") //
-        .addChild("input", //
-            new String[] {"class", "type", "name", "value"}, //
-            new String[] {"config", "text", name, value2.toString()});
-    li.addChild("span", "class", "configlongdesc", longDesc);
   }
 }

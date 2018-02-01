@@ -8,14 +8,6 @@ import java.util.Iterator;
  */
 public abstract class IterableIterator<T> implements Iterable<T>, Iterator<T> {
   /**
-   * This class itself is iterator
-   */
-  @Override
-  public Iterator<T> iterator() {
-    return this;
-  }
-
-  /**
    * Get first selected object. This methos can be used when single selected object is needed.
    * Please notive, that this method doesn't check if selection contain more than one object
    * 
@@ -23,6 +15,19 @@ public abstract class IterableIterator<T> implements Iterable<T>, Iterator<T> {
    */
   public T first() {
     return hasNext() ? next() : null;
+  }
+
+  /**
+   * This class itself is iterator
+   */
+  @Override
+  public Iterator<T> iterator() {
+    return this;
+  }
+
+  @Override
+  public void remove() {
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -36,11 +41,6 @@ public abstract class IterableIterator<T> implements Iterable<T>, Iterator<T> {
       count += 1;
     }
     return count;
-  }
-
-  @Override
-  public void remove() {
-    throw new UnsupportedOperationException();
   }
 
   /**

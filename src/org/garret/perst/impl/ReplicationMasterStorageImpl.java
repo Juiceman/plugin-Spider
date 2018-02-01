@@ -5,6 +5,13 @@ import org.garret.perst.ReplicationMasterStorage;
 
 
 public class ReplicationMasterStorageImpl extends StorageImpl implements ReplicationMasterStorage {
+  int port;
+
+  String[] hosts;
+
+  int asyncBufSize;
+
+  String pageTimestampFile;
   public ReplicationMasterStorageImpl(int port, String[] hosts, int asyncBufSize,
       String pageTimestampFile) {
     this.port = port;
@@ -12,7 +19,10 @@ public class ReplicationMasterStorageImpl extends StorageImpl implements Replica
     this.asyncBufSize = asyncBufSize;
     this.pageTimestampFile = pageTimestampFile;
   }
-
+  @Override
+  public int getNumberOfAvailableHosts() {
+    return ((ReplicationMasterFile) pool.file).getNumberOfAvailableHosts();
+  }
   @Override
   public void open(IFile file, long pagePoolSize) {
     super.open(asyncBufSize != 0
@@ -20,14 +30,4 @@ public class ReplicationMasterStorageImpl extends StorageImpl implements Replica
             pageTimestampFile)
         : new ReplicationMasterFile(this, file, pageTimestampFile), pagePoolSize);
   }
-
-  @Override
-  public int getNumberOfAvailableHosts() {
-    return ((ReplicationMasterFile) pool.file).getNumberOfAvailableHosts();
-  }
-
-  int port;
-  String[] hosts;
-  int asyncBufSize;
-  String pageTimestampFile;
 }

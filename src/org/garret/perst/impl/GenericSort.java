@@ -1,10 +1,15 @@
 package org.garret.perst.impl;
 
 public class GenericSort {
+  private static int med3(GenericSortArray x, int a, int b, int c) {
+    return (x.compare(a, b) < 0 ? (x.compare(b, c) < 0 ? b : x.compare(a, c) < 0 ? c : a)
+        : (x.compare(b, c) > 0 ? b : x.compare(a, c) > 0 ? c : a));
+  }
+
+
   static void sort(GenericSortArray arr) {
     sort1(arr, 0, arr.size());
   }
-
 
   private static void sort1(GenericSortArray x, int off, int len) {
     // Insertion sort on smallest arrays
@@ -71,10 +76,5 @@ public class GenericSort {
     for (int i = 0; i < n; i++, a++, b++) {
       x.swap(a, b);
     }
-  }
-
-  private static int med3(GenericSortArray x, int a, int b, int c) {
-    return (x.compare(a, b) < 0 ? (x.compare(b, c) < 0 ? b : x.compare(a, c) < 0 ? c : a)
-        : (x.compare(b, c) > 0 ? b : x.compare(a, c) > 0 ? c : a));
   }
 }

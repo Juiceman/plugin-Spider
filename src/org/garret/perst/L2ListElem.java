@@ -29,14 +29,6 @@ public class L2ListElem extends PersistentResource {
   }
 
   /**
-   * Make list empty. This method should be applied to list header.
-   */
-  public void prune() {
-    modify();
-    next = prev = this;
-  }
-
-  /**
    * Link specified element in the list after this element
    * 
    * @param elem element to be linked in the list after this elemen
@@ -64,6 +56,14 @@ public class L2ListElem extends PersistentResource {
     elem.prev = prev;
     prev.next = elem;
     prev = elem;
+  }
+
+  /**
+   * Make list empty. This method should be applied to list header.
+   */
+  public void prune() {
+    modify();
+    next = prev = this;
   }
 
   /**

@@ -7,40 +7,10 @@ package org.garret.perst;
  * operations only for number having the same precision and width.
  */
 public class Decimal extends Number implements Comparable<Decimal>, IValue {
-  private long value;
-
-  private transient long maxValue;
-  private transient long scale;
-
-  /**
-   * Get number of digits in integer part of the number, i.e. 5 in XXXXX.YY
-   */
-  public int getIntegerDigits() {
-    return ((int) value >> 4) & 0xF;
-  }
-
-  /**
-   * Get number of digits in fractional part of the number, i.e. 2 in XXXXX.YY
-   */
-  public int getFractionDigits() {
-    return (int) value & 0xF;
-  }
-
-  private void calculateScale() {
-    if (scale == 0) {
-      maxValue = ipow(10, getIntegerDigits() + getFractionDigits());
-      scale = ipow(10, getFractionDigits());
+  private static void checkArguments(boolean cond) {
+    if (!cond) {
+      throw new IllegalArgumentException("Invalid decimal width or precision");
     }
-  }
-
-  private static String pad(long value, int width, char filler) {
-    StringBuffer buf = new StringBuffer();
-    buf.append(value);
-    width -= buf.length();
-    while (--width >= 0) {
-      buf.insert(0, filler);
-    }
-    return buf.toString();
   }
 
   private static long ipow(long value, long exponent) {
@@ -54,24 +24,33 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
     }
     return result;
   }
-
-  private void checkOverflow(long newValue) {
-    if (newValue <= -maxValue || newValue >= maxValue) {
-      throw new ArithmeticException("Overflow");
+  private static String pad(long value, int width, char filler) {
+    StringBuffer buf = new StringBuffer();
+    buf.append(value);
+    width -= buf.length();
+    while (--width >= 0) {
+      buf.insert(0, filler);
     }
+    return buf.toString();
   }
 
-  private void checkFormat(Decimal x) {
-    calculateScale();
-    if ((byte) value != (byte) x.value) {
-      throw new IllegalArgumentException("Decimal numbers have different format");
-    }
-  }
+  private long value;
 
-  private static void checkArguments(boolean cond) {
-    if (!cond) {
-      throw new IllegalArgumentException("Invalid decimal width or precision");
-    }
+  private transient long maxValue;
+
+  private transient long scale;
+
+  private Decimal() {}
+
+  /**
+   * Constructor of decimal number from floating point value with given width and precision
+   * 
+   * @param value floating point value
+   * @param nIntegerDigits maximal number of digits in integer part of the number
+   * @param nFractionDigits number of digits in fractional part of the number
+   */
+  public Decimal(double value, int nIntegerDigits, int nFractionDigits) {
+    this((long) (value * ipow(10, nFractionDigits)), nIntegerDigits, nFractionDigits);
   }
 
   /**
@@ -88,61 +67,6 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
     scale = ipow(10, nFractionDigits);
     checkOverflow(value);
     this.value = (value << 8) | (nIntegerDigits << 4) | nFractionDigits;
-  }
-
-  /**
-   * Constructor of decimal number from floating point value with given width and precision
-   * 
-   * @param value floating point value
-   * @param nIntegerDigits maximal number of digits in integer part of the number
-   * @param nFractionDigits number of digits in fractional part of the number
-   */
-  public Decimal(double value, int nIntegerDigits, int nFractionDigits) {
-    this((long) (value * ipow(10, nFractionDigits)), nIntegerDigits, nFractionDigits);
-  }
-
-  /**
-   * Constructor of decimal number from string representation with given width and precision
-   * 
-   * @param value string representation of the number
-   * @param nIntegerDigits maximal number of digits in integer part of the number
-   * @param nFractionDigits number of digits in fractional part of the number
-   */
-  public Decimal(String value, int nIntegerDigits, int nFractionDigits) {
-    checkArguments(
-        nIntegerDigits >= 0 && nFractionDigits >= 0 && nIntegerDigits + nFractionDigits <= 16);
-    int dot = value.indexOf('.');
-    maxValue = ipow(10, nIntegerDigits + nFractionDigits);
-    scale = ipow(10, nFractionDigits);
-    String intPart;
-    int intPartSize;
-    if (dot < 0) {
-      intPart = value;
-      intPartSize = value.length();
-    } else {
-      intPart = value.substring(0, dot);
-      intPartSize = dot;
-    }
-    intPart = intPart.trim();
-    int sign = 1;
-    if (intPart.charAt(0) == '-') {
-      intPart = intPart.substring(1).trim();
-      sign = -1;
-      intPartSize -= 1;
-    } else if (intPart.charAt(0) == '+') {
-      intPart = intPart.substring(1).trim();
-      intPartSize -= 1;
-    }
-    checkArguments(intPartSize <= nIntegerDigits);
-    if (dot >= 0) {
-      checkArguments(value.length() - dot - 1 <= nFractionDigits);
-      this.value =
-          (sign * (Long.parseLong(intPart) * scale + Long.parseLong(value.substring(dot + 1))) << 8)
-              | (nIntegerDigits << 4) | nFractionDigits;
-    } else {
-      this.value =
-          (sign * Long.parseLong(intPart) * scale << 8) | (nIntegerDigits << 4) | nFractionDigits;
-    }
   }
 
   /**
@@ -189,54 +113,57 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
     maxValue = ipow(10, nIntegerDigits + nFractionDigits);
   }
 
-  private Decimal checkedCreate(long value) {
-    checkOverflow(value);
-    Decimal d = new Decimal();
-    d.value = (value << 8) | (this.value & 0xFF);
-    d.scale = scale;
-    d.maxValue = maxValue;
-    return d;
-  }
-
   /**
-   * Create decimal with the same formating as the target object and specified integer value
+   * Constructor of decimal number from string representation with given width and precision
    * 
-   * @param value integer value
-   * @return created decimal number with the same format as target object
+   * @param value string representation of the number
+   * @param nIntegerDigits maximal number of digits in integer part of the number
+   * @param nFractionDigits number of digits in fractional part of the number
    */
-  public Decimal create(long value) {
-    calculateScale();
-    long scaledValue = value * scale;
-    if (scaledValue / scale != value) {
-      throw new ArithmeticException("Overflow");
+  public Decimal(String value, int nIntegerDigits, int nFractionDigits) {
+    checkArguments(
+        nIntegerDigits >= 0 && nFractionDigits >= 0 && nIntegerDigits + nFractionDigits <= 16);
+    int dot = value.indexOf('.');
+    maxValue = ipow(10, nIntegerDigits + nFractionDigits);
+    scale = ipow(10, nFractionDigits);
+    String intPart;
+    int intPartSize;
+    if (dot < 0) {
+      intPart = value;
+      intPartSize = value.length();
+    } else {
+      intPart = value.substring(0, dot);
+      intPartSize = dot;
     }
-    return checkedCreate(scaledValue);
+    intPart = intPart.trim();
+    int sign = 1;
+    if (intPart.charAt(0) == '-') {
+      intPart = intPart.substring(1).trim();
+      sign = -1;
+      intPartSize -= 1;
+    } else if (intPart.charAt(0) == '+') {
+      intPart = intPart.substring(1).trim();
+      intPartSize -= 1;
+    }
+    checkArguments(intPartSize <= nIntegerDigits);
+    if (dot >= 0) {
+      checkArguments(value.length() - dot - 1 <= nFractionDigits);
+      this.value =
+          (sign * (Long.parseLong(intPart) * scale + Long.parseLong(value.substring(dot + 1))) << 8)
+              | (nIntegerDigits << 4) | nFractionDigits;
+    } else {
+      this.value =
+          (sign * Long.parseLong(intPart) * scale << 8) | (nIntegerDigits << 4) | nFractionDigits;
+    }
   }
 
-  /**
-   * Create decimal with the same formating as the target object and specified floating point value
-   * 
-   * @param value floating point value
-   * @return created decimal number with the same format as target object
-   */
-  public Decimal create(double value) {
-    calculateScale();
-    return checkedCreate((long) (value * scale));
+  public Decimal abs() {
+    Decimal result = new Decimal();
+    result.value = value < 0 ? ((-(value >> 8) << 8) | (value & 0xFF)) : value;
+    result.maxValue = maxValue;
+    result.scale = scale;
+    return result;
   }
-
-  /**
-   * Create decimal with the same formating as the target object and specified string value
-   * 
-   * @param value string value
-   * @return created decimal number with the same format as target object
-   */
-  public Decimal create(String value) {
-    return new Decimal(value, getIntegerDigits(), getFractionDigits());
-  }
-
-  private Decimal() {}
-
-
 
   /**
    * Add two decimal numbers. The values should have the same with and precision.
@@ -255,21 +182,192 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
     return result;
   }
 
+  public Decimal add(double x) {
+    return add(create(x));
+  }
+
+  public Decimal add(long x) {
+    return add(create(x));
+  }
+
+  public Decimal add(String x) {
+    return add(create(x));
+  }
+
+  private void calculateScale() {
+    if (scale == 0) {
+      maxValue = ipow(10, getIntegerDigits() + getFractionDigits());
+      scale = ipow(10, getFractionDigits());
+    }
+  }
+
   /**
-   * Subtract two decimal numbers. The values should have the same with and precision.
+   * Returns the smallest (closest to negative infinity) integer value that is greater than or equal
+   * to this decimal value
    * 
-   * @param x number to be subtracted
+   * @return the smallest (closest to negative infinity) integer value that is greater than or equal
+   *         to this decimal value
+   */
+  public long ceil() {
+    calculateScale();
+    return (value < 0 ? (value >> 8) : ((value >> 8) + scale - 1)) / scale;
+  }
+
+  private Decimal checkedCreate(long value) {
+    checkOverflow(value);
+    Decimal d = new Decimal();
+    d.value = (value << 8) | (this.value & 0xFF);
+    d.scale = scale;
+    d.maxValue = maxValue;
+    return d;
+  }
+
+  private void checkFormat(Decimal x) {
+    calculateScale();
+    if ((byte) value != (byte) x.value) {
+      throw new IllegalArgumentException("Decimal numbers have different format");
+    }
+  }
+
+
+
+  private void checkOverflow(long newValue) {
+    if (newValue <= -maxValue || newValue >= maxValue) {
+      throw new ArithmeticException("Overflow");
+    }
+  }
+
+  @Override
+  public int compareTo(Decimal x) {
+    checkFormat(x);
+    return value < x.value ? -1 : value == x.value ? 0 : 1;
+  }
+
+  /**
+   * Create decimal with the same formating as the target object and specified floating point value
+   * 
+   * @param value floating point value
+   * @return created decimal number with the same format as target object
+   */
+  public Decimal create(double value) {
+    calculateScale();
+    return checkedCreate((long) (value * scale));
+  }
+
+  /**
+   * Create decimal with the same formating as the target object and specified integer value
+   * 
+   * @param value integer value
+   * @return created decimal number with the same format as target object
+   */
+  public Decimal create(long value) {
+    calculateScale();
+    long scaledValue = value * scale;
+    if (scaledValue / scale != value) {
+      throw new ArithmeticException("Overflow");
+    }
+    return checkedCreate(scaledValue);
+  }
+
+
+  /**
+   * Create decimal with the same formating as the target object and specified string value
+   * 
+   * @param value string value
+   * @return created decimal number with the same format as target object
+   */
+  public Decimal create(String value) {
+    return new Decimal(value, getIntegerDigits(), getFractionDigits());
+  }
+
+  /**
+   * Divide two decimal numbers. The values should have the same with and precision.
+   * 
+   * @param x number to be divided
    * @return new decimal value with result of operation
    */
-  public Decimal sub(Decimal x) {
+  public Decimal div(Decimal x) {
     checkFormat(x);
-    long newValue = (value >> 8) - (x.value >> 8);
-    checkOverflow(newValue);
+    if ((x.value >> 8) == 0) {
+      throw new ArithmeticException("Divide by zero");
+    }
     Decimal result = new Decimal();
-    result.value = (newValue << 8) | (value & 0xFF);
+    result.value = (value >> 8) / (x.value >> 8) / scale;
     result.maxValue = maxValue;
     result.scale = scale;
     return result;
+  }
+
+  public Decimal div(double x) {
+    return div(create(x));
+  }
+
+  public Decimal div(long x) {
+    return div(create(x));
+  }
+
+  public Decimal div(String x) {
+    return div(create(x));
+  }
+
+  @Override
+  public double doubleValue() {
+    calculateScale();
+    return (double) (value >> 8) / scale;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof Decimal ? ((Decimal) o).value == value
+        : o instanceof Number ? equals(create(((Number) o).doubleValue()))
+            : o instanceof String ? equals(create((String) o)) : false;
+  }
+
+  @Override
+  public float floatValue() {
+    return (float) doubleValue();
+  }
+
+  /**
+   * Returns the largest (closest to positive infinity) integer value that is less than or equal to
+   * this decimal value
+   * 
+   * @return the largest (closest to positive infinity) integer value that is less than or equal to
+   *         this decimal value
+   */
+  public long floor() {
+    calculateScale();
+    return (value < 0 ? ((value >> 8) - scale + 1) : (value >> 8)) / scale;
+  }
+
+  /**
+   * Get number of digits in fractional part of the number, i.e. 2 in XXXXX.YY
+   */
+  public int getFractionDigits() {
+    return (int) value & 0xF;
+  }
+
+  /**
+   * Get number of digits in integer part of the number, i.e. 5 in XXXXX.YY
+   */
+  public int getIntegerDigits() {
+    return ((int) value >> 4) & 0xF;
+  }
+
+  @Override
+  public int hashCode() {
+    return (int) value ^ (int) (value >>> 32);
+  }
+
+  @Override
+  public int intValue() {
+    return (int) longValue();
+  }
+
+  @Override
+  public long longValue() {
+    calculateScale();
+    return (value >> 8) / scale;
   }
 
   /**
@@ -293,71 +391,24 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
     return result;
   }
 
-  /**
-   * Divide two decimal numbers. The values should have the same with and precision.
-   * 
-   * @param x number to be divided
-   * @return new decimal value with result of operation
-   */
-  public Decimal div(Decimal x) {
-    checkFormat(x);
-    if ((x.value >> 8) == 0) {
-      throw new ArithmeticException("Divide by zero");
-    }
-    Decimal result = new Decimal();
-    result.value = (value >> 8) / (x.value >> 8) / scale;
-    result.maxValue = maxValue;
-    result.scale = scale;
-    return result;
-  }
-
-
-  public Decimal add(long x) {
-    return add(create(x));
-  }
-
-  public Decimal sub(long x) {
-    return sub(create(x));
+  public Decimal mul(double x) {
+    return mul(create(x));
   }
 
   public Decimal mul(long x) {
     return mul(create(x));
   }
 
-  public Decimal div(long x) {
-    return div(create(x));
-  }
-
-  public Decimal add(double x) {
-    return add(create(x));
-  }
-
-  public Decimal sub(double x) {
-    return sub(create(x));
-  }
-
-  public Decimal mul(double x) {
-    return mul(create(x));
-  }
-
-  public Decimal div(double x) {
-    return div(create(x));
-  }
-
-  public Decimal add(String x) {
-    return add(create(x));
-  }
-
-  public Decimal sub(String x) {
-    return sub(create(x));
-  }
-
   public Decimal mul(String x) {
     return mul(create(x));
   }
 
-  public Decimal div(String x) {
-    return div(create(x));
+  public Decimal neg() {
+    Decimal result = new Decimal();
+    result.value = (-(value >> 8) << 8) | (value & 0xFF);
+    result.maxValue = maxValue;
+    result.scale = scale;
+    return result;
   }
 
   /**
@@ -371,83 +422,45 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
   }
 
   /**
-   * Returns the largest (closest to positive infinity) integer value that is less than or equal to
-   * this decimal value
+   * Subtract two decimal numbers. The values should have the same with and precision.
    * 
-   * @return the largest (closest to positive infinity) integer value that is less than or equal to
-   *         this decimal value
+   * @param x number to be subtracted
+   * @return new decimal value with result of operation
    */
-  public long floor() {
-    calculateScale();
-    return (value < 0 ? ((value >> 8) - scale + 1) : (value >> 8)) / scale;
+  public Decimal sub(Decimal x) {
+    checkFormat(x);
+    long newValue = (value >> 8) - (x.value >> 8);
+    checkOverflow(newValue);
+    Decimal result = new Decimal();
+    result.value = (newValue << 8) | (value & 0xFF);
+    result.maxValue = maxValue;
+    result.scale = scale;
+    return result;
+  }
+
+  public Decimal sub(double x) {
+    return sub(create(x));
+  }
+
+  public Decimal sub(long x) {
+    return sub(create(x));
+  }
+
+  public Decimal sub(String x) {
+    return sub(create(x));
   }
 
   /**
-   * Returns the smallest (closest to negative infinity) integer value that is greater than or equal
-   * to this decimal value
+   * Get string representation of the given decimal number which been compared with another such
+   * string representation of decimal number will produce the same comparison result as of original
+   * decimal numbers
    * 
-   * @return the smallest (closest to negative infinity) integer value that is greater than or equal
-   *         to this decimal value
+   * @return string which cn be used in comparison insteadof decimal value
    */
-  public long ceil() {
+  public String toLexicographicString() {
     calculateScale();
-    return (value < 0 ? (value >> 8) : ((value >> 8) + scale - 1)) / scale;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    return o instanceof Decimal ? ((Decimal) o).value == value
-        : o instanceof Number ? equals(create(((Number) o).doubleValue()))
-            : o instanceof String ? equals(create((String) o)) : false;
-  }
-
-  @Override
-  public int compareTo(Decimal x) {
-    checkFormat(x);
-    return value < x.value ? -1 : value == x.value ? 0 : 1;
-  }
-
-  @Override
-  public int hashCode() {
-    return (int) value ^ (int) (value >>> 32);
-  }
-
-  public Decimal abs() {
-    Decimal result = new Decimal();
-    result.value = value < 0 ? ((-(value >> 8) << 8) | (value & 0xFF)) : value;
-    result.maxValue = maxValue;
-    result.scale = scale;
-    return result;
-  }
-
-  public Decimal neg() {
-    Decimal result = new Decimal();
-    result.value = (-(value >> 8) << 8) | (value & 0xFF);
-    result.maxValue = maxValue;
-    result.scale = scale;
-    return result;
-  }
-
-  @Override
-  public long longValue() {
-    calculateScale();
-    return (value >> 8) / scale;
-  }
-
-  @Override
-  public int intValue() {
-    return (int) longValue();
-  }
-
-  @Override
-  public double doubleValue() {
-    calculateScale();
-    return (double) (value >> 8) / scale;
-  }
-
-  @Override
-  public float floatValue() {
-    return (float) doubleValue();
+    return pad(((value >> 8) + maxValue) / scale, getIntegerDigits() + 1, '0') + "."
+        + pad(((value >> 8) + maxValue) % scale, getFractionDigits(), '0');
   }
 
   /**
@@ -469,18 +482,5 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue {
     calculateScale();
     return pad((value >> 8) / scale, getIntegerDigits() + 1, filler) + "."
         + pad((value < 0 ? -(value >> 8) : (value >> 8)) % scale, getFractionDigits(), '0');
-  }
-
-  /**
-   * Get string representation of the given decimal number which been compared with another such
-   * string representation of decimal number will produce the same comparison result as of original
-   * decimal numbers
-   * 
-   * @return string which cn be used in comparison insteadof decimal value
-   */
-  public String toLexicographicString() {
-    calculateScale();
-    return pad(((value >> 8) + maxValue) / scale, getIntegerDigits() + 1, '0') + "."
-        + pad(((value >> 8) + maxValue) % scale, getFractionDigits(), '0');
   }
 }

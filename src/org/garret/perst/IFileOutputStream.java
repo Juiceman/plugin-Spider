@@ -8,13 +8,28 @@ import org.garret.perst.impl.Page;
  * Stream class implementation on top of Perst file. Can be used in Storage.Backup method
  */
 public class IFileOutputStream extends OutputStream {
-  @Override
-  public void write(int b) throws IOException {
-    byte[] bytes = new byte[1];
-    bytes[0] = (byte) b;
-    write(bytes, 0, 1);
+  IFile file;
+
+  long currPos;
+
+  byte[] page;
+
+  public IFileOutputStream(IFile file) {
+    this.file = file;
+    page = new byte[Page.pageSize];
   }
 
+  @Override
+  public void close() throws IOException {
+    flush();
+    file.close();
+  }
+
+  @Override
+  public void flush() throws IOException {
+    int dstOff = (int) (currPos % Page.pageSize);
+    file.write(currPos - dstOff, page);
+  }
   @Override
   public void write(byte b[], int srcOff, int len) throws IOException {
     while (len > 0) {
@@ -30,25 +45,10 @@ public class IFileOutputStream extends OutputStream {
       }
     }
   }
-
   @Override
-  public void flush() throws IOException {
-    int dstOff = (int) (currPos % Page.pageSize);
-    file.write(currPos - dstOff, page);
+  public void write(int b) throws IOException {
+    byte[] bytes = new byte[1];
+    bytes[0] = (byte) b;
+    write(bytes, 0, 1);
   }
-
-  @Override
-  public void close() throws IOException {
-    flush();
-    file.close();
-  }
-
-  public IFileOutputStream(IFile file) {
-    this.file = file;
-    page = new byte[Page.pageSize];
-  }
-
-  IFile file;
-  long currPos;
-  byte[] page;
 }

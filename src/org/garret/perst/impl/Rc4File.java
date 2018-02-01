@@ -31,22 +31,48 @@ import org.garret.perst.IFile;
 // fine Java utilities: http://www.acme.com/java/
 
 public class Rc4File implements IFile {
+  private IFile file;
+
+  private byte[] cipherBuf;
+
+  private byte[] pattern;
+
+  private long length;
+
+  private byte[] zeroPage;
+
+  public Rc4File(IFile file, String key) {
+    this.file = file;
+    length = file.length() & ~(Page.pageSize - 1);
+    setKey(key.getBytes());
+  }
+
+  public Rc4File(String filePath, boolean readOnly, boolean noFlush, String key) {
+    file = new OSFile(filePath, readOnly, noFlush);
+    length = file.length() & ~(Page.pageSize - 1);
+    setKey(key.getBytes());
+  }
+
   @Override
-  public void write(long pos, byte[] buf) {
-    if (pos > length) {
-      if (zeroPage == null) {
-        zeroPage = new byte[Page.pageSize];
-        crypt(zeroPage, zeroPage);
-      }
-      do {
-        file.write(length, zeroPage);
-      } while ((length += Page.pageSize) < pos);
+  public void close() {
+    file.close();
+  }
+
+  private final void crypt(byte[] clearText, byte[] cipherText) {
+    for (int i = 0; i < clearText.length; i++) {
+      cipherText[i] = (byte) (clearText[i] ^ pattern[i]);
     }
-    if (pos == length) {
-      length += Page.pageSize;
-    }
-    crypt(buf, cipherBuf);
-    file.write(pos, cipherBuf);
+  }
+
+  @Override
+  public long length() {
+    return file.length();
+  }
+
+  @Override
+  public void lock(boolean shared) {
+    file.lock(shared);
+    length = file.length() & ~(Page.pageSize - 1);
   }
 
   @Override
@@ -57,18 +83,6 @@ public class Rc4File implements IFile {
       return rc;
     }
     return 0;
-  }
-
-  public Rc4File(String filePath, boolean readOnly, boolean noFlush, String key) {
-    file = new OSFile(filePath, readOnly, noFlush);
-    length = file.length() & ~(Page.pageSize - 1);
-    setKey(key.getBytes());
-  }
-
-  public Rc4File(IFile file, String key) {
-    this.file = file;
-    length = file.length() & ~(Page.pageSize - 1);
-    setKey(key.getBytes());
   }
 
   private void setKey(byte[] key) {
@@ -98,47 +112,33 @@ public class Rc4File implements IFile {
       pattern[i] = state[(state[x] + state[y]) & 0xff];
     }
   }
-
-  private final void crypt(byte[] clearText, byte[] cipherText) {
-    for (int i = 0; i < clearText.length; i++) {
-      cipherText[i] = (byte) (clearText[i] ^ pattern[i]);
-    }
-  }
-
-  @Override
-  public void close() {
-    file.close();
-  }
-
-  @Override
-  public boolean tryLock(boolean shared) {
-    return file.tryLock(shared);
-  }
-
-  @Override
-  public void lock(boolean shared) {
-    file.lock(shared);
-    length = file.length() & ~(Page.pageSize - 1);
-  }
-
-  @Override
-  public void unlock() {
-    file.unlock();
-  }
-
   @Override
   public void sync() {
     file.sync();
   }
-
   @Override
-  public long length() {
-    return file.length();
+  public boolean tryLock(boolean shared) {
+    return file.tryLock(shared);
   }
-
-  private IFile file;
-  private byte[] cipherBuf;
-  private byte[] pattern;
-  private long length;
-  private byte[] zeroPage;
+  @Override
+  public void unlock() {
+    file.unlock();
+  }
+  @Override
+  public void write(long pos, byte[] buf) {
+    if (pos > length) {
+      if (zeroPage == null) {
+        zeroPage = new byte[Page.pageSize];
+        crypt(zeroPage, zeroPage);
+      }
+      do {
+        file.write(length, zeroPage);
+      } while ((length += Page.pageSize) < pos);
+    }
+    if (pos == length) {
+      length += Page.pageSize;
+    }
+    crypt(buf, cipherBuf);
+    file.write(pos, cipherBuf);
+  }
 }

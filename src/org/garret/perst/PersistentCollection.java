@@ -6,35 +6,50 @@ import java.util.Iterator;
 import org.garret.perst.impl.QueryImpl;
 
 public abstract class PersistentCollection<T> extends PersistentResource implements ITable<T> {
-  @Override
-  public IterableIterator<T> select(Class cls, String predicate) {
-    Query<T> query = new QueryImpl<T>(getStorage());
-    return query.select(cls, iterator(), predicate);
+  /**
+   * Default constructor
+   */
+  public PersistentCollection() {}
+
+  /**
+   * Constructor of the collection associated with the specified storage
+   * 
+   * @param storage storage associated with the collection
+   */
+  public PersistentCollection(Storage storage) {
+    super(storage);
   }
 
   /**
-   * Returns <tt>true</tt> if this collection contains all of the elements in the specified
-   * collection.
+   * Ensures that this collection contains the specified element (optional operation). Returns
+   * <tt>true</tt> if the collection changed as a result of the call. (Returns <tt>false</tt> if
+   * this collection does not permit duplicates and already contains the specified element.)
+   * Collections that support this operation may place limitations on what elements may be added to
+   * the collection. In particular, some collections will refuse to add <tt>null</tt> elements, and
+   * others will impose restrictions on the type of elements that may be added. Collection classes
+   * should clearly specify in their documentation any restrictions on what elements may be added.
    * <p>
    *
-   * This implementation iterates over the specified collection, checking each element returned by
-   * the iterator in turn to see if it's contained in this collection. If all elements are so
-   * contained <tt>true</tt> is returned, otherwise <tt>false</tt>.
+   * This implementation always throws an <tt>UnsupportedOperationException</tt>.
    *
-   * @param c collection to be checked for containment in this collection.
-   * @return <tt>true</tt> if this collection contains all of the elements in the specified
-   *         collection.
-   * @throws NullPointerException if the specified collection is null.
+   * @param o element whose presence in this collection is to be ensured.
+   * @return <tt>true</tt> if the collection changed as a result of the call.
    * 
-   * @see #contains(Object)
+   * @throws UnsupportedOperationException if the <tt>add</tt> method is not supported by this
+   *         collection.
+   * 
+   * @throws NullPointerException if this collection does not permit <tt>null</tt> elements, and the
+   *         specified element is <tt>null</tt>.
+   * 
+   * @throws ClassCastException if the class of the specified element prevents it from being added
+   *         to this collection.
+   * 
+   * @throws IllegalArgumentException if some aspect of this element prevents it from being added to
+   *         this collection.
    */
   @Override
-  public boolean containsAll(Collection<?> c) {
-    Iterator<?> e = c.iterator();
-    while (e.hasNext())
-      if (!contains(e.next()))
-        return false;
-    return true;
+  public boolean add(T o) {
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -71,80 +86,6 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
   }
 
   /**
-   * Removes from this collection all of its elements that are contained in the specified collection
-   * (optional operation).
-   * <p>
-   *
-   * This implementation iterates over this collection, checking each element returned by the
-   * iterator in turn to see if it's contained in the specified collection. If it's so contained,
-   * it's removed from this collection with the iterator's <tt>remove</tt> method.
-   * <p>
-   *
-   * Note that this implementation will throw an <tt>UnsupportedOperationException</tt> if the
-   * iterator returned by the <tt>iterator</tt> method does not implement the <tt>remove</tt> method
-   * and this collection contains one or more elements in common with the specified collection.
-   *
-   * @param c elements to be removed from this collection.
-   * @return <tt>true</tt> if this collection changed as a result of the call.
-   * @throws UnsupportedOperationException if the <tt>removeAll</tt> method is not supported by this
-   *         collection.
-   * @throws NullPointerException if the specified collection is null.
-   *
-   * @see #remove(Object)
-   * @see #contains(Object)
-   */
-  @Override
-  public boolean removeAll(Collection<?> c) {
-    boolean modified = false;
-    Iterator<?> i = c.iterator();
-    while (i.hasNext()) {
-      modified |= remove(i.next());
-    }
-    return modified;
-  }
-
-  /**
-   * Retains only the elements in this collection that are contained in the specified collection
-   * (optional operation). In other words, removes from this collection all of its elements that are
-   * not contained in the specified collection.
-   * <p>
-   *
-   * This implementation iterates over this collection, checking each element returned by the
-   * iterator in turn to see if it's contained in the specified collection. If it's not so
-   * contained, it's removed from this collection with the iterator's <tt>remove</tt> method.
-   * <p>
-   *
-   * Note that this implementation will throw an <tt>UnsupportedOperationException</tt> if the
-   * iterator returned by the <tt>iterator</tt> method does not implement the <tt>remove</tt> method
-   * and this collection contains one or more elements not present in the specified collection.
-   *
-   * @param c elements to be retained in this collection.
-   * @return <tt>true</tt> if this collection changed as a result of the call.
-   * @throws UnsupportedOperationException if the <tt>retainAll</tt> method is not supported by this
-   *         Collection.
-   * @throws NullPointerException if the specified collection is null.
-   *
-   * @see #remove(Object)
-   * @see #contains(Object)
-   */
-  @Override
-  public boolean retainAll(Collection<?> c) {
-    ArrayList<T> toBeRemoved = new ArrayList<T>();
-    Iterator<T> i = iterator();
-    while (i.hasNext()) {
-      T o = i.next();
-      if (!c.contains(o)) {
-        toBeRemoved.add(o);
-      }
-    }
-    int n = toBeRemoved.size();
-    for (int j = 0; j < n; j++) {
-      remove(toBeRemoved.get(j));
-    }
-    return n != 0;
-  }
-
-  /**
    * Returns <tt>true</tt> if this collection contains the specified element. More formally, returns
    * <tt>true</tt> if and only if this collection contains at least one element <tt>e</tt> such that
    * <tt>(o==null ? e==null : o.equals(e))</tt>.
@@ -169,6 +110,53 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
           return true;
     }
     return false;
+  }
+
+  /**
+   * Returns <tt>true</tt> if this collection contains all of the elements in the specified
+   * collection.
+   * <p>
+   *
+   * This implementation iterates over the specified collection, checking each element returned by
+   * the iterator in turn to see if it's contained in this collection. If all elements are so
+   * contained <tt>true</tt> is returned, otherwise <tt>false</tt>.
+   *
+   * @param c collection to be checked for containment in this collection.
+   * @return <tt>true</tt> if this collection contains all of the elements in the specified
+   *         collection.
+   * @throws NullPointerException if the specified collection is null.
+   * 
+   * @see #contains(Object)
+   */
+  @Override
+  public boolean containsAll(Collection<?> c) {
+    Iterator<?> e = c.iterator();
+    while (e.hasNext())
+      if (!contains(e.next()))
+        return false;
+    return true;
+  }
+
+  @Override
+  public void deallocateMembers() {
+    Iterator<T> i = iterator();
+    while (i.hasNext()) {
+      storage.deallocate(i.next());
+    }
+    clear();
+  }
+
+  /**
+   * Returns <tt>true</tt> if this collection contains no elements.
+   * <p>
+   *
+   * This implementation returns <tt>size() == 0</tt>.
+   *
+   * @return <tt>true</tt> if this collection contains no elements.
+   */
+  @Override
+  public boolean isEmpty() {
+    return size() == 0;
   }
 
   /**
@@ -215,72 +203,84 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
   }
 
   /**
-   * Ensures that this collection contains the specified element (optional operation). Returns
-   * <tt>true</tt> if the collection changed as a result of the call. (Returns <tt>false</tt> if
-   * this collection does not permit duplicates and already contains the specified element.)
-   * Collections that support this operation may place limitations on what elements may be added to
-   * the collection. In particular, some collections will refuse to add <tt>null</tt> elements, and
-   * others will impose restrictions on the type of elements that may be added. Collection classes
-   * should clearly specify in their documentation any restrictions on what elements may be added.
+   * Removes from this collection all of its elements that are contained in the specified collection
+   * (optional operation).
    * <p>
    *
-   * This implementation always throws an <tt>UnsupportedOperationException</tt>.
+   * This implementation iterates over this collection, checking each element returned by the
+   * iterator in turn to see if it's contained in the specified collection. If it's so contained,
+   * it's removed from this collection with the iterator's <tt>remove</tt> method.
+   * <p>
    *
-   * @param o element whose presence in this collection is to be ensured.
-   * @return <tt>true</tt> if the collection changed as a result of the call.
-   * 
-   * @throws UnsupportedOperationException if the <tt>add</tt> method is not supported by this
+   * Note that this implementation will throw an <tt>UnsupportedOperationException</tt> if the
+   * iterator returned by the <tt>iterator</tt> method does not implement the <tt>remove</tt> method
+   * and this collection contains one or more elements in common with the specified collection.
+   *
+   * @param c elements to be removed from this collection.
+   * @return <tt>true</tt> if this collection changed as a result of the call.
+   * @throws UnsupportedOperationException if the <tt>removeAll</tt> method is not supported by this
    *         collection.
-   * 
-   * @throws NullPointerException if this collection does not permit <tt>null</tt> elements, and the
-   *         specified element is <tt>null</tt>.
-   * 
-   * @throws ClassCastException if the class of the specified element prevents it from being added
-   *         to this collection.
-   * 
-   * @throws IllegalArgumentException if some aspect of this element prevents it from being added to
-   *         this collection.
+   * @throws NullPointerException if the specified collection is null.
+   *
+   * @see #remove(Object)
+   * @see #contains(Object)
    */
   @Override
-  public boolean add(T o) {
-    throw new UnsupportedOperationException();
+  public boolean removeAll(Collection<?> c) {
+    boolean modified = false;
+    Iterator<?> i = c.iterator();
+    while (i.hasNext()) {
+      modified |= remove(i.next());
+    }
+    return modified;
   }
+
+
 
   /**
-   * Returns <tt>true</tt> if this collection contains no elements.
+   * Retains only the elements in this collection that are contained in the specified collection
+   * (optional operation). In other words, removes from this collection all of its elements that are
+   * not contained in the specified collection.
    * <p>
    *
-   * This implementation returns <tt>size() == 0</tt>.
+   * This implementation iterates over this collection, checking each element returned by the
+   * iterator in turn to see if it's contained in the specified collection. If it's not so
+   * contained, it's removed from this collection with the iterator's <tt>remove</tt> method.
+   * <p>
    *
-   * @return <tt>true</tt> if this collection contains no elements.
+   * Note that this implementation will throw an <tt>UnsupportedOperationException</tt> if the
+   * iterator returned by the <tt>iterator</tt> method does not implement the <tt>remove</tt> method
+   * and this collection contains one or more elements not present in the specified collection.
+   *
+   * @param c elements to be retained in this collection.
+   * @return <tt>true</tt> if this collection changed as a result of the call.
+   * @throws UnsupportedOperationException if the <tt>retainAll</tt> method is not supported by this
+   *         Collection.
+   * @throws NullPointerException if the specified collection is null.
+   *
+   * @see #remove(Object)
+   * @see #contains(Object)
    */
   @Override
-  public boolean isEmpty() {
-    return size() == 0;
-  }
-
-  @Override
-  public void deallocateMembers() {
+  public boolean retainAll(Collection<?> c) {
+    ArrayList<T> toBeRemoved = new ArrayList<T>();
     Iterator<T> i = iterator();
     while (i.hasNext()) {
-      storage.deallocate(i.next());
+      T o = i.next();
+      if (!c.contains(o)) {
+        toBeRemoved.add(o);
+      }
     }
-    clear();
+    int n = toBeRemoved.size();
+    for (int j = 0; j < n; j++) {
+      remove(toBeRemoved.get(j));
+    }
+    return n != 0;
   }
 
-
-
-  /**
-   * Default constructor
-   */
-  public PersistentCollection() {}
-
-  /**
-   * Constructor of the collection associated with the specified storage
-   * 
-   * @param storage storage associated with the collection
-   */
-  public PersistentCollection(Storage storage) {
-    super(storage);
+  @Override
+  public IterableIterator<T> select(Class cls, String predicate) {
+    Query<T> query = new QueryImpl<T>(getStorage());
+    return query.select(cls, iterator(), predicate);
   }
 }

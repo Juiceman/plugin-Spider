@@ -17,170 +17,87 @@ import org.garret.perst.PersistentIterator;
 import org.garret.perst.Storage;
 
 class PersistentListImpl<E> extends PersistentCollection<E> implements IPersistentList<E> {
-  int nElems;
-  ListPage root;
-
-  transient int modCount;
-
-  static final int nLeafPageItems = (Page.pageSize - ObjectHeader.sizeof - 8) / 4;
-  static final int nIntermediatePageItems = (Page.pageSize - ObjectHeader.sizeof - 12) / 8;
-
-  static class TreePosition {
+  private class Itr extends TreePosition implements PersistentIterator, Iterator<E> {
     /**
-     * B-Tree page where element is located
+     * Index of element to be returned by subsequent call to next.
      */
-    ListPage page;
+    int cursor = 0;
 
     /**
-     * Index of first element at the page
+     * Index of element returned by most recent call to next or previous. Reset to -1 if this
+     * element is deleted by a call to remove.
      */
-    int index;
-  }
+    int lastRet = -1;
 
+    /**
+     * The modCount value that the iterator believes that the backing List should have. If this
+     * expectation is violated, the iterator has detected concurrent modification.
+     */
+    int expectedModCount = modCount;
 
-  static class ListPage extends Persistent {
-    int nItems;
-    Link items;
-
-    Object get(int i) {
-      return items.get(i);
-    }
-
-    Object getPosition(TreePosition pos, int i) {
-      pos.page = this;
-      pos.index -= i;
-      return items.get(i);
-    }
-
-    Object getRawPosition(TreePosition pos, int i) {
-      pos.page = this;
-      pos.index -= i;
-      return items.getRaw(i);
-    }
-
-    Object set(int i, Object obj) {
-      return items.set(i, obj);
-    }
-
-    void clear(int i, int len) {
-      while (--len >= 0) {
-        items.setObject(i++, null);
+    final void checkForComodification() {
+      if (modCount != expectedModCount) {
+        throw new ConcurrentModificationException();
       }
     }
 
-    void prune() {
-      deallocate();
+    @Override
+    public boolean hasNext() {
+      return cursor != size();
     }
 
-    void copy(int dstOffs, ListPage src, int srcOffs, int len) {
-      System.arraycopy(src.items.toRawArray(), srcOffs, items.toRawArray(), dstOffs, len);
+    @Override
+    public E next() {
+      checkForComodification();
+      try {
+        E next = getPosition(this, cursor);
+        lastRet = cursor++;
+        return next;
+      } catch (IndexOutOfBoundsException e) {
+        checkForComodification();
+        throw new NoSuchElementException();
+      }
     }
 
-    int getMaxItems() {
-      return nLeafPageItems;
+    @Override
+    public int nextOid() {
+      checkForComodification();
+      if (!hasNext()) {
+        return 0;
+      }
+      int oid = getStorage().getOid(getRawPosition(this, cursor));
+      lastRet = cursor++;
+      return oid;
     }
 
-    void setItem(int i, Object obj) {
-      items.setObject(i, obj);
-    }
+    @Override
+    public void remove() {
+      if (lastRet == -1) {
+        throw new IllegalStateException();
+      }
+      checkForComodification();
 
-    int size() {
-      return nItems;
-    }
-
-    ListPage clonePage() {
-      return new ListPage(getStorage());
-    }
-
-    ListPage() {}
-
-    ListPage(Storage storage) {
-      super(storage);
-      int max = getMaxItems();
-      items = storage.createLink(max);
-      items.setSize(max);
-    }
-
-    Object remove(int i) {
-      Object obj = items.get(i);
-      nItems -= 1;
-      copy(i, this, i + 1, nItems - i);
-      items.setObject(nItems, null);
-      modify();
-      return obj;
-    }
-
-    boolean underflow() {
-      return nItems < getMaxItems() / 3;
-    }
-
-    ListPage add(int i, Object obj) {
-      int max = getMaxItems();
-      modify();
-      if (nItems < max) {
-        copy(i + 1, this, i, nItems - i);
-        setItem(i, obj);
-        nItems += 1;
-        return null;
-      } else {
-        ListPage b = clonePage();
-        int m = (max + 1) / 2;
-        if (i < m) {
-          b.copy(0, this, 0, i);
-          b.copy(i + 1, this, i, m - i - 1);
-          copy(0, this, m - 1, max - m + 1);
-          b.setItem(i, obj);
-        } else {
-          b.copy(0, this, 0, m);
-          copy(0, this, m, i - m);
-          copy(i - m + 1, this, i, max - i);
-          setItem(i - m, obj);
+      try {
+        PersistentListImpl.this.remove(lastRet);
+        if (lastRet < cursor) {
+          cursor--;
         }
-        clear(max - m + 1, m - 1);
-        nItems = max - m + 1;
-        b.nItems = m;
-        return b;
+        page = null;
+        lastRet = -1;
+        expectedModCount = modCount;
+      } catch (IndexOutOfBoundsException e) {
+        throw new ConcurrentModificationException();
       }
     }
   }
-
   static class ListIntermediatePage extends ListPage {
     int[] nChildren;
 
-    @Override
-    Object getPosition(TreePosition pos, int i) {
-      int j;
-      for (j = 0; i >= nChildren[j]; j++) {
-        i -= nChildren[j];
-      }
-      return ((ListPage) items.get(j)).getPosition(pos, i);
-    }
+    ListIntermediatePage() {}
 
-    @Override
-    Object getRawPosition(TreePosition pos, int i) {
-      int j;
-      for (j = 0; i >= nChildren[j]; j++) {
-        i -= nChildren[j];
-      }
-      return ((ListPage) items.get(j)).getRawPosition(pos, i);
-    }
-
-    @Override
-    Object get(int i) {
-      int j;
-      for (j = 0; i >= nChildren[j]; j++) {
-        i -= nChildren[j];
-      }
-      return ((ListPage) items.get(j)).get(i);
-    }
-
-    @Override
-    Object set(int i, Object obj) {
-      int j;
-      for (j = 0; i >= nChildren[j]; j++) {
-        i -= nChildren[j];
-      }
-      return ((ListPage) items.get(j)).set(i, obj);
+    ListIntermediatePage(Storage storage) {
+      super(storage);
+      nChildren = new int[nIntermediatePageItems];
     }
 
     @Override
@@ -204,22 +121,14 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
     }
 
     @Override
-    Object remove(int i) {
-      int j;
-      for (j = 0; i >= nChildren[j]; j++) {
-        i -= nChildren[j];
-      }
-      ListPage pg = (ListPage) items.get(j);
-      Object obj = pg.remove(i);
-      modify();
-      if (pg.underflow()) {
-        handlePageUnderflow(pg, j);
-      } else {
-        if (nChildren[j] != Integer.MAX_VALUE) {
-          nChildren[j] -= 1;
-        }
-      }
-      return obj;
+    ListPage clonePage() {
+      return new ListIntermediatePage(getStorage());
+    }
+
+    @Override
+    void copy(int dstOffs, ListPage src, int srcOffs, int len) {
+      super.copy(dstOffs, src, srcOffs, len);
+      System.arraycopy(((ListIntermediatePage) src).nChildren, srcOffs, nChildren, dstOffs, len);
     }
 
     void countChildren(int i, ListPage pg) {
@@ -229,11 +138,35 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
     }
 
     @Override
-    void prune() {
-      for (int i = 0; i < nItems; i++) {
-        ((ListPage) items.get(i)).prune();
+    Object get(int i) {
+      int j;
+      for (j = 0; i >= nChildren[j]; j++) {
+        i -= nChildren[j];
       }
-      deallocate();
+      return ((ListPage) items.get(j)).get(i);
+    }
+
+    @Override
+    int getMaxItems() {
+      return nIntermediatePageItems;
+    }
+
+    @Override
+    Object getPosition(TreePosition pos, int i) {
+      int j;
+      for (j = 0; i >= nChildren[j]; j++) {
+        i -= nChildren[j];
+      }
+      return ((ListPage) items.get(j)).getPosition(pos, i);
+    }
+
+    @Override
+    Object getRawPosition(TreePosition pos, int i) {
+      int j;
+      for (j = 0; i >= nChildren[j]; j++) {
+        i -= nChildren[j];
+      }
+      return ((ListPage) items.get(j)).getRawPosition(pos, i);
     }
 
     void handlePageUnderflow(ListPage a, int r) {
@@ -292,14 +225,39 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
     }
 
     @Override
-    void copy(int dstOffs, ListPage src, int srcOffs, int len) {
-      super.copy(dstOffs, src, srcOffs, len);
-      System.arraycopy(((ListIntermediatePage) src).nChildren, srcOffs, nChildren, dstOffs, len);
+    void prune() {
+      for (int i = 0; i < nItems; i++) {
+        ((ListPage) items.get(i)).prune();
+      }
+      deallocate();
     }
 
     @Override
-    int getMaxItems() {
-      return nIntermediatePageItems;
+    Object remove(int i) {
+      int j;
+      for (j = 0; i >= nChildren[j]; j++) {
+        i -= nChildren[j];
+      }
+      ListPage pg = (ListPage) items.get(j);
+      Object obj = pg.remove(i);
+      modify();
+      if (pg.underflow()) {
+        handlePageUnderflow(pg, j);
+      } else {
+        if (nChildren[j] != Integer.MAX_VALUE) {
+          nChildren[j] -= 1;
+        }
+      }
+      return obj;
+    }
+
+    @Override
+    Object set(int i, Object obj) {
+      int j;
+      for (j = 0; i >= nChildren[j]; j++) {
+        i -= nChildren[j];
+      }
+      return ((ListPage) items.get(j)).set(i, obj);
     }
 
     @Override
@@ -320,18 +278,269 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         return n;
       }
     }
+  }
+
+  private class ListItr extends Itr implements ListIterator<E> {
+    ListItr(int index) {
+      cursor = index;
+    }
 
     @Override
-    ListPage clonePage() {
-      return new ListIntermediatePage(getStorage());
+    public void add(E o) {
+      checkForComodification();
+
+      try {
+        PersistentListImpl.this.add(cursor++, o);
+        lastRet = -1;
+        page = null;
+        expectedModCount = modCount;
+      } catch (IndexOutOfBoundsException e) {
+        throw new ConcurrentModificationException();
+      }
     }
 
-    ListIntermediatePage() {}
+    @Override
+    public boolean hasPrevious() {
+      return cursor != 0;
+    }
 
-    ListIntermediatePage(Storage storage) {
+    @Override
+    public int nextIndex() {
+      return cursor;
+    }
+
+    @Override
+    public E previous() {
+      checkForComodification();
+      try {
+        int i = cursor - 1;
+        E previous = getPosition(this, i);
+        lastRet = cursor = i;
+        return previous;
+      } catch (IndexOutOfBoundsException e) {
+        checkForComodification();
+        throw new NoSuchElementException();
+      }
+    }
+
+    @Override
+    public int previousIndex() {
+      return cursor - 1;
+    }
+
+    @Override
+    public void set(E o) {
+      if (lastRet == -1) {
+        throw new IllegalStateException();
+      }
+      checkForComodification();
+
+      try {
+        PersistentListImpl.this.set(lastRet, o);
+        expectedModCount = modCount;
+      } catch (IndexOutOfBoundsException e) {
+        throw new ConcurrentModificationException();
+      }
+    }
+  }
+
+  static class ListPage extends Persistent {
+    int nItems;
+    Link items;
+
+    ListPage() {}
+
+    ListPage(Storage storage) {
       super(storage);
-      nChildren = new int[nIntermediatePageItems];
+      int max = getMaxItems();
+      items = storage.createLink(max);
+      items.setSize(max);
     }
+
+    ListPage add(int i, Object obj) {
+      int max = getMaxItems();
+      modify();
+      if (nItems < max) {
+        copy(i + 1, this, i, nItems - i);
+        setItem(i, obj);
+        nItems += 1;
+        return null;
+      } else {
+        ListPage b = clonePage();
+        int m = (max + 1) / 2;
+        if (i < m) {
+          b.copy(0, this, 0, i);
+          b.copy(i + 1, this, i, m - i - 1);
+          copy(0, this, m - 1, max - m + 1);
+          b.setItem(i, obj);
+        } else {
+          b.copy(0, this, 0, m);
+          copy(0, this, m, i - m);
+          copy(i - m + 1, this, i, max - i);
+          setItem(i - m, obj);
+        }
+        clear(max - m + 1, m - 1);
+        nItems = max - m + 1;
+        b.nItems = m;
+        return b;
+      }
+    }
+
+    void clear(int i, int len) {
+      while (--len >= 0) {
+        items.setObject(i++, null);
+      }
+    }
+
+    ListPage clonePage() {
+      return new ListPage(getStorage());
+    }
+
+    void copy(int dstOffs, ListPage src, int srcOffs, int len) {
+      System.arraycopy(src.items.toRawArray(), srcOffs, items.toRawArray(), dstOffs, len);
+    }
+
+    Object get(int i) {
+      return items.get(i);
+    }
+
+    int getMaxItems() {
+      return nLeafPageItems;
+    }
+
+    Object getPosition(TreePosition pos, int i) {
+      pos.page = this;
+      pos.index -= i;
+      return items.get(i);
+    }
+
+    Object getRawPosition(TreePosition pos, int i) {
+      pos.page = this;
+      pos.index -= i;
+      return items.getRaw(i);
+    }
+
+    void prune() {
+      deallocate();
+    }
+
+    Object remove(int i) {
+      Object obj = items.get(i);
+      nItems -= 1;
+      copy(i, this, i + 1, nItems - i);
+      items.setObject(nItems, null);
+      modify();
+      return obj;
+    }
+
+    Object set(int i, Object obj) {
+      return items.set(i, obj);
+    }
+
+    void setItem(int i, Object obj) {
+      items.setObject(i, obj);
+    }
+
+    int size() {
+      return nItems;
+    }
+
+    boolean underflow() {
+      return nItems < getMaxItems() / 3;
+    }
+  }
+  static class TreePosition {
+    /**
+     * B-Tree page where element is located
+     */
+    ListPage page;
+
+    /**
+     * Index of first element at the page
+     */
+    int index;
+  }
+
+  static final int nLeafPageItems = (Page.pageSize - ObjectHeader.sizeof - 8) / 4;
+
+
+  static final int nIntermediatePageItems = (Page.pageSize - ObjectHeader.sizeof - 12) / 8;
+
+  int nElems;
+
+  ListPage root;
+
+  transient int modCount;
+
+  PersistentListImpl() {}
+
+  PersistentListImpl(Storage storage) {
+    super(storage);
+    root = new ListPage(storage);
+  }
+
+  @Override
+  public boolean add(E o) {
+    add(nElems, o);
+    return true;
+  }
+
+  @Override
+  public void add(int i, E obj) {
+    if (i < 0 || i > nElems) {
+      throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
+    }
+    ListPage overflow = root.add(i, obj);
+    if (overflow != null) {
+      ListIntermediatePage pg = new ListIntermediatePage(getStorage());
+      pg.setItem(0, overflow);
+      pg.items.setObject(1, root);
+      pg.nChildren[1] = Integer.MAX_VALUE;
+      pg.nItems = 2;
+      root = pg;
+    }
+    nElems += 1;
+    modCount += 1;
+    modify();
+  }
+
+  @Override
+  public boolean addAll(int index, Collection<? extends E> c) {
+    boolean modified = false;
+    Iterator<? extends E> e = c.iterator();
+    while (e.hasNext()) {
+      add(index++, e.next());
+      modified = true;
+    }
+    return modified;
+  }
+
+  @Override
+  public void clear() {
+    modCount += 1;
+    root.prune();
+    root = new ListPage(getStorage());
+    nElems = 0;
+    modify();
+  }
+
+  @Override
+  public boolean contains(Object o) {
+    Iterator e = iterator();
+    if (o == null) {
+      while (e.hasNext()) {
+        if (e.next() == null) {
+          return true;
+        }
+      }
+    } else {
+      while (e.hasNext()) {
+        if (o.equals(e.next())) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   @Override
@@ -365,11 +574,98 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
   }
 
   @Override
+  public int indexOf(Object o) {
+    ListIterator<E> e = listIterator();
+    if (o == null) {
+      while (e.hasNext())
+        if (e.next() == null)
+          return e.previousIndex();
+    } else {
+      while (e.hasNext())
+        if (o.equals(e.next()))
+          return e.previousIndex();
+    }
+    return -1;
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return nElems == 0;
+  }
+
+  @Override
+  public Iterator<E> iterator() {
+    return new Itr();
+  }
+
+  @Override
+  public int lastIndexOf(Object o) {
+    ListIterator<E> e = listIterator(size());
+    if (o == null) {
+      while (e.hasPrevious())
+        if (e.previous() == null)
+          return e.nextIndex();
+    } else {
+      while (e.hasPrevious())
+        if (o.equals(e.previous()))
+          return e.nextIndex();
+    }
+    return -1;
+  }
+
+  @Override
+  public ListIterator<E> listIterator() {
+    return listIterator(0);
+  }
+
+  @Override
+  public ListIterator<E> listIterator(int index) {
+    if (index < 0 || index > size())
+      throw new IndexOutOfBoundsException("Index: " + index);
+
+    return new ListItr(index);
+  }
+
+  @Override
+  public E remove(int i) {
+    if (i < 0 || i >= nElems) {
+      throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
+    }
+    E obj = (E) root.remove(i);
+    if (root.nItems == 1 && root instanceof ListIntermediatePage) {
+      ListPage newRoot = (ListPage) root.items.get(0);
+      root.deallocate();
+      root = newRoot;
+    }
+    nElems -= 1;
+    modCount += 1;
+    modify();
+    return obj;
+  }
+
+  protected void removeRange(int fromIndex, int toIndex) {
+    while (fromIndex < toIndex) {
+      remove(fromIndex);
+      toIndex -= 1;
+    }
+  }
+
+  @Override
   public E set(int i, E obj) {
     if (i < 0 || i >= nElems) {
       throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
     }
     return (E) root.set(i, obj);
+  }
+
+  @Override
+  public int size() {
+    return nElems;
+  }
+
+  @Override
+  public List<E> subList(int fromIndex, int toIndex) {
+    return new SubList<E>(this, fromIndex, toIndex);
   }
 
   @Override
@@ -394,302 +690,6 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
       arr[i] = (T) iterator.next();
     }
     return arr;
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return nElems == 0;
-  }
-
-  @Override
-  public int size() {
-    return nElems;
-  }
-
-  @Override
-  public boolean contains(Object o) {
-    Iterator e = iterator();
-    if (o == null) {
-      while (e.hasNext()) {
-        if (e.next() == null) {
-          return true;
-        }
-      }
-    } else {
-      while (e.hasNext()) {
-        if (o.equals(e.next())) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  @Override
-  public boolean add(E o) {
-    add(nElems, o);
-    return true;
-  }
-
-  @Override
-  public void add(int i, E obj) {
-    if (i < 0 || i > nElems) {
-      throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
-    }
-    ListPage overflow = root.add(i, obj);
-    if (overflow != null) {
-      ListIntermediatePage pg = new ListIntermediatePage(getStorage());
-      pg.setItem(0, overflow);
-      pg.items.setObject(1, root);
-      pg.nChildren[1] = Integer.MAX_VALUE;
-      pg.nItems = 2;
-      root = pg;
-    }
-    nElems += 1;
-    modCount += 1;
-    modify();
-  }
-
-  @Override
-  public E remove(int i) {
-    if (i < 0 || i >= nElems) {
-      throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
-    }
-    E obj = (E) root.remove(i);
-    if (root.nItems == 1 && root instanceof ListIntermediatePage) {
-      ListPage newRoot = (ListPage) root.items.get(0);
-      root.deallocate();
-      root = newRoot;
-    }
-    nElems -= 1;
-    modCount += 1;
-    modify();
-    return obj;
-  }
-
-  @Override
-  public void clear() {
-    modCount += 1;
-    root.prune();
-    root = new ListPage(getStorage());
-    nElems = 0;
-    modify();
-  }
-
-  @Override
-  public int indexOf(Object o) {
-    ListIterator<E> e = listIterator();
-    if (o == null) {
-      while (e.hasNext())
-        if (e.next() == null)
-          return e.previousIndex();
-    } else {
-      while (e.hasNext())
-        if (o.equals(e.next()))
-          return e.previousIndex();
-    }
-    return -1;
-  }
-
-  @Override
-  public int lastIndexOf(Object o) {
-    ListIterator<E> e = listIterator(size());
-    if (o == null) {
-      while (e.hasPrevious())
-        if (e.previous() == null)
-          return e.nextIndex();
-    } else {
-      while (e.hasPrevious())
-        if (o.equals(e.previous()))
-          return e.nextIndex();
-    }
-    return -1;
-  }
-
-  @Override
-  public boolean addAll(int index, Collection<? extends E> c) {
-    boolean modified = false;
-    Iterator<? extends E> e = c.iterator();
-    while (e.hasNext()) {
-      add(index++, e.next());
-      modified = true;
-    }
-    return modified;
-  }
-
-  @Override
-  public Iterator<E> iterator() {
-    return new Itr();
-  }
-
-  @Override
-  public ListIterator<E> listIterator() {
-    return listIterator(0);
-  }
-
-  @Override
-  public ListIterator<E> listIterator(int index) {
-    if (index < 0 || index > size())
-      throw new IndexOutOfBoundsException("Index: " + index);
-
-    return new ListItr(index);
-  }
-
-  private class Itr extends TreePosition implements PersistentIterator, Iterator<E> {
-    /**
-     * Index of element to be returned by subsequent call to next.
-     */
-    int cursor = 0;
-
-    /**
-     * Index of element returned by most recent call to next or previous. Reset to -1 if this
-     * element is deleted by a call to remove.
-     */
-    int lastRet = -1;
-
-    /**
-     * The modCount value that the iterator believes that the backing List should have. If this
-     * expectation is violated, the iterator has detected concurrent modification.
-     */
-    int expectedModCount = modCount;
-
-    @Override
-    public boolean hasNext() {
-      return cursor != size();
-    }
-
-    @Override
-    public int nextOid() {
-      checkForComodification();
-      if (!hasNext()) {
-        return 0;
-      }
-      int oid = getStorage().getOid(getRawPosition(this, cursor));
-      lastRet = cursor++;
-      return oid;
-    }
-
-    @Override
-    public E next() {
-      checkForComodification();
-      try {
-        E next = getPosition(this, cursor);
-        lastRet = cursor++;
-        return next;
-      } catch (IndexOutOfBoundsException e) {
-        checkForComodification();
-        throw new NoSuchElementException();
-      }
-    }
-
-    @Override
-    public void remove() {
-      if (lastRet == -1) {
-        throw new IllegalStateException();
-      }
-      checkForComodification();
-
-      try {
-        PersistentListImpl.this.remove(lastRet);
-        if (lastRet < cursor) {
-          cursor--;
-        }
-        page = null;
-        lastRet = -1;
-        expectedModCount = modCount;
-      } catch (IndexOutOfBoundsException e) {
-        throw new ConcurrentModificationException();
-      }
-    }
-
-    final void checkForComodification() {
-      if (modCount != expectedModCount) {
-        throw new ConcurrentModificationException();
-      }
-    }
-  }
-
-  private class ListItr extends Itr implements ListIterator<E> {
-    ListItr(int index) {
-      cursor = index;
-    }
-
-    @Override
-    public boolean hasPrevious() {
-      return cursor != 0;
-    }
-
-    @Override
-    public E previous() {
-      checkForComodification();
-      try {
-        int i = cursor - 1;
-        E previous = getPosition(this, i);
-        lastRet = cursor = i;
-        return previous;
-      } catch (IndexOutOfBoundsException e) {
-        checkForComodification();
-        throw new NoSuchElementException();
-      }
-    }
-
-    @Override
-    public int nextIndex() {
-      return cursor;
-    }
-
-    @Override
-    public int previousIndex() {
-      return cursor - 1;
-    }
-
-    @Override
-    public void set(E o) {
-      if (lastRet == -1) {
-        throw new IllegalStateException();
-      }
-      checkForComodification();
-
-      try {
-        PersistentListImpl.this.set(lastRet, o);
-        expectedModCount = modCount;
-      } catch (IndexOutOfBoundsException e) {
-        throw new ConcurrentModificationException();
-      }
-    }
-
-    @Override
-    public void add(E o) {
-      checkForComodification();
-
-      try {
-        PersistentListImpl.this.add(cursor++, o);
-        lastRet = -1;
-        page = null;
-        expectedModCount = modCount;
-      } catch (IndexOutOfBoundsException e) {
-        throw new ConcurrentModificationException();
-      }
-    }
-  }
-
-  @Override
-  public List<E> subList(int fromIndex, int toIndex) {
-    return new SubList<E>(this, fromIndex, toIndex);
-  }
-
-  protected void removeRange(int fromIndex, int toIndex) {
-    while (fromIndex < toIndex) {
-      remove(fromIndex);
-      toIndex -= 1;
-    }
-  }
-
-  PersistentListImpl() {}
-
-  PersistentListImpl(Storage storage) {
-    super(storage);
-    root = new ListPage(storage);
   }
 }
 
@@ -717,26 +717,6 @@ class SubList<E> extends AbstractList<E> {
   }
 
   @Override
-  public E set(int index, E element) {
-    rangeCheck(index);
-    checkForComodification();
-    return l.set(index + offset, element);
-  }
-
-  @Override
-  public E get(int index) {
-    rangeCheck(index);
-    checkForComodification();
-    return l.get(index + offset);
-  }
-
-  @Override
-  public int size() {
-    checkForComodification();
-    return size;
-  }
-
-  @Override
   public void add(int index, E element) {
     if (index < 0 || index > size) {
       throw new IndexOutOfBoundsException();
@@ -745,26 +725,6 @@ class SubList<E> extends AbstractList<E> {
     l.add(index + offset, element);
     expectedModCount = l.modCount;
     size++;
-    modCount++;
-  }
-
-  @Override
-  public E remove(int index) {
-    rangeCheck(index);
-    checkForComodification();
-    E result = l.remove(index + offset);
-    expectedModCount = l.modCount;
-    size--;
-    modCount++;
-    return result;
-  }
-
-  @Override
-  protected void removeRange(int fromIndex, int toIndex) {
-    checkForComodification();
-    l.removeRange(fromIndex + offset, toIndex + offset);
-    expectedModCount = l.modCount;
-    size -= (toIndex - fromIndex);
     modCount++;
   }
 
@@ -790,6 +750,19 @@ class SubList<E> extends AbstractList<E> {
     return true;
   }
 
+  private void checkForComodification() {
+    if (l.modCount != expectedModCount) {
+      throw new ConcurrentModificationException();
+    }
+  }
+
+  @Override
+  public E get(int index) {
+    rangeCheck(index);
+    checkForComodification();
+    return l.get(index + offset);
+  }
+
   @Override
   public Iterator<E> iterator() {
     return listIterator();
@@ -805,8 +778,21 @@ class SubList<E> extends AbstractList<E> {
       private ListIterator<E> i = l.listIterator(index + offset);
 
       @Override
+      public void add(E o) {
+        i.add(o);
+        expectedModCount = l.modCount;
+        size++;
+        modCount++;
+      }
+
+      @Override
       public boolean hasNext() {
         return nextIndex() < size;
+      }
+
+      @Override
+      public boolean hasPrevious() {
+        return previousIndex() >= 0;
       }
 
       @Override
@@ -819,8 +805,8 @@ class SubList<E> extends AbstractList<E> {
       }
 
       @Override
-      public boolean hasPrevious() {
-        return previousIndex() >= 0;
+      public int nextIndex() {
+        return i.nextIndex() - offset;
       }
 
       @Override
@@ -830,11 +816,6 @@ class SubList<E> extends AbstractList<E> {
         } else {
           throw new NoSuchElementException();
         }
-      }
-
-      @Override
-      public int nextIndex() {
-        return i.nextIndex() - offset;
       }
 
       @Override
@@ -854,20 +835,7 @@ class SubList<E> extends AbstractList<E> {
       public void set(E o) {
         i.set(o);
       }
-
-      @Override
-      public void add(E o) {
-        i.add(o);
-        expectedModCount = l.modCount;
-        size++;
-        modCount++;
-      }
     };
-  }
-
-  @Override
-  public List<E> subList(int fromIndex, int toIndex) {
-    return new SubList<E>(l, offset + fromIndex, offset + toIndex);
   }
 
   private void rangeCheck(int index) {
@@ -876,9 +844,41 @@ class SubList<E> extends AbstractList<E> {
     }
   }
 
-  private void checkForComodification() {
-    if (l.modCount != expectedModCount) {
-      throw new ConcurrentModificationException();
-    }
+  @Override
+  public E remove(int index) {
+    rangeCheck(index);
+    checkForComodification();
+    E result = l.remove(index + offset);
+    expectedModCount = l.modCount;
+    size--;
+    modCount++;
+    return result;
+  }
+
+  @Override
+  protected void removeRange(int fromIndex, int toIndex) {
+    checkForComodification();
+    l.removeRange(fromIndex + offset, toIndex + offset);
+    expectedModCount = l.modCount;
+    size -= (toIndex - fromIndex);
+    modCount++;
+  }
+
+  @Override
+  public E set(int index, E element) {
+    rangeCheck(index);
+    checkForComodification();
+    return l.set(index + offset, element);
+  }
+
+  @Override
+  public int size() {
+    checkForComodification();
+    return size;
+  }
+
+  @Override
+  public List<E> subList(int fromIndex, int toIndex) {
+    return new SubList<E>(l, offset + fromIndex, offset + toIndex);
   }
 }
