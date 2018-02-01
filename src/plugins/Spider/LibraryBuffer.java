@@ -20,7 +20,7 @@ import java.util.TreeMap;
 import plugins.Spider.index.TermEntryWriter;
 import plugins.Spider.index.TermPageEntry;
 import plugins.Spider.db.Status;
-import plugins.Spider.org.garret.perst.Storage;
+import org.garret.perst.Storage;
 
 /**
  * Buffer which stores TermPageEntrys as they are found by the Spider. When the

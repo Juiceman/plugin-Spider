@@ -3,8 +3,8 @@
  */
 package plugins.Spider.db;
 
-import plugins.Spider.org.garret.perst.Persistent;
-import plugins.Spider.org.garret.perst.Storage;
+import org.garret.perst.Persistent;
+import org.garret.perst.Storage;
 import freenet.node.RequestStarter;
 import freenet.support.Logger;
 

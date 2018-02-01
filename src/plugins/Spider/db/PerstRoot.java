@@ -3,11 +3,11 @@ package plugins.Spider.db;
 import java.util.Iterator;
 import java.util.List;
 
-import plugins.Spider.org.garret.perst.FieldIndex;
-import plugins.Spider.org.garret.perst.IterableIterator;
-import plugins.Spider.org.garret.perst.Key;
-import plugins.Spider.org.garret.perst.Persistent;
-import plugins.Spider.org.garret.perst.Storage;
+import org.garret.perst.FieldIndex;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
+import org.garret.perst.Persistent;
+import org.garret.perst.Storage;
 import freenet.keys.FreenetURI;
 
 public class PerstRoot extends Persistent {
