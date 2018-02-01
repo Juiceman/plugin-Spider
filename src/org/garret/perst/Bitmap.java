@@ -1,6 +1,7 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Class used to merge results of multiple databases searches.

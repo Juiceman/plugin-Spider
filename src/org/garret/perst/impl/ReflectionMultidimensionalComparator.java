@@ -1,7 +1,9 @@
 package org.garret.perst.impl;
 
-import java.lang.reflect.*;
-import org.garret.perst.*;
+import java.lang.reflect.Field;
+import org.garret.perst.MultidimensionalComparator;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 /**
  * Implementation of multidimensional reflection comparator using reflection

@@ -1,5 +1,5 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
+import org.garret.perst.IFile;
 
 // Rc4Cipher - the RC4 encryption method
 //

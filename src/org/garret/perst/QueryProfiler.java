@@ -1,6 +1,8 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Formatter;
+import java.util.HashMap;
 
 /**
  * Class used to profile query execution. It should be registered as storage listener.

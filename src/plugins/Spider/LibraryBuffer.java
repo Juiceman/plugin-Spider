@@ -1,6 +1,13 @@
 
 package plugins.Spider;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.util.Collection;
+import java.util.TreeMap;
+import org.garret.perst.Storage;
 import freenet.keys.FreenetURI;
 import freenet.pluginmanager.FredPluginTalker;
 import freenet.pluginmanager.PluginNotFoundException;
@@ -10,17 +17,9 @@ import freenet.support.Logger;
 import freenet.support.SimpleFieldSet;
 import freenet.support.api.Bucket;
 import freenet.support.io.FileBucket;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.MalformedURLException;
-import java.util.Collection;
-import java.util.TreeMap;
+import plugins.Spider.db.Status;
 import plugins.Spider.index.TermEntryWriter;
 import plugins.Spider.index.TermPageEntry;
-import plugins.Spider.db.Status;
-import org.garret.perst.Storage;
 
 /**
  * Buffer which stores TermPageEntrys as they are found by the Spider. When the

@@ -1,9 +1,31 @@
 package org.garret.perst.impl;
 
-import java.io.*;
-import java.util.*;
-import org.garret.perst.*;
-import org.garret.perst.fulltext.*;
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
+import org.garret.perst.Assert;
+import org.garret.perst.GenericIndex;
+import org.garret.perst.Index;
+import org.garret.perst.Key;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentResource;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
+import org.garret.perst.fulltext.FullTextIndex;
+import org.garret.perst.fulltext.FullTextQuery;
+import org.garret.perst.fulltext.FullTextQueryBinaryOp;
+import org.garret.perst.fulltext.FullTextQueryMatchOp;
+import org.garret.perst.fulltext.FullTextQueryUnaryOp;
+import org.garret.perst.fulltext.FullTextQueryVisitor;
+import org.garret.perst.fulltext.FullTextSearchHelper;
+import org.garret.perst.fulltext.FullTextSearchHit;
+import org.garret.perst.fulltext.FullTextSearchResult;
+import org.garret.perst.fulltext.FullTextSearchable;
+import org.garret.perst.fulltext.Occurrence;
 
 public class FullTextIndexImpl extends PersistentResource implements FullTextIndex
 {

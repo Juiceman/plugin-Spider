@@ -1,11 +1,19 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.io.Reader;
 import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.text.ParsePosition;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import org.garret.perst.BitIndex;
+import org.garret.perst.Key;
+import org.garret.perst.Storage;
+import org.garret.perst.XMLImportException;
 
 public class XMLImporter { 
     public XMLImporter(StorageImpl storage, Reader reader) { 

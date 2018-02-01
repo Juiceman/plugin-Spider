@@ -1,7 +1,7 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.StorageError;
 import java.io.UnsupportedEncodingException;
+import org.garret.perst.StorageError;
 
 class ArrayPos {
     byte[] body;

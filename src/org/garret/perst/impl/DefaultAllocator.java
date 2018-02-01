@@ -1,6 +1,8 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
+import org.garret.perst.CustomAllocator;
+import org.garret.perst.Persistent;
+import org.garret.perst.Storage;
 
 public class DefaultAllocator extends Persistent implements CustomAllocator { 
     public DefaultAllocator(Storage storage) { 

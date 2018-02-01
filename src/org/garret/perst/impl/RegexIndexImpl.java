@@ -1,7 +1,18 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import org.garret.perst.Assert;
+import org.garret.perst.GenericIndex;
+import org.garret.perst.Index;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
+import org.garret.perst.PersistentIterator;
+import org.garret.perst.RegexIndex;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexIndex<T> 
 {

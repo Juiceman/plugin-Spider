@@ -2,9 +2,6 @@ package plugins.Spider.web;
 
 import java.io.IOException;
 import java.net.URI;
-
-import plugins.Spider.Spider;
-
 import freenet.client.HighLevelSimpleClient;
 import freenet.clients.http.PageNode;
 import freenet.clients.http.RedirectException;
@@ -15,6 +12,7 @@ import freenet.node.NodeClientCore;
 import freenet.support.HTMLNode;
 import freenet.support.MultiValueTable;
 import freenet.support.api.HTTPRequest;
+import plugins.Spider.Spider;
 
 public class MainPageToadlet extends Toadlet {
 

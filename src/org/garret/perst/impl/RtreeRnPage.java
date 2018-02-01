@@ -1,7 +1,14 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
 import java.util.ArrayList;
+import org.garret.perst.Assert;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.PerstInputStream;
+import org.garret.perst.PerstOutputStream;
+import org.garret.perst.RectangleRn;
+import org.garret.perst.SelfSerializable;
+import org.garret.perst.Storage;
 
 public class RtreeRnPage extends Persistent implements SelfSerializable
 {

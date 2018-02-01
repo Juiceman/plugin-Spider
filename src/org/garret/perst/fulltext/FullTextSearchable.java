@@ -1,7 +1,7 @@
 package org.garret.perst.fulltext;
 
-import org.garret.perst.IPersistent;
 import java.io.Reader;
+import org.garret.perst.IPersistent;
 
 /**
  * Interface for classes which are able to extract text and its language themselves.

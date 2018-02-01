@@ -1,6 +1,8 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.RandomAccess;
 
 /**
  * Interface for one-to-many relation. There are two types of relations:

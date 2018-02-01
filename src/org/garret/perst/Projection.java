@@ -1,7 +1,9 @@
 package org.garret.perst;
 
-import java.util.*;
 import java.lang.reflect.Field;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 
 /**
  * Class use to project selected objects using relation field. 

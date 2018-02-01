@@ -1,6 +1,7 @@
 package org.garret.perst;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.OutputStream;
 import org.garret.perst.impl.Page;
 
 /**

@@ -1,8 +1,9 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-
-import java.nio.channels.*;
-import java.io.*;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileLock;
+import org.garret.perst.IFile;
+import org.garret.perst.StorageError;
 
 public class OSFile implements IFile { 
     @Override

@@ -1,7 +1,10 @@
 package org.garret.perst.impl;
 
-import java.io.*;
-import org.garret.perst.*;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import org.garret.perst.PerstOutputStream;
+import org.garret.perst.StorageError;
 
 public class ByteBuffer {
     public final void extend(int size) {  

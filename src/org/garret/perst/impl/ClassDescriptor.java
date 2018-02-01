@@ -1,7 +1,22 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.lang.reflect.*;
-import  java.util.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.Map;
+import org.garret.perst.CustomAllocator;
+import org.garret.perst.CustomSerializable;
+import org.garret.perst.INamedClassLoader;
+import org.garret.perst.IPersistent;
+import org.garret.perst.IValue;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 public final class ClassDescriptor extends Persistent { 
     ClassDescriptor   next;

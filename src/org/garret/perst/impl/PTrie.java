@@ -1,7 +1,11 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import org.garret.perst.PatriciaTrie;
+import org.garret.perst.PatriciaTrieKey;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentCollection;
 
 class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T> 
 { 

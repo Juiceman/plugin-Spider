@@ -1,7 +1,18 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import org.garret.perst.Assert;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.PersistentCollection;
+import org.garret.perst.PersistentIterator;
+import org.garret.perst.RectangleR2;
+import org.garret.perst.SpatialIndexR2;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 public class RtreeR2<T> extends PersistentCollection<T> implements SpatialIndexR2<T> {
     private int           height;

@@ -1,8 +1,11 @@
 package org.garret.perst.fulltext;
 
-import java.io.*;
-import java.util.*;
-import org.garret.perst.*;
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.HashSet;
+import org.garret.perst.Persistent;
+import org.garret.perst.Storage;
 
 /**
  * Helper class for full text search.

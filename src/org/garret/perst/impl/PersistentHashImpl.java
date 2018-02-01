@@ -1,6 +1,18 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.AbstractCollection;
+import java.util.AbstractSet;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.Stack;
+import org.garret.perst.IPersistentHash;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentResource;
+import org.garret.perst.Query;
+import org.garret.perst.Storage;
 
 class PersistentHashImpl<K, V> extends PersistentResource implements IPersistentHash<K, V>
 {

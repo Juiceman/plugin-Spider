@@ -1,6 +1,6 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.lang.ref.*;
+import java.lang.ref.WeakReference;
+import org.garret.perst.PinnedPersistent;
 
 class ObjectMap
 {

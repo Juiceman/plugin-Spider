@@ -1,6 +1,17 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import org.garret.perst.Assert;
+import org.garret.perst.GenericIndex;
+import org.garret.perst.Index;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
+import org.garret.perst.PersistentCollection;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
+import org.garret.perst.TimeSeries;
 
 public class TimeSeriesImpl<T extends TimeSeries.Tick> extends PersistentCollection<T> implements TimeSeries<T> { 
     @Override

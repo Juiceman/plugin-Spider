@@ -1,5 +1,6 @@
 package org.garret.perst.impl;
-import  java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 
 public class StandardReflectionProvider implements ReflectionProvider { 
     static final Class[] defaultConstructorProfile = new Class[0];

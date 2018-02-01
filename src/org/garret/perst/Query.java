@@ -1,7 +1,7 @@
 package org.garret.perst;
 
-import java.util.Iterator;
 import java.util.Collection;
+import java.util.Iterator;
 
 /**
  * Class representing JSQL query. JSQL allows to select members of Perst collections 

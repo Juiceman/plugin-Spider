@@ -1,8 +1,10 @@
 package org.garret.perst.impl;
-import org.garret.perst.*;
-import java.lang.reflect.*;
-import java.util.Date;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Collection;
+import java.util.Date;
+import org.garret.perst.CodeGenerator;
+import org.garret.perst.CodeGeneratorException;
 
 class CodeGeneratorImpl implements CodeGenerator
 {

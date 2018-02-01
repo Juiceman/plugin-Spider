@@ -1,6 +1,16 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.Iterator;
+import java.util.Map;
+import org.garret.perst.Assert;
+import org.garret.perst.Blob;
+import org.garret.perst.GenericIndex;
+import org.garret.perst.Index;
+import org.garret.perst.Key;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentResource;
+import org.garret.perst.RandomAccessInputStream;
+import org.garret.perst.RandomAccessOutputStream;
+import org.garret.perst.Storage;
 
 
 public class RandomAccessBlobImpl extends PersistentResource implements Blob { 

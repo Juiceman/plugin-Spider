@@ -1,6 +1,8 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import org.garret.perst.impl.QueryImpl;
 
 /**

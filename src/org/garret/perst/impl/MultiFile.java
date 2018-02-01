@@ -1,6 +1,11 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.StreamTokenizer;
+import org.garret.perst.IFile;
+import org.garret.perst.StorageError;
 
 public class MultiFile implements IFile 
 { 

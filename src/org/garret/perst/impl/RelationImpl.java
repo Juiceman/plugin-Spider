@@ -1,6 +1,12 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Link;
+import org.garret.perst.Query;
+import org.garret.perst.Relation;
 
 public class RelationImpl<M, O> extends Relation<M,O> {
     @Override

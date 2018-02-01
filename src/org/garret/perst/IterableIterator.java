@@ -1,6 +1,7 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * Interface combining both Iterable and Iterator functionality

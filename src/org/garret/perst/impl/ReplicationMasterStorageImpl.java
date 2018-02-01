@@ -1,6 +1,7 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
+import org.garret.perst.IFile;
+import org.garret.perst.ReplicationMasterStorage;
 
 
 public class ReplicationMasterStorageImpl extends StorageImpl implements ReplicationMasterStorage

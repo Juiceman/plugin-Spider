@@ -1,7 +1,10 @@
 package org.garret.perst;
 
-import java.io.*;
-import java.util.zip.*;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * Utility used to compress database file. You should create database using normal file (OSFile).

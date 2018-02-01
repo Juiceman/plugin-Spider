@@ -1,6 +1,6 @@
 package org.garret.perst.fulltext;
 
-import org.garret.perst.*;
+import org.garret.perst.Storage;
 
 /**
  * Class representing full text search result hit (document + rank)

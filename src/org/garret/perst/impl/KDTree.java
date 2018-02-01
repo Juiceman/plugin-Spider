@@ -1,7 +1,17 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.Random;
+import java.util.Stack;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.MultidimensionalComparator;
+import org.garret.perst.MultidimensionalIndex;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentCollection;
+import org.garret.perst.PersistentIterator;
+import org.garret.perst.Storage;
 
 public class KDTree<T> extends PersistentCollection<T> implements MultidimensionalIndex<T>{
     KDTreeNode root;

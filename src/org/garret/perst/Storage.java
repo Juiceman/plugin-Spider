@@ -1,7 +1,8 @@
 package org.garret.perst;
 
 import java.util.Iterator;
-import org.garret.perst.fulltext.*;
+import org.garret.perst.fulltext.FullTextIndex;
+import org.garret.perst.fulltext.FullTextSearchHelper;
 import org.garret.perst.impl.ThreadTransactionContext;
 
 /**

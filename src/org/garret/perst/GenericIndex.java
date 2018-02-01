@@ -1,6 +1,8 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Interface of object index.

@@ -1,6 +1,7 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * Interface of sorted collection.

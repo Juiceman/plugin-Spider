@@ -1,6 +1,6 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.ArrayList;
 
 /** 
  * PATRICIA trie (Practical Algorithm To Retrieve Information Coded In Alphanumeric).

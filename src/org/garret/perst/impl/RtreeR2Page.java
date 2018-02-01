@@ -1,7 +1,11 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
 import java.util.ArrayList;
+import org.garret.perst.Assert;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.RectangleR2;
+import org.garret.perst.Storage;
 
 public class RtreeR2Page extends Persistent {
     static final int card = (Page.pageSize-ObjectHeader.sizeof-4*3)/(8*4+4);

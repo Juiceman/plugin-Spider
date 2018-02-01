@@ -1,6 +1,9 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import java.util.*;
+import java.util.Iterator;
+import org.garret.perst.IPersistentHash;
+import org.garret.perst.IPersistentSet;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.PersistentCollection;
 
 class HashSetImpl<T> extends PersistentCollection<T> implements IPersistentSet<T> { 
     IPersistentHash<T,T> map;

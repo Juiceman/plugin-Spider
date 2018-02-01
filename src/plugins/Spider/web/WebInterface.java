@@ -5,11 +5,11 @@
  */
 package plugins.Spider.web;
 
-import plugins.Spider.Spider;
 import freenet.client.HighLevelSimpleClient;
 import freenet.clients.http.PageMaker;
 import freenet.clients.http.ToadletContainer;
 import freenet.node.NodeClientCore;
+import plugins.Spider.Spider;
 
 public class WebInterface {
 	private final Spider spider;

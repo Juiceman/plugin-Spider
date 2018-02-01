@@ -1,7 +1,7 @@
 package org.garret.perst.impl;
 
-import java.io.*;
-import org.garret.perst.*;
+import java.io.IOException;
+import org.garret.perst.IFile;
 
 /**
  * File performing asynchronous replication of changed pages to specified slave nodes.

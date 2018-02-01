@@ -1,6 +1,29 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.AbstractCollection;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.SortedMap;
+import org.garret.perst.GenericIndex;
+import org.garret.perst.IPersistent;
+import org.garret.perst.IPersistentMap;
+import org.garret.perst.IValue;
+import org.garret.perst.Index;
+import org.garret.perst.Key;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentComparator;
+import org.garret.perst.PersistentResource;
+import org.garret.perst.Query;
+import org.garret.perst.SortedCollection;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 class PersistentMapImpl<K extends Comparable, V> extends PersistentResource implements IPersistentMap<K, V>
 {

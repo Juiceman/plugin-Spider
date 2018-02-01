@@ -1,6 +1,6 @@
 package org.garret.perst;
 
-import java.util.*;
+import java.util.Collection;
 
 /**
  * Interface of selectable collection.

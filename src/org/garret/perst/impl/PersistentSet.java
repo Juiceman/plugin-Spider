@@ -1,6 +1,13 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import org.garret.perst.IPersistentSet;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
+import org.garret.perst.PersistentIterator;
+import org.garret.perst.Storage;
 
 class JoinSetIterator<T> extends IterableIterator<T> implements PersistentIterator 
 { 

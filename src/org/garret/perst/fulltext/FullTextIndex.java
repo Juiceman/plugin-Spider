@@ -1,8 +1,9 @@
 package org.garret.perst.fulltext;
 
-import org.garret.perst.*;
 import java.io.Reader;
 import java.util.Iterator;
+import org.garret.perst.IPersistent;
+import org.garret.perst.IResource;
 
 
 /**

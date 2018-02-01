@@ -1,6 +1,7 @@
 package org.garret.perst.fulltext;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * Full text search result

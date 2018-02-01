@@ -1,7 +1,9 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
 import java.util.ArrayList;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentComparator;
+import org.garret.perst.Storage;
 
 public class TtreePage extends Persistent  { 
     static final int maxItems = (Page.pageSize-ObjectHeader.sizeof-4*5)/4;

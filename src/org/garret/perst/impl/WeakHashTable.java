@@ -1,5 +1,6 @@
 package org.garret.perst.impl;
-import  java.lang.ref.*;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 
 public class WeakHashTable implements OidHashTable { 
     Entry table[];

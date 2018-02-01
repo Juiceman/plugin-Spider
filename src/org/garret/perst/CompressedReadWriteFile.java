@@ -1,13 +1,17 @@
 package org.garret.perst;
 
-import java.io.*;
-import java.nio.*;
-import java.nio.channels.*;
-import java.util.*;
-import java.util.zip.*;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+import org.garret.perst.impl.BitmapAllocator;
 import org.garret.perst.impl.Bytes;
 import org.garret.perst.impl.Page;
-import org.garret.perst.impl.BitmapAllocator;
 
 /**
  * Compressed read-write database file. 

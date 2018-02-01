@@ -1,9 +1,9 @@
 package plugins.Spider;
 
+import static plugins.Spider.SearchUtil.isCJK;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
-import static plugins.Spider.SearchUtil.*;
 
 /**
  * Search Tokenizer

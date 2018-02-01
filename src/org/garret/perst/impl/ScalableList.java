@@ -1,6 +1,12 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import org.garret.perst.IPersistentList;
+import org.garret.perst.Link;
+import org.garret.perst.PersistentCollection;
+import org.garret.perst.Storage;
 
 class ScalableList<E> extends PersistentCollection<E> implements IPersistentList<E>
 {

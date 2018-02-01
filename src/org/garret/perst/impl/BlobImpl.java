@@ -1,5 +1,9 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
+import org.garret.perst.Blob;
+import org.garret.perst.PersistentResource;
+import org.garret.perst.RandomAccessInputStream;
+import org.garret.perst.RandomAccessOutputStream;
+import org.garret.perst.Storage;
 
 public class BlobImpl extends PersistentResource implements Blob { 
     int           size;

@@ -1,6 +1,12 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import org.garret.perst.Assert;
+import org.garret.perst.BitIndex;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.PersistentIterator;
+import org.garret.perst.StorageError;
 
 class BitIndexImpl<T> extends Btree<T> implements BitIndex<T> 
 { 

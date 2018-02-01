@@ -1,9 +1,10 @@
 package org.garret.perst.impl;
 
-import java.io.*;
-import java.net.*;
-
-import org.garret.perst.*;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import org.garret.perst.IFile;
+import org.garret.perst.StorageError;
 
 
 public class ReplicationStaticSlaveStorageImpl extends ReplicationSlaveStorageImpl

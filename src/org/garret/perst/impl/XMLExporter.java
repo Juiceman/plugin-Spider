@@ -1,10 +1,14 @@
 package org.garret.perst.impl;
 
-import java.io.*;
-import java.util.*;
-import org.garret.perst.*;
+import java.io.IOException;
+import java.io.Writer;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import org.garret.perst.Assert;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 public class XMLExporter { 
     public XMLExporter(StorageImpl storage, Writer writer) { 

@@ -1,6 +1,7 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
 import  java.util.ArrayList;
+import org.garret.perst.Assert;
+import org.garret.perst.Key;
 
 class BtreePage { 
     static final int firstKeyOffs = 4;

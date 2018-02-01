@@ -3,11 +3,11 @@
  */
 package plugins.Spider.db;
 
-import freenet.support.Logger;
 import org.garret.perst.FieldIndex;
 import org.garret.perst.Persistent;
 import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
+import freenet.support.Logger;
 
 public class Page extends Persistent implements Comparable<Page> {
 	/** Page Id */

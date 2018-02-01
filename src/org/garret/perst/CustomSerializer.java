@@ -1,6 +1,6 @@
 package org.garret.perst;
 
-import java.io.*;
+import java.io.IOException;
 
 /**
  * Interface of custome serializer

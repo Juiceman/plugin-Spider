@@ -1,6 +1,8 @@
 package org.garret.perst;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Input stream for SelfSerializable and CustumSerializer

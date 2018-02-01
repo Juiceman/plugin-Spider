@@ -1,6 +1,6 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
+import org.garret.perst.PersistentComparator;
 
 public class DefaultPersistentComparator<T extends Comparable> extends PersistentComparator<T> { 
     @Override

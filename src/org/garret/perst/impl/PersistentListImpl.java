@@ -1,7 +1,19 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
 import  java.lang.reflect.Array;
+import java.util.AbstractList;
+import java.util.Collection;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.NoSuchElementException;
+import org.garret.perst.Assert;
+import org.garret.perst.IPersistentList;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.PersistentCollection;
+import org.garret.perst.PersistentIterator;
+import org.garret.perst.Storage;
 
 class PersistentListImpl<E> extends PersistentCollection<E> implements IPersistentList<E>
 {

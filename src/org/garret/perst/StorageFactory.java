@@ -1,5 +1,8 @@
 package org.garret.perst;
-import org.garret.perst.impl.*;
+import org.garret.perst.impl.ReplicationDynamicSlaveStorageImpl;
+import org.garret.perst.impl.ReplicationMasterStorageImpl;
+import org.garret.perst.impl.ReplicationStaticSlaveStorageImpl;
+import org.garret.perst.impl.StorageImpl;
 
 /**
  * Storage factory

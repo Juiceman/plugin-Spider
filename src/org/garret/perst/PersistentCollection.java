@@ -1,6 +1,8 @@
 package org.garret.perst;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import  org.garret.perst.impl.QueryImpl;
-import  java.util.*;
 
 public abstract class PersistentCollection<T> extends PersistentResource implements ITable<T>
 {

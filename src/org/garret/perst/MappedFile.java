@@ -1,8 +1,10 @@
 package org.garret.perst;
 
-import java.io.*;
-import java.nio.*;
-import java.nio.channels.*;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 
 /**
  * Class using NIO mapping file on virtual mapping.

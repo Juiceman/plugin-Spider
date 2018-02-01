@@ -1,6 +1,12 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
+import org.garret.perst.IPersistentSet;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Link;
+import org.garret.perst.PersistentCollection;
+import org.garret.perst.Storage;
 
 class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T> { 
     Link<T>           link;

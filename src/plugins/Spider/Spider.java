@@ -5,7 +5,6 @@ package plugins.Spider;
 
 import static java.lang.System.currentTimeMillis;
 import static plugins.Spider.SearchUtil.isStopWord;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,16 +27,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-
-import plugins.Spider.index.TermPageEntry;
-import plugins.Spider.db.Config;
-import plugins.Spider.db.Page;
-import plugins.Spider.db.PerstRoot;
-import plugins.Spider.db.Status;
 import org.garret.perst.Storage;
 import org.garret.perst.StorageFactory;
-import plugins.Spider.web.WebInterface;
-
 import freenet.client.ClientMetadata;
 import freenet.client.FetchContext;
 import freenet.client.FetchException;
@@ -46,10 +37,10 @@ import freenet.client.async.ClientContext;
 import freenet.client.async.ClientGetCallback;
 import freenet.client.async.ClientGetter;
 import freenet.client.async.USKCallback;
-import freenet.clients.http.PageMaker;
 import freenet.client.filter.ContentFilter;
 import freenet.client.filter.FoundURICallback;
 import freenet.client.filter.UnsafeContentTypeException;
+import freenet.clients.http.PageMaker;
 import freenet.keys.FreenetURI;
 import freenet.keys.USK;
 import freenet.l10n.BaseL10n.LANGUAGE;
@@ -68,6 +59,12 @@ import freenet.support.io.Closer;
 import freenet.support.io.NativeThread;
 import freenet.support.io.NullBucket;
 import freenet.support.io.ResumeFailedException;
+import plugins.Spider.db.Config;
+import plugins.Spider.db.Page;
+import plugins.Spider.db.PerstRoot;
+import plugins.Spider.db.Status;
+import plugins.Spider.index.TermPageEntry;
+import plugins.Spider.web.WebInterface;
 
 /**
  * Spider. Produces xml index for searching words. 

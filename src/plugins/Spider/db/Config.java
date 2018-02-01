@@ -3,12 +3,11 @@
  */
 package plugins.Spider.db;
 
+import java.util.Calendar;
 import org.garret.perst.Persistent;
 import org.garret.perst.Storage;
 import freenet.node.RequestStarter;
 import freenet.support.Logger;
-
-import java.util.Calendar;
 
 public class Config extends Persistent implements Cloneable {
 

@@ -1,8 +1,12 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-
-import java.util.*;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Map;
+import org.garret.perst.IValue;
+import org.garret.perst.Index;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
+import org.garret.perst.StorageError;
 
 class RndBtreeCompoundIndex<T> extends RndBtree<T> implements Index<T> { 
     int[]    types;

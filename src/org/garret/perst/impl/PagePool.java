@@ -1,5 +1,6 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
+import org.garret.perst.Assert;
+import org.garret.perst.IFile;
 
 class PagePool { 
     LRU     lru;

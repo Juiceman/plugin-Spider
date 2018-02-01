@@ -1,15 +1,15 @@
 package plugins.Spider.index;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+
 /* This code is part of Freenet. It is distributed under the GNU General
  * Public License, version 2 (or at your option any later version). See
  * http://www.gnu.org/ for further details of the GPL. */
 
 
 import java.util.Map;
-
-import java.io.OutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 
 /**
 ** Reads and writes {@link TermEntry}s in binary form, for performance.

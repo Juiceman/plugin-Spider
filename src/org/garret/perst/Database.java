@@ -1,9 +1,19 @@
 package org.garret.perst;
 
-import java.util.*;
 import java.io.StringReader;
-import java.lang.reflect.*;
-import org.garret.perst.fulltext.*;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import org.garret.perst.fulltext.FullTextIndex;
+import org.garret.perst.fulltext.FullTextIndexable;
+import org.garret.perst.fulltext.FullTextQuery;
+import org.garret.perst.fulltext.FullTextSearchHelper;
+import org.garret.perst.fulltext.FullTextSearchResult;
+import org.garret.perst.fulltext.FullTextSearchable;
 import org.garret.perst.impl.ClassDescriptor;
 
 /**

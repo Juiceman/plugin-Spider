@@ -1,6 +1,10 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-import  java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
+import org.garret.perst.IPersistentSet;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
 
 class AltPersistentSet<T> extends AltBtree<T> implements IPersistentSet<T> { 
     AltPersistentSet() { 

@@ -1,6 +1,7 @@
 package org.garret.perst.impl;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 
 /**
  * This class store transaction context associated with thread.

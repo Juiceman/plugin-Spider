@@ -7,12 +7,6 @@ package plugins.Spider.web;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-
-import plugins.Spider.Spider;
-import plugins.Spider.db.Config;
-import plugins.Spider.db.Page;
-import plugins.Spider.db.PerstRoot;
-import plugins.Spider.db.Status;
 import freenet.clients.http.InfoboxNode;
 import freenet.clients.http.PageMaker;
 import freenet.keys.FreenetURI;
@@ -21,6 +15,11 @@ import freenet.support.HTMLNode;
 import freenet.support.Logger;
 import freenet.support.TimeUtil;
 import freenet.support.api.HTTPRequest;
+import plugins.Spider.Spider;
+import plugins.Spider.db.Config;
+import plugins.Spider.db.Page;
+import plugins.Spider.db.PerstRoot;
+import plugins.Spider.db.Status;
 
 class MainPage implements WebPage {
 	static class PageStatus {

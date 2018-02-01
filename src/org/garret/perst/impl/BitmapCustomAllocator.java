@@ -1,7 +1,12 @@
 package org.garret.perst.impl;
 
-import org.garret.perst.*;
-import java.util.*;
+import java.util.TreeMap;
+import org.garret.perst.Assert;
+import org.garret.perst.CustomAllocator;
+import org.garret.perst.Link;
+import org.garret.perst.Persistent;
+import org.garret.perst.Storage;
+import org.garret.perst.StorageError;
 
 public class BitmapCustomAllocator extends Persistent implements CustomAllocator { 
     protected int  quantum;

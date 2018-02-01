@@ -1,9 +1,17 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
-
-import java.lang.reflect.*;
-import java.util.*;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import org.garret.perst.FieldIndex;
+import org.garret.perst.IValue;
+import org.garret.perst.IterableIterator;
+import org.garret.perst.Key;
+import org.garret.perst.Query;
+import org.garret.perst.StorageError;
 
 class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> { 
     String   className;
