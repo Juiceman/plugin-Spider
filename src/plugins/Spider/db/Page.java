@@ -10,137 +10,135 @@ import org.garret.perst.StorageError;
 import freenet.support.Logger;
 
 public class Page extends Persistent implements Comparable<Page> {
-	/** Page Id */
-	protected long id;
-	/** URI of the page */
-	protected String uri;
-	/** Title */
-	protected String pageTitle;
-	/** Status */
-	protected Status status;
-	/** Last Change Time */
-	protected long lastChange;
-	/** Comment, for debugging */
-	protected String comment;
+  /** Page Id */
+  protected long id;
+  /** URI of the page */
+  protected String uri;
+  /** Title */
+  protected String pageTitle;
+  /** Status */
+  protected Status status;
+  /** Last Change Time */
+  protected long lastChange;
+  /** Comment, for debugging */
+  protected String comment;
 
-	public Page() {
-	}
+  public Page() {}
 
-	Page(String uri, String comment, Storage storage) {
-		this.uri = uri;
-		this.comment = comment;
-		this.status = Status.QUEUED;
-		this.lastChange = System.currentTimeMillis();
-		
-		storage.makePersistent(this);
-	}
-	
-	public synchronized void setStatus(Status status) {
-		preModify();
-		this.status = status;
-		postModify();
-	}
+  Page(String uri, String comment, Storage storage) {
+    this.uri = uri;
+    this.comment = comment;
+    this.status = Status.QUEUED;
+    this.lastChange = System.currentTimeMillis();
 
-	public Status getStatus() {
-		return status;
-	}
+    storage.makePersistent(this);
+  }
 
-	public synchronized void setComment(String comment) {
-		preModify();
-		this.comment = comment;
-		postModify();
-	}
-	
-	public String getComment() {
-		return comment;
-	}
+  public synchronized void setStatus(Status status) {
+    preModify();
+    this.status = status;
+    postModify();
+  }
 
-	public String getURI() {
-		return uri;
-	}
-	
-	public long getId() {
-		return id;
-	}
-	
-	public void setPageTitle(String pageTitle) {
-		preModify();
-		this.pageTitle = pageTitle;
-		postModify();
-	}
+  public Status getStatus() {
+    return status;
+  }
 
-	public String getPageTitle() {
-		return pageTitle;
-	}
+  public synchronized void setComment(String comment) {
+    preModify();
+    this.comment = comment;
+    postModify();
+  }
 
-	@Override
-	public int hashCode() {
-		return (int) (id ^ (id >>> 32));
-	}
+  public String getComment() {
+    return comment;
+  }
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
+  public String getURI() {
+    return uri;
+  }
 
-		return id == ((Page) obj).id;
-	}
+  public long getId() {
+    return id;
+  }
 
-	@Override
-	public String toString() {
-		return "[PAGE: id=" + id + ", title=" + pageTitle + ", uri=" + uri + ", status=" + status + ", comment="
-		+ comment
-		+ "]";
-	}
+  public void setPageTitle(String pageTitle) {
+    preModify();
+    this.pageTitle = pageTitle;
+    postModify();
+  }
 
-	@Override
+  public String getPageTitle() {
+    return pageTitle;
+  }
+
+  @Override
+  public int hashCode() {
+    return (int) (id ^ (id >>> 32));
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+
+    return id == ((Page) obj).id;
+  }
+
+  @Override
+  public String toString() {
+    return "[PAGE: id=" + id + ", title=" + pageTitle + ", uri=" + uri + ", status=" + status
+        + ", comment=" + comment + "]";
+  }
+
+  @Override
   public int compareTo(Page o) {
-		return new Long(id).compareTo(o.id);
-	}
-	
-	private void preModify() {
-		Storage storage = getStorage();
+    return new Long(id).compareTo(o.id);
+  }
 
-		if (storage != null) {
-			PerstRoot root = (PerstRoot) storage.getRoot();
-			FieldIndex<Page> coll = root.getPageIndex(status);
-			coll.exclusiveLock();
-			try {
-				coll.remove(this);
-			} catch (StorageError e) {
-				if(e.getErrorCode() == StorageError.KEY_NOT_FOUND) {
-					// No serious consequences, so just log it, rather than killing the whole thing.
-					Logger.error(this, "Page: Key not found in index: "+this, e);
-					System.err.println("Page: Key not found in index: "+this);
-					e.printStackTrace();
-				} else
-					throw e;
-			} finally {
-				coll.unlock();
-			}
-		}
-	}
+  private void preModify() {
+    Storage storage = getStorage();
 
-	private void postModify() {
-		lastChange = System.currentTimeMillis();
-		
-		modify();
+    if (storage != null) {
+      PerstRoot root = (PerstRoot) storage.getRoot();
+      FieldIndex<Page> coll = root.getPageIndex(status);
+      coll.exclusiveLock();
+      try {
+        coll.remove(this);
+      } catch (StorageError e) {
+        if (e.getErrorCode() == StorageError.KEY_NOT_FOUND) {
+          // No serious consequences, so just log it, rather than killing the whole thing.
+          Logger.error(this, "Page: Key not found in index: " + this, e);
+          System.err.println("Page: Key not found in index: " + this);
+          e.printStackTrace();
+        } else
+          throw e;
+      } finally {
+        coll.unlock();
+      }
+    }
+  }
 
-		Storage storage = getStorage();
+  private void postModify() {
+    lastChange = System.currentTimeMillis();
 
-		if (storage != null) {
-			PerstRoot root = (PerstRoot) storage.getRoot();
-			FieldIndex<Page> coll = root.getPageIndex(status);
-			coll.exclusiveLock();
-			try {
-				coll.put(this);
-			} finally {
-				coll.unlock();
-			}
-		}
-	}
+    modify();
+
+    Storage storage = getStorage();
+
+    if (storage != null) {
+      PerstRoot root = (PerstRoot) storage.getRoot();
+      FieldIndex<Page> coll = root.getPageIndex(status);
+      coll.exclusiveLock();
+      try {
+        coll.put(this);
+      } finally {
+        coll.unlock();
+      }
+    }
+  }
 }

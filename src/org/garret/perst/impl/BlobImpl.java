@@ -1,348 +1,350 @@
 package org.garret.perst.impl;
+
 import org.garret.perst.Blob;
 import org.garret.perst.PersistentResource;
 import org.garret.perst.RandomAccessInputStream;
 import org.garret.perst.RandomAccessOutputStream;
 import org.garret.perst.Storage;
 
-public class BlobImpl extends PersistentResource implements Blob { 
-    int           size;
-    BlobImpl      next;
-    byte[]        body;
-    transient int used;
+public class BlobImpl extends PersistentResource implements Blob {
+  int size;
+  BlobImpl next;
+  byte[] body;
+  transient int used;
 
-    static final int headerSize = ObjectHeader.sizeof + 3*4;
+  static final int headerSize = ObjectHeader.sizeof + 3 * 4;
 
-    void discard(int flags) { 
-        if (--used == 0 && (flags & ENABLE_SEGMENT_CACHING) == 0) { 
-            invalidate();
-            next = null;
+  void discard(int flags) {
+    if (--used == 0 && (flags & ENABLE_SEGMENT_CACHING) == 0) {
+      invalidate();
+      next = null;
+    }
+  }
+
+
+  static class BlobInputStream extends RandomAccessInputStream {
+    protected BlobImpl curr;
+    protected BlobImpl first;
+    protected int pos;
+    protected int blobOffs;
+    protected int flags;
+
+    @Override
+    public int read() {
+      byte[] b = new byte[1];
+      return read(b, 0, 1) == 1 ? b[0] & 0xFF : -1;
+    }
+
+    @Override
+    public int read(byte b[], int off, int len) {
+      if (pos >= first.size) {
+        return -1;
+      }
+      int rest = first.size - pos;
+      if (len > rest) {
+        len = rest;
+      }
+      int rc = len;
+      while (len > 0) {
+        if (blobOffs == curr.body.length) {
+          BlobImpl prev = curr;
+          curr = prev.next;
+          curr.load();
+          curr.used += 1;
+          if (prev != first) {
+            prev.discard(flags);
+          }
+          blobOffs = 0;
         }
+        int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;
+        System.arraycopy(curr.body, blobOffs, b, off, n);
+        blobOffs += n;
+        off += n;
+        len -= n;
+        pos += n;
+      }
+      return rc;
+    }
+
+    @Override
+    public long setPosition(long newPos) {
+      if (newPos < pos) {
+        if (newPos >= pos - blobOffs) {
+          blobOffs -= pos - newPos;
+          return pos = (int) newPos;
+        }
+        if (first != curr) {
+          curr.discard(flags);
+          curr = first;
+        }
+        pos = 0;
+        blobOffs = 0;
+      }
+      skip(newPos - pos);
+      return pos;
+    }
+
+    @Override
+    public long getPosition() {
+      return pos;
+    }
+
+    @Override
+    public long size() {
+      return first.size;
+    }
+
+    @Override
+    public long skip(long offs) {
+      int rest = first.size - pos;
+      if (offs > rest) {
+        offs = rest;
+      }
+      int len = (int) offs;
+      while (len > 0) {
+        if (blobOffs == curr.body.length) {
+          BlobImpl prev = curr;
+          curr = prev.next;
+          curr.load();
+          curr.used += 1;
+          if (prev != first) {
+            prev.discard(flags);
+          }
+          blobOffs = 0;
+        }
+        int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;
+        pos += n;
+        len -= n;
+        blobOffs += n;
+      }
+      return offs;
     }
 
 
-    static class BlobInputStream extends RandomAccessInputStream {
-        protected BlobImpl curr;
-        protected BlobImpl first;
-        protected int      pos;
-        protected int      blobOffs;
-        protected int      flags;
-
-        @Override
-        public int read() {
-            byte[] b = new byte[1];
-            return read(b, 0, 1) == 1 ? b[0] & 0xFF : -1;
-        }
-
-        @Override
-        public int read(byte b[], int off, int len) {
-            if (pos >= first.size) { 
-                return -1;
-            }
-            int rest = first.size - pos;
-            if (len > rest) { 
-                len = rest;
-            }
-            int rc = len;
-            while (len > 0) { 
-                if (blobOffs == curr.body.length) { 
-                    BlobImpl prev = curr;
-                    curr = prev.next;
-                    curr.load();
-                    curr.used += 1;
-                    if (prev != first) { 
-                        prev.discard(flags);
-                    }
-                    blobOffs = 0;
-                }
-                int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len; 
-                System.arraycopy(curr.body, blobOffs, b, off, n);
-                blobOffs += n;
-                off += n;
-                len -= n;
-                pos += n;
-            }
-            return rc;
-        }
-
-        @Override
-        public long setPosition(long newPos) { 
-            if (newPos < pos) { 
-                if (newPos >= pos - blobOffs) { 
-                    blobOffs -= pos - newPos;
-                    return pos = (int)newPos;
-                }
-                if (first != curr) { 
-                    curr.discard(flags);
-                    curr = first;
-                }
-                pos = 0;
-                blobOffs = 0;
-            }
-            skip(newPos - pos);
-            return pos;
-        }
-
-        @Override
-        public long getPosition() { 
-            return pos;
-        }
-
-        @Override
-        public long size() {
-            return first.size;
-        }
-
-        @Override
-        public long skip(long offs) {
-            int rest = first.size - pos;
-            if (offs > rest) { 
-                offs = rest;
-            }
-            int len = (int)offs;
-            while (len > 0) { 
-                if (blobOffs == curr.body.length) { 
-                    BlobImpl prev = curr;
-                    curr = prev.next;
-                    curr.load();
-                    curr.used += 1;
-                    if (prev != first) { 
-                        prev.discard(flags);
-                    }
-                    blobOffs = 0;
-                }
-                int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len; 
-                pos += n;
-                len -= n;
-                blobOffs += n;
-            }
-            return offs;
-        }
-
-
-        @Override
-        public int available() {
-            return first.size - pos;
-        }
-
-        @Override
-        public void close() {
-            curr.discard(flags);
-            if (first != curr) { 
-                first.discard(flags);
-            }
-            curr = first = null;
-        }
-
-        protected BlobInputStream(BlobImpl first, int flags) { 
-            this.flags = flags;
-            this.first = first;
-            first.load();
-            curr = first;
-            first.used += 1;
-        }
+    @Override
+    public int available() {
+      return first.size - pos;
     }
 
-    static class BlobOutputStream extends RandomAccessOutputStream { 
-        protected BlobImpl first;
-        protected BlobImpl curr;
-        protected int      pos;
-        protected int      blobOffs;
-        protected int      flags;
-        protected boolean  modified;
+    @Override
+    public void close() {
+      curr.discard(flags);
+      if (first != curr) {
+        first.discard(flags);
+      }
+      curr = first = null;
+    }
 
-        @Override
-        public void write(int b) { 
-            byte[] buf = new byte[1];
-            buf[0] = (byte)b;
-            write(buf, 0, 1);
+    protected BlobInputStream(BlobImpl first, int flags) {
+      this.flags = flags;
+      this.first = first;
+      first.load();
+      curr = first;
+      first.used += 1;
+    }
+  }
+
+  static class BlobOutputStream extends RandomAccessOutputStream {
+    protected BlobImpl first;
+    protected BlobImpl curr;
+    protected int pos;
+    protected int blobOffs;
+    protected int flags;
+    protected boolean modified;
+
+    @Override
+    public void write(int b) {
+      byte[] buf = new byte[1];
+      buf[0] = (byte) b;
+      write(buf, 0, 1);
+    }
+
+    @Override
+    public void write(byte b[], int off, int len) {
+      while (len > 0) {
+        if (blobOffs == curr.body.length) {
+          BlobImpl prev = curr;
+          if (prev.next == null) {
+            int length = curr.body.length;
+            if ((flags & DOUBLE_SEGMENT_SIZE) != 0 && (length << 1) > length) {
+              length = ((length + headerSize) << 1) - headerSize;
+            }
+            BlobImpl next = new BlobImpl(curr.getStorage(), length);
+            curr = prev.next = next;
+            modified = true;
+          } else {
+            curr = prev.next;
+            curr.load();
+          }
+          curr.used += 1;
+          if (prev != first) {
+            if (modified) {
+              prev.store();
+            }
+            prev.discard(flags);
+          }
+          blobOffs = 0;
         }
+        int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;
+        System.arraycopy(b, off, curr.body, blobOffs, n);
+        modified = true;
+        blobOffs += n;
+        off += n;
+        len -= n;
+        pos += n;
+      }
+      if (pos > first.size) {
+        first.size = pos;
+      }
+    }
 
-        @Override
-        public void write(byte b[], int off, int len) { 
-            while (len > 0) { 
-                if (blobOffs == curr.body.length) { 
-                    BlobImpl prev = curr;
-                    if (prev.next == null) { 
-                        int length = curr.body.length;
-                        if ((flags & DOUBLE_SEGMENT_SIZE) != 0 && (length << 1) > length) { 
-                            length = ((length + headerSize) << 1) - headerSize;
-                        }
-                        BlobImpl next = new BlobImpl(curr.getStorage(), length);
-                        curr = prev.next = next;
-                        modified = true;
-                    } else {
-                        curr = prev.next;
-                        curr.load();
-                    }
-                    curr.used += 1;
-                    if (prev != first) {
-                        if (modified) { 
-                            prev.store();
-                        }
-                        prev.discard(flags);
-                    }
-                    blobOffs = 0;
-                }
-                int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;  
-                System.arraycopy(b, off, curr.body, blobOffs, n);
-                modified = true;
-                blobOffs += n;
-                off += n;
-                len -= n;
-                pos += n;
-            }
-            if (pos > first.size) { 
-                first.size = pos;
-            }
+    @Override
+    public void close() {
+      if ((flags & TRUNCATE_LAST_SEGMENT) != 0 && blobOffs < curr.body.length
+          && curr.next == null) {
+        byte[] tmp = new byte[blobOffs];
+        System.arraycopy(curr.body, 0, tmp, 0, blobOffs);
+        curr.body = tmp;
+      }
+      curr.store();
+      curr.discard(flags);
+      if (curr != first) {
+        first.store();
+        first.discard(flags);
+      }
+      first = curr = null;
+    }
+
+    @Override
+    public long setPosition(long newPos) {
+      if (newPos < pos) {
+        if (newPos >= pos - blobOffs) {
+          blobOffs -= pos - newPos;
+          return pos = (int) newPos;
         }
-
-        @Override
-        public void close() {
-            if ((flags & TRUNCATE_LAST_SEGMENT) != 0 && blobOffs < curr.body.length && curr.next == null) { 
-                byte[] tmp = new byte[blobOffs];
-                System.arraycopy(curr.body, 0, tmp, 0, blobOffs);
-                curr.body = tmp;
-            }
+        if (first != curr) {
+          if (modified) {
             curr.store();
-            curr.discard(flags);
-            if (curr != first) {
-                first.store();
-                first.discard(flags);
+            modified = false;
+          }
+          curr.discard(flags);
+          curr = first;
+        }
+        pos = 0;
+        blobOffs = 0;
+      }
+      skip(newPos - pos);
+      return pos;
+    }
+
+    @Override
+    public long getPosition() {
+      return pos;
+    }
+
+    @Override
+    public long size() {
+      return first.size;
+    }
+
+    public long skip(long offs) {
+      int rest = first.size - pos;
+      if (offs > rest) {
+        offs = rest;
+      }
+      int len = (int) offs;
+      while (len > 0) {
+        if (blobOffs == curr.body.length) {
+          BlobImpl prev = curr;
+          curr = prev.next;
+          curr.load();
+          curr.used += 1;
+          if (prev != first) {
+            if (modified) {
+              prev.store();
+              modified = false;
             }
-            first = curr = null;
+            prev.discard(flags);
+          }
+          blobOffs = 0;
         }
-
-        @Override
-        public long setPosition(long newPos) { 
-            if (newPos < pos) { 
-                if (newPos >= pos - blobOffs) { 
-                    blobOffs -= pos - newPos;
-                    return pos = (int)newPos;
-                }
-                if (first != curr) {
-                    if (modified) { 
-                        curr.store();
-                        modified = false;
-                    }
-                    curr.discard(flags);
-                    curr = first;
-                }
-                pos = 0;
-                blobOffs = 0;
-            }
-            skip(newPos - pos);
-            return pos;
-        }
-
-        @Override
-        public long getPosition() { 
-            return pos;
-        }
-
-        @Override
-        public long size() {
-            return first.size;
-        }
-
-        public long skip(long offs) { 
-            int rest = first.size - pos;
-            if (offs > rest) { 
-                offs = rest;
-            }
-            int len = (int)offs;
-            while (len > 0) { 
-                if (blobOffs == curr.body.length) { 
-                    BlobImpl prev = curr;
-                    curr = prev.next;
-                    curr.load();
-                    curr.used += 1;
-                    if (prev != first) {
-                        if (modified) { 
-                            prev.store();
-                            modified = false;
-                        }
-                        prev.discard(flags);
-                    }
-                    blobOffs = 0;
-                }
-                int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len; 
-                pos += n;
-                len -= n;
-                blobOffs += n;
-            }
-            return offs;
-        }
-            
-
-        BlobOutputStream(BlobImpl first, int flags) { 
-            this.flags = flags;
-            this.first = first;
-            first.load();
-            first.used += 1;
-            curr = first;
-            if ((flags & APPEND) != 0) { 
-                skip(first.size);
-            }
-        }
+        int n = len > curr.body.length - blobOffs ? curr.body.length - blobOffs : len;
+        pos += n;
+        len -= n;
+        blobOffs += n;
+      }
+      return offs;
     }
 
-    @Override
-    public boolean recursiveLoading() { 
-        return false;
-    }
 
-    @Override
-    public RandomAccessInputStream getInputStream() { 
-        return getInputStream(0);
+    BlobOutputStream(BlobImpl first, int flags) {
+      this.flags = flags;
+      this.first = first;
+      first.load();
+      first.used += 1;
+      curr = first;
+      if ((flags & APPEND) != 0) {
+        skip(first.size);
+      }
     }
+  }
 
-    @Override
-    public RandomAccessInputStream getInputStream(int flags) { 
-        return new BlobInputStream(this, flags);
+  @Override
+  public boolean recursiveLoading() {
+    return false;
+  }
+
+  @Override
+  public RandomAccessInputStream getInputStream() {
+    return getInputStream(0);
+  }
+
+  @Override
+  public RandomAccessInputStream getInputStream(int flags) {
+    return new BlobInputStream(this, flags);
+  }
+
+  @Override
+  public RandomAccessOutputStream getOutputStream() {
+    return getOutputStream(APPEND);
+  }
+
+  @Override
+  public RandomAccessOutputStream getOutputStream(boolean multisession) {
+    return getOutputStream(multisession ? APPEND : TRUNCATE_LAST_SEGMENT | APPEND);
+  }
+
+  @Override
+  public RandomAccessOutputStream getOutputStream(long position, boolean multisession) {
+    RandomAccessOutputStream stream = getOutputStream(multisession);
+    stream.setPosition(position);
+    return stream;
+  }
+
+  @Override
+  public RandomAccessOutputStream getOutputStream(int flags) {
+    return new BlobOutputStream(this, flags);
+  }
+
+  @Override
+  public void deallocate() {
+    load();
+    if (size > 0) {
+      BlobImpl curr = next;
+      while (curr != null) {
+        curr.load();
+        BlobImpl tail = curr.next;
+        curr.deallocate();
+        curr = tail;
+      }
     }
+    super.deallocate();
+  }
 
-    @Override
-    public RandomAccessOutputStream getOutputStream() { 
-        return getOutputStream(APPEND);
-    }
+  BlobImpl(Storage storage, int size) {
+    super(storage);
+    body = new byte[size];
+  }
 
-    @Override
-    public RandomAccessOutputStream getOutputStream(boolean multisession) { 
-        return getOutputStream(multisession ? APPEND : TRUNCATE_LAST_SEGMENT|APPEND);
-    }
-
-    @Override
-    public RandomAccessOutputStream getOutputStream(long position, boolean multisession) { 
-        RandomAccessOutputStream stream = getOutputStream(multisession);
-        stream.setPosition(position);
-        return stream;
-    }
-
-    @Override
-    public RandomAccessOutputStream getOutputStream(int flags) { 
-        return new BlobOutputStream(this, flags);
-    }
-
-    @Override
-    public void deallocate() { 
-        load();
-        if (size > 0) {
-            BlobImpl curr = next;
-            while (curr != null) { 
-                curr.load();
-                BlobImpl tail = curr.next;
-                curr.deallocate();
-                curr = tail;
-            }
-        }
-        super.deallocate();
-    }
-
-    BlobImpl(Storage storage, int size) { 
-        super(storage);
-        body = new byte[size];
-    }
-
-    BlobImpl() {}
-}   
+  BlobImpl() {}
+}
