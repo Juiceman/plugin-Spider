@@ -17,6 +17,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         
         HashPage() {}
         
+        @Override
         public void deallocate()
         {
             for (Object child : items) {
@@ -41,14 +42,17 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         int                hashCode;
         CollisionItem<K,V> next;
          
+        @Override
         public K getKey() { 
             return key;
         }
 
+        @Override
         public V getValue() { 
             return obj;
         }
 
+        @Override
         public V setValue(V value) { 
             modify();
             V prevValue = obj;
@@ -83,14 +87,17 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 
     PersistentHashImpl() {}
 
+    @Override
     public int size() {
         return nElems;
     }
 
+    @Override
     public boolean isEmpty() {
 	return nElems == 0;
     }
 
+    @Override
     public boolean containsValue(Object value) {
 	Iterator<Entry<K,V>> i = entrySet().iterator();
 	if (value==null) {
@@ -109,11 +116,13 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 	return false;
     }
 
+    @Override
     public boolean containsKey(Object key) 
     {
         return getEntry(key) != null;
     }
 
+    @Override
     public V get(Object key) 
     {
         Entry<K,V> entry = getEntry(key);
@@ -122,6 +131,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 
     private static final long UINT_MASK = 0xFFFFFFFFL;
 
+    @Override
     public Entry<K,V> getEntry(Object key) 
     {
         HashPage pg = root; 
@@ -147,6 +157,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         return null;
     }
     
+    @Override
     public V put(K key, V value) 
     {
         int hashCode = key.hashCode();
@@ -228,6 +239,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         }
     }
 
+    @Override
     public V remove(Object key) 
     {
         HashPage pg = root; 
@@ -265,6 +277,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         return null;
     }
 
+    @Override
     public void putAll(Map<? extends K, ? extends V> t) {
 	Iterator<? extends Entry<? extends K, ? extends V>> i = t.entrySet().iterator();
 	while (i.hasNext()) {
@@ -273,6 +286,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 	}
     }
 
+    @Override
     public void clear() 
     {
         if (root != null) {
@@ -283,32 +297,39 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         }
     }
 
+    @Override
     public Set<K> keySet() {
 	if (keySet == null) {
 	    keySet = new AbstractSet<K>() {
-		public Iterator<K> iterator() {
+		@Override
+    public Iterator<K> iterator() {
 		    return new Iterator<K>() {
 			private Iterator<Entry<K,V>> i = entrySet().iterator();
 
-			public boolean hasNext() {
+			@Override
+      public boolean hasNext() {
 			    return i.hasNext();
 			}
 
-			public K next() {
+			@Override
+      public K next() {
 			    return i.next().getKey();
 			}
 
-			public void remove() {
+			@Override
+      public void remove() {
 			    i.remove();
 			}
                     };
 		}
 
-		public int size() {
+		@Override
+    public int size() {
 		    return PersistentHashImpl.this.size();
 		}
 
-		public boolean contains(Object k) {
+		@Override
+    public boolean contains(Object k) {
 		    return PersistentHashImpl.this.containsKey(k);
 		}
 	    };
@@ -316,32 +337,39 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 	return keySet;
     }
 
+    @Override
     public Collection<V> values() {
 	if (valuesCol == null) {
 	    valuesCol = new AbstractCollection<V>() {
-		public Iterator<V> iterator() {
+		@Override
+    public Iterator<V> iterator() {
 		    return new Iterator<V>() {
 			private Iterator<Entry<K,V>> i = entrySet().iterator();
 
-			public boolean hasNext() {
+			@Override
+      public boolean hasNext() {
 			    return i.hasNext();
 			}
 
-			public V next() {
+			@Override
+      public V next() {
 			    return i.next().getValue();
 			}
 
-			public void remove() {
+			@Override
+      public void remove() {
 			    i.remove();
 			}
                     };
                 }
 
-		public int size() {
+		@Override
+    public int size() {
 		    return PersistentHashImpl.this.size();
 		}
 
-		public boolean contains(Object v) {
+		@Override
+    public boolean contains(Object v) {
 		    return PersistentHashImpl.this.containsValue(v);
 		}
 	    };
@@ -403,10 +431,12 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
             } 
         }
 
+        @Override
         public boolean hasNext() {
             return nextItem != null;
         }
                     
+        @Override
         public Entry<K,V> next() {
             if (nextItem == null) {
                 throw new NoSuchElementException(); 
@@ -441,6 +471,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
             return currItem;
         }
 
+        @Override
         public void remove() {
             if (currItem == null) {
                 throw new NoSuchElementException(); 
@@ -449,17 +480,21 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
         }
     }
 
+    @Override
     public Set<Entry<K,V>> entrySet() {
 	if (entrySet == null) {
 	    entrySet = new AbstractSet<Entry<K,V>>() {
-		public Iterator<Entry<K,V>> iterator() {
+		@Override
+    public Iterator<Entry<K,V>> iterator() {
 		    return entryIterator();
 		}
 
-		public int size() {
+		@Override
+    public int size() {
 		    return PersistentHashImpl.this.size();
 		}
 
+                @Override
                 public boolean remove(Object o) {
                     if (!(o instanceof Map.Entry)) {
                         return false;
@@ -484,7 +519,8 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
                     return false;
                 }
                 
-		public boolean contains(Object k) {
+		@Override
+    public boolean contains(Object k) {
                     Entry<K,V> e = (Entry<K,V>)k;
                     if (e.getValue() != null) { 
                         return e.getValue().equals(PersistentHashImpl.this.get(e.getKey()));
@@ -499,6 +535,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
     }   
 
      
+    @Override
     public boolean equals(Object o) {
 	if (o == this) {
 	    return true;
@@ -536,6 +573,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 	return true;
     }
 
+    @Override
     public int hashCode() {
 	int h = 0;
 	Iterator<Entry<K,V>> i = entrySet().iterator();
@@ -545,6 +583,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 	return h;
     }
 
+    @Override
     public String toString() {
 	StringBuffer buf = new StringBuffer();
 	buf.append("{");
@@ -576,6 +615,7 @@ class PersistentHashImpl<K, V> extends PersistentResource implements IPersistent
 	return buf.toString();
     }
 
+    @Override
     public Iterator<V> select(Class cls, String predicate) { 
         Query<V> query = new QueryImpl<V>(getStorage());
         return query.select(cls, values().iterator(), predicate);

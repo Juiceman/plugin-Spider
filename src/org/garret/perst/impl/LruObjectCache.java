@@ -1,5 +1,4 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
 import  java.lang.ref.*;
 
 public class LruObjectCache implements OidHashTable { 
@@ -27,6 +26,7 @@ public class LruObjectCache implements OidHashTable {
         pinList.lru = pinList.mru = pinList;
     }
 
+    @Override
     public synchronized boolean remove(int oid) {
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -75,6 +75,7 @@ public class LruObjectCache implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void put(int oid, Object obj) { 
         Reference ref = createReference(obj);
         Entry tab[] = table;
@@ -99,6 +100,7 @@ public class LruObjectCache implements OidHashTable {
         count++;
     }
 
+    @Override
     public Object get(int oid) {
         while (true) { 
             cs:synchronized(this) { 
@@ -128,6 +130,7 @@ public class LruObjectCache implements OidHashTable {
         } 
     }
     
+    @Override
     public void flush() {
         while (true) { 
           cs:synchronized(this) { 
@@ -170,6 +173,7 @@ public class LruObjectCache implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void reload() {
         disableRehash = true;
         for (int i = 0; i < table.length; i++) { 
@@ -196,6 +200,7 @@ public class LruObjectCache implements OidHashTable {
     }
 
 
+    @Override
     public void invalidate() {
         while (true) { 
             cs:synchronized(this) { 
@@ -219,6 +224,7 @@ public class LruObjectCache implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void clear() {
         Entry tab[] = table;
         for (int i = 0; i < tab.length; i++) { 
@@ -273,6 +279,7 @@ public class LruObjectCache implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void setDirty(Object obj) {
         int oid = db.getOid(obj);
         Entry tab[] = table;
@@ -286,6 +293,7 @@ public class LruObjectCache implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void clearDirty(Object obj) {
         int oid = db.getOid(obj);
         Entry tab[] = table;
@@ -300,6 +308,7 @@ public class LruObjectCache implements OidHashTable {
         }
     }
 
+    @Override
     public int size() { 
         return count;
     }

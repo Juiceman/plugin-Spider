@@ -1,8 +1,6 @@
 package org.garret.perst.impl;
 
 import java.io.*;
-import java.net.*;
-
 import org.garret.perst.*;
 
 /**
@@ -51,6 +49,7 @@ public class AsyncReplicationMasterFile extends ReplicationMasterFile {
     }
 
     class WriteThread extends Thread { 
+        @Override
         public void run() { 
             asyncWrite();
         }
@@ -70,6 +69,7 @@ public class AsyncReplicationMasterFile extends ReplicationMasterFile {
         Parcel next;
     }
     
+    @Override
     public void write(long pos, byte[] buf) {
         file.write(pos, buf);
         synchronized (mutex) { 
@@ -164,6 +164,7 @@ public class AsyncReplicationMasterFile extends ReplicationMasterFile {
         } catch (InterruptedException x) {}
     }
 
+    @Override
     public void close() {
         try { 
             synchronized (go) {

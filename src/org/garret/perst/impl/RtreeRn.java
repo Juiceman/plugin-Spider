@@ -14,6 +14,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         super(storage);
     }
 
+    @Override
     public void put(RectangleRn r, T obj) {
         Storage db = getStorage();
         if (root == null) { 
@@ -31,10 +32,12 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         modify();
     }
     
+    @Override
     public int size() { 
         return n;
     }
 
+    @Override
     public void remove(RectangleRn r, T obj) {
         if (root == null) { 
             throw new StorageError(StorageError.KEY_NOT_FOUND);
@@ -68,6 +71,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         modify();
     }
     
+    @Override
     public Object[] get(RectangleRn r) {
         ArrayList result = new ArrayList();
         if (root != null) { 
@@ -76,6 +80,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         return result.toArray();
     }
 
+    @Override
     public ArrayList<T> getList(RectangleRn r) { 
         ArrayList<T> result = new ArrayList<T>();
         if (root != null) { 
@@ -84,6 +89,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         return result;
     }
 
+    @Override
     public RectangleRn getWrappingRectangle() {
         if (root != null) { 
             return root.cover();
@@ -91,6 +97,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         return null;
     }
 
+    @Override
     public void clear() {
         if (root != null) { 
             root.purge(height);
@@ -102,15 +109,18 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         modify();
     }
 
+    @Override
     public void deallocate() {
         clear();
         super.deallocate();
     }
 
+    @Override
     public Object[] toArray() {
         return get(getWrappingRectangle());
     }
 
+    @Override
     public <E> E[] toArray(E[] arr) {
         return getList(getWrappingRectangle()).toArray(arr);
     }
@@ -131,6 +141,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             }
         }
 
+        @Override
         public boolean hasNext() {
             if (counter != updateCounter) { 
                 throw new ConcurrentModificationException();
@@ -142,6 +153,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             return pageStack[sp].branch.get(posStack[sp]);
         }
 
+        @Override
         public E next() {
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -154,6 +166,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             return curr;
         }
  
+        @Override
         public int nextOid() {
             if (!hasNext()) { 
                 return 0;
@@ -195,6 +208,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             return (sp > 0) ? gotoNextItem(sp-1) : false;
         }
               
+        @Override
         public void remove() { 
             throw new UnsupportedOperationException();
         }
@@ -209,15 +223,18 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
         RtreeRnPage pg;
         int         pos;
 
-	public RectangleRn getKey() {
+	@Override
+  public RectangleRn getKey() {
 	    return pg.b[pos];
 	}
 
-	public T getValue() {
+	@Override
+  public T getValue() {
 	    return (T)pg.branch.get(pos);
 	}
 
-  	public T setValue(T value) {
+  	@Override
+    public T setValue(T value) {
             throw new UnsupportedOperationException();
         }
 
@@ -232,23 +249,28 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             super(r);
         }
         
+        @Override
         protected Object current(int sp) { 
             return new RtreeEntry(pageStack[sp], posStack[sp]);
         }
     }
 
+    @Override
     public Iterator<T> iterator() {
         return iterator(getWrappingRectangle());
     }
 
+    @Override
     public IterableIterator<Map.Entry<RectangleRn,T>> entryIterator() {
         return entryIterator(getWrappingRectangle());
     }
 
+    @Override
     public IterableIterator<T> iterator(RectangleRn r) { 
         return new RtreeIterator<T>(r);
     }
 
+    @Override
     public IterableIterator<Map.Entry<RectangleRn,T>> entryIterator(RectangleRn r) { 
         return new RtreeEntryIterator(r);
     }
@@ -298,6 +320,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             }
         }
 
+        @Override
         public boolean hasNext() { 
             if (counter != updateCounter) { 
                 throw new ConcurrentModificationException();
@@ -318,6 +341,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             }
         }
 
+        @Override
         public E next() {
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -328,6 +352,7 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             return (E)(neighbor.child instanceof PersistentStub ? storage.getObjectByOID(storage.getOid(neighbor.child)) : neighbor.child);
         }
 
+        @Override
         public int nextOid() {
             if (!hasNext()) { 
                 return 0;
@@ -338,11 +363,13 @@ public class RtreeRn<T> extends PersistentCollection<T> implements SpatialIndexR
             return storage.getOid(neighbor.child);
         }
 
+        @Override
         public void remove() { 
             throw new UnsupportedOperationException();
         }
     }
         
+    @Override
     public IterableIterator<T> neighborIterator(PointRn center) { 
         return new NeighborIterator(center);
     }

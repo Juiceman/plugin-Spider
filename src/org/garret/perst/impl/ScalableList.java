@@ -20,38 +20,47 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
 
     ScalableList() {}
 
+    @Override
     public E get(int i) { 
         return small != null ? small.get(i) : large.get(i);
     }
     
+    @Override
     public E set(int i, E obj) { 
         return small != null ? small.set(i, obj) : large.set(i, obj);
     }
        
+    @Override
     public boolean isEmpty() { 
         return small != null ? small.isEmpty() : large.isEmpty();
     }    
 
+    @Override
     public int size() {
         return small != null ? small.size() : large.size();
     }
 
+    @Override
     public boolean contains(Object o) {         
         return small != null ? small.contains(o) : large.contains(o);
     }
 
+    @Override
     public <T> T[] toArray(T a[]) { 
         return small != null ? small.<T>toArray(a) : large.<T>toArray(a);
     }
 
+    @Override
     public Object[] toArray() { 
         return small != null ? small.toArray() : large.toArray();
     }
+    @Override
     public boolean add(E o) {
         add(size(), o);
         return true;
     }
 
+    @Override
     public void add(int i, E o) {
         if (small != null) { 
             if (small.size() == BTREE_THRESHOLD) { 
@@ -68,10 +77,12 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
         }
     }
 
+    @Override
     public E remove(int i) {
         return small != null ? small.remove(i) : large.remove(i);
     }
 
+    @Override
     public void clear() {
         if (large != null) { 
             large.clear();            
@@ -80,14 +91,17 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
         }
     }   
 
+    @Override
     public int indexOf(Object o) {
         return small != null ? small.indexOf(o) : large.indexOf(o);
     }    
 
+    @Override
     public int lastIndexOf(Object o) {
         return small != null ? small.lastIndexOf(o) : large.lastIndexOf(o);
     }
 
+    @Override
     public boolean addAll(int index, Collection<? extends E> c) {
 	boolean modified = false;
 	Iterator<? extends E> e = c.iterator();
@@ -98,18 +112,22 @@ class ScalableList<E> extends PersistentCollection<E> implements IPersistentList
 	return modified;
     }    
             
+    @Override
     public Iterator<E> iterator() {
         return small != null ? small.iterator() : large.iterator();
     }
     
+    @Override
     public ListIterator<E> listIterator() {
 	return listIterator(0);
     }
 
+    @Override
     public ListIterator<E> listIterator(int index) {
         return small != null ? small.listIterator(index) : large.listIterator(index);
     }
 
+    @Override
     public List<E> subList(int fromIndex, int toIndex) {
         return small != null ? small.subList(fromIndex, toIndex) : large.subList(fromIndex, toIndex);
     }

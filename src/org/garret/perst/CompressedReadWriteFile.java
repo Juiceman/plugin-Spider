@@ -15,6 +15,7 @@ import org.garret.perst.impl.BitmapAllocator;
  */
 public class CompressedReadWriteFile implements IFile 
 { 
+    @Override
     public void write(long pageAddr, byte[] buf) {
         try {
             long pageOffs = 0;
@@ -65,6 +66,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public int read(long pageAddr, byte[] buf) {
         try {
             if (pageAddr != 0) {
@@ -112,6 +114,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public void sync() 
     {
         try {   
@@ -161,6 +164,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public boolean tryLock(boolean shared) 
     { 
         try { 
@@ -171,6 +175,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public void lock(boolean shared) 
     { 
         try { 
@@ -180,6 +185,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public void unlock() 
     { 
         try { 
@@ -189,6 +195,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public void close() 
     {
         try {
@@ -208,6 +215,7 @@ public class CompressedReadWriteFile implements IFile
         }
     }
 
+    @Override
     public long length() 
     { 
         try { 
@@ -474,6 +482,7 @@ public class CompressedReadWriteFile implements IFile
             }
         }
 
+        @Override
         public Iterator<Entry> iterator() 
         { 
             return new PageMapIterator();
@@ -490,10 +499,12 @@ public class CompressedReadWriteFile implements IFile
                 moveForward();
             }
 
+            @Override
             public boolean hasNext() { 
                 return curr != null;
             }
             
+            @Override
             public Entry next() {
                 Entry e = curr;
                 if (e == null) { 
@@ -503,6 +514,7 @@ public class CompressedReadWriteFile implements IFile
                 return e;
             }
 
+            @Override
             public void remove() { 
                 throw new UnsupportedOperationException();
             }

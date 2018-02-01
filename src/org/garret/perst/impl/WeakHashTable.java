@@ -1,5 +1,4 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
 import  java.lang.ref.*;
 
 public class WeakHashTable implements OidHashTable { 
@@ -17,6 +16,7 @@ public class WeakHashTable implements OidHashTable {
         table = new Entry[initialCapacity];
     }
 
+    @Override
     public synchronized boolean remove(int oid) {
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -39,6 +39,7 @@ public class WeakHashTable implements OidHashTable {
         return new WeakReference(obj);
     }
 
+    @Override
     public synchronized void put(int oid, Object obj) { 
         Reference ref = createReference(obj);
         Entry tab[] = table;
@@ -61,6 +62,7 @@ public class WeakHashTable implements OidHashTable {
         count += 1;
     }
     
+    @Override
     public Object get(int oid) {
         while (true) { 
             cs:synchronized(this) { 
@@ -86,6 +88,7 @@ public class WeakHashTable implements OidHashTable {
         } 
     }
     
+    @Override
     public void flush() {
         while (true) { 
             cs:synchronized(this) { 
@@ -118,6 +121,7 @@ public class WeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public void invalidate() {
         while (true) { 
             cs:synchronized(this) { 
@@ -140,6 +144,7 @@ public class WeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void reload() {
         disableRehash = true;
         for (int i = 0; i < table.length; i++) { 
@@ -163,6 +168,7 @@ public class WeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void clear() {
         Entry tab[] = table;
         for (int i = 0; i < tab.length; i++) { 
@@ -215,6 +221,7 @@ public class WeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void setDirty(Object obj) {
         int oid = db.getOid(obj);
         Entry tab[] = table;
@@ -228,6 +235,7 @@ public class WeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void clearDirty(Object obj) {
         int oid = db.getOid(obj);
         Entry tab[] = table;
@@ -242,6 +250,7 @@ public class WeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public int size() { 
         return count;
     }

@@ -135,6 +135,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
     static class ListIntermediatePage extends ListPage {
         int[] nChildren;
 
+        @Override
         Object getPosition(TreePosition pos, int i) { 
             int j;
             for (j = 0; i >= nChildren[j]; j++) {
@@ -143,6 +144,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             return ((ListPage)items.get(j)).getPosition(pos, i);
         }
             
+        @Override
         Object getRawPosition(TreePosition pos, int i) { 
             int j;
             for (j = 0; i >= nChildren[j]; j++) {
@@ -151,6 +153,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             return ((ListPage)items.get(j)).getRawPosition(pos, i);
         }
 
+        @Override
         Object get(int i) { 
             int j;
             for (j = 0; i >= nChildren[j]; j++) {
@@ -159,6 +162,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             return ((ListPage)items.get(j)).get(i);
         }
 
+        @Override
         Object set(int i, Object obj) { 
             int j;
             for (j = 0; i >= nChildren[j]; j++) {
@@ -167,6 +171,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             return ((ListPage)items.get(j)).set(i, obj);
         }
 
+        @Override
         ListPage add(int i, Object obj) {
             int j;
             for (j = 0; i >= nChildren[j]; j++) {
@@ -186,6 +191,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             return overflow;
         }
 
+        @Override
         Object remove(int i) {
             int j;
             for (j = 0; i >= nChildren[j]; j++) {
@@ -210,6 +216,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             }
         }
         
+        @Override
         void prune() {
             for (int i = 0; i < nItems; i++) {
                 ((ListPage)items.get(i)).prune();
@@ -272,20 +279,24 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             }
         }
 
+        @Override
         void copy(int dstOffs, ListPage src, int srcOffs, int len) { 
             super.copy(dstOffs, src, srcOffs, len);
             System.arraycopy(((ListIntermediatePage)src).nChildren, srcOffs, nChildren, dstOffs, len);
         }
 
+        @Override
         int getMaxItems() {
             return nIntermediatePageItems;
         }
 
+        @Override
         void setItem(int i, Object obj) {
             super.setItem(i, obj);
             nChildren[i] = ((ListPage)obj).size();
         }
 
+        @Override
         int size() {
             if (nChildren[nItems-1] == Integer.MAX_VALUE) { 
                 return Integer.MAX_VALUE;
@@ -298,6 +309,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             }
         }
 
+        @Override
         ListPage clonePage() { 
             return new ListIntermediatePage(getStorage());
         }
@@ -310,6 +322,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         }
     }
 
+    @Override
     public E get(int i) { 
         if (i < 0 || i >= nElems) { 
             throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
@@ -339,6 +352,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         return root.getRawPosition(pos, i);
     }
 
+    @Override
     public E set(int i, E obj) { 
         if (i < 0 || i >= nElems) { 
             throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
@@ -346,6 +360,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         return (E)root.set(i, obj);
     }
        
+    @Override
     public Object[] toArray() { 
         int n = nElems;
         Object[] arr = new Object[n];
@@ -356,6 +371,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         return arr;
     }
 
+    @Override
     public <T> T[] toArray(T[] arr) {
         int n = nElems;
         if (arr.length < n) { 
@@ -368,14 +384,17 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         return arr;
     }
 
+    @Override
     public boolean isEmpty() { 
         return nElems == 0;
     }    
 
+    @Override
     public int size() {
         return nElems;
     }
 
+    @Override
     public boolean contains(Object o) {         
 	Iterator e = iterator();
 	if (o==null) {
@@ -394,11 +413,13 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	return false;
     }
 
+    @Override
     public boolean add(E o) {
         add(nElems, o);
         return true;
     }
 
+    @Override
     public void add(int i, E obj) {
         if (i < 0 || i > nElems) { 
             throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
@@ -417,6 +438,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         modify();
     }
    
+    @Override
     public E remove(int i) {
         if (i < 0 || i >= nElems) { 
             throw new IndexOutOfBoundsException("index=" + i + ", size=" + nElems);
@@ -433,6 +455,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         return obj;
     }
 
+    @Override
     public void clear() {
         modCount += 1;
         root.prune();
@@ -441,6 +464,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
         modify();
     }        
     
+    @Override
     public int indexOf(Object o) {
 	ListIterator<E> e = listIterator();
 	if (o==null) {
@@ -455,6 +479,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	return -1;
     }
 
+    @Override
     public int lastIndexOf(Object o) {
 	ListIterator<E> e = listIterator(size());
 	if (o==null) {
@@ -469,6 +494,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	return -1;
     }
 
+    @Override
     public boolean addAll(int index, Collection<? extends E> c) {
 	boolean modified = false;
 	Iterator<? extends E> e = c.iterator();
@@ -479,14 +505,17 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	return modified;
     }
 
+    @Override
     public Iterator<E> iterator() {
 	return new Itr();
     }
 
+    @Override
     public ListIterator<E> listIterator() {
 	return listIterator(0);
     }
 
+    @Override
     public ListIterator<E> listIterator(int index) {
 	if (index<0 || index>size())
 	  throw new IndexOutOfBoundsException("Index: "+index);
@@ -514,10 +543,12 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	 */
 	int expectedModCount = modCount;
 
-	public boolean hasNext() {
+	@Override
+  public boolean hasNext() {
             return cursor != size();
 	}
 
+        @Override
         public int nextOid() {
             checkForComodification();
             if (!hasNext()) { 
@@ -528,7 +559,8 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             return oid;
         }
 
-	public E next() {
+	@Override
+  public E next() {
             checkForComodification();
 	    try {
 		E next = getPosition(this, cursor);
@@ -540,7 +572,8 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	    }
 	}
 
-	public void remove() {
+	@Override
+  public void remove() {
 	    if (lastRet == -1) {
 		throw new IllegalStateException();
             }
@@ -571,10 +604,12 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	    cursor = index;
 	}
 
-	public boolean hasPrevious() {
+	@Override
+  public boolean hasPrevious() {
 	    return cursor != 0;
 	}
 
+        @Override
         public E previous() {
             checkForComodification();
             try {
@@ -588,15 +623,18 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
             }
         }
 
-	public int nextIndex() {
+	@Override
+  public int nextIndex() {
 	    return cursor;
 	}
 
-	public int previousIndex() {
+	@Override
+  public int previousIndex() {
 	    return cursor-1;
 	}
 
-	public void set(E o) {
+	@Override
+  public void set(E o) {
 	    if (lastRet == -1) {
 		throw new IllegalStateException();
             }
@@ -610,7 +648,8 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	    }
 	}
 
-	public void add(E o) {
+	@Override
+  public void add(E o) {
             checkForComodification();
 
 	    try {
@@ -624,6 +663,7 @@ class PersistentListImpl<E> extends PersistentCollection<E> implements IPersiste
 	}
     }
 
+    @Override
     public List<E> subList(int fromIndex, int toIndex) {
         return new SubList<E>(this, fromIndex, toIndex);
     }
@@ -666,23 +706,27 @@ class SubList<E> extends AbstractList<E> {
         expectedModCount = l.modCount;
     }
 
+    @Override
     public E set(int index, E element) {
         rangeCheck(index);
         checkForComodification();
         return l.set(index+offset, element);
     }
 
+    @Override
     public E get(int index) {
         rangeCheck(index);
         checkForComodification();
         return l.get(index+offset);
     }
 
+    @Override
     public int size() {
         checkForComodification();
         return size;
     }
 
+    @Override
     public void add(int index, E element) {
         if (index<0 || index>size) {
             throw new IndexOutOfBoundsException();
@@ -694,6 +738,7 @@ class SubList<E> extends AbstractList<E> {
         modCount++;
     }
 
+    @Override
     public E remove(int index) {
         rangeCheck(index);
         checkForComodification();
@@ -704,6 +749,7 @@ class SubList<E> extends AbstractList<E> {
         return result;
     }
 
+    @Override
     protected void removeRange(int fromIndex, int toIndex) {
         checkForComodification();
         l.removeRange(fromIndex+offset, toIndex+offset);
@@ -712,10 +758,12 @@ class SubList<E> extends AbstractList<E> {
         modCount++;
     }
 
+    @Override
     public boolean addAll(Collection<? extends E> c) {
         return addAll(size, c);
     }
 
+    @Override
     public boolean addAll(int index, Collection<? extends E> c) {
         if (index<0 || index>size) {
             throw new IndexOutOfBoundsException("Index: "+index+", Size: "+size);
@@ -732,10 +780,12 @@ class SubList<E> extends AbstractList<E> {
         return true;
     }
 
+    @Override
     public Iterator<E> iterator() {
         return listIterator();
     }
 
+    @Override
     public ListIterator<E> listIterator(final int index) {
         checkForComodification();
         if (index<0 || index>size) {
@@ -744,10 +794,12 @@ class SubList<E> extends AbstractList<E> {
         return new ListIterator<E>() {
             private ListIterator<E> i = l.listIterator(index+offset);
 
+            @Override
             public boolean hasNext() {
                 return nextIndex() < size;
             }
 
+            @Override
             public E next() {
                 if (hasNext()) {
                     return i.next();
@@ -756,10 +808,12 @@ class SubList<E> extends AbstractList<E> {
                 }
             }
 
+            @Override
             public boolean hasPrevious() {
                 return previousIndex() >= 0;
             }
 
+            @Override
             public E previous() {
                 if (hasPrevious()) {
                     return i.previous();
@@ -768,14 +822,17 @@ class SubList<E> extends AbstractList<E> {
                 }
             }
 
+            @Override
             public int nextIndex() {
                 return i.nextIndex() - offset;
             }
 
+            @Override
             public int previousIndex() {
                 return i.previousIndex() - offset;
             }
 
+            @Override
             public void remove() {
                 i.remove();
                 expectedModCount = l.modCount;
@@ -783,10 +840,12 @@ class SubList<E> extends AbstractList<E> {
                 modCount++;
             }
 
+            @Override
             public void set(E o) {
                 i.set(o);
             }
 
+            @Override
             public void add(E o) {
                 i.add(o);
                 expectedModCount = l.modCount;
@@ -796,6 +855,7 @@ class SubList<E> extends AbstractList<E> {
         };
     }
 
+    @Override
     public List<E> subList(int fromIndex, int toIndex) {
         return new SubList<E>(l, offset+fromIndex, offset+toIndex);
     }

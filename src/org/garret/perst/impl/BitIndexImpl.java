@@ -18,6 +18,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
         }
     }
         
+    @Override
     public int getMask(T obj) 
     {
         StorageImpl db = (StorageImpl)getStorage();
@@ -27,6 +28,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
         return BitIndexPage.find(db, root, db.getOid(obj), height);
     }
  
+    @Override
     public void put(T obj, int mask) 
     {
         StorageImpl db = (StorageImpl)getStorage();
@@ -49,6 +51,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
         modify();
     }
 
+    @Override
     public boolean remove(Object obj) 
     {
         StorageImpl db = (StorageImpl)getStorage();
@@ -65,10 +68,10 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
         nElems -= 1;
         if (result == op_underflow) { 
             Page pg = db.getPage(root);
-            if (BitIndexPage.getnItems(pg) == 0) {                         
+            if (BtreePage.getnItems(pg) == 0) {                         
                 int newRoot = 0;
                 if (height != 1) { 
-                    newRoot = BitIndexPage.getItem(pg, BitIndexPage.maxItems-1);
+                    newRoot = BitIndexPage.getItem(pg, BtreePage.maxItems-1);
                 }
                 db.freePage(root);
                 root = newRoot;
@@ -110,11 +113,12 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
                     gotoNextItem(pg, 0);
                     break;
                 }
-                pageId = BitIndexPage.getItem(pg, BitIndexPage.maxItems-1);
+                pageId = BitIndexPage.getItem(pg, BtreePage.maxItems-1);
                 db.pool.unfix(pg);
             }
         }
 
+        @Override
         public boolean hasNext() 
         {
             if (counter != updateCounter) { 
@@ -123,6 +127,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
             return sp != 0;
         }
 
+        @Override
         public E next() 
         {
             int oid = nextOid();
@@ -132,6 +137,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
             return (E)((StorageImpl)getStorage()).lookupObject(oid, null);
         }
 
+        @Override
         public int nextOid() 
         {
             if (!hasNext()) { 
@@ -140,7 +146,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
             StorageImpl db = (StorageImpl)getStorage();
             int pos = posStack[sp-1];   
             Page pg = db.getPage(pageStack[sp-1]);
-            int oid = BitIndexPage.getItem(pg, BitIndexPage.maxItems-1-pos);
+            int oid = BitIndexPage.getItem(pg, BtreePage.maxItems-1-pos);
             gotoNextItem(pg, pos+1);
             return oid;
         }
@@ -150,7 +156,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
             StorageImpl db = (StorageImpl)getStorage();
                 
             do { 
-                int end = BitIndexPage.getnItems(pg); 
+                int end = BtreePage.getnItems(pg); 
                 while (pos < end) { 
                     int mask = BitIndexPage.getItem(pg, pos);
                     if ((set & mask) == set && (clear & mask) == 0) { 
@@ -164,10 +170,10 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
                     db.pool.unfix(pg);
                     pos = posStack[sp-1];
                     pg = db.getPage(pageStack[sp-1]);
-                    if (++pos <= BitIndexPage.getnItems(pg)) {
+                    if (++pos <= BtreePage.getnItems(pg)) {
                         posStack[sp-1] = pos;
                         do { 
-                            int pageId = BitIndexPage.getItem(pg, BitIndexPage.maxItems-1-pos);
+                            int pageId = BitIndexPage.getItem(pg, BtreePage.maxItems-1-pos);
                             db.pool.unfix(pg);
                             pg = db.getPage(pageId);
                             pageStack[sp] = pageId;
@@ -181,6 +187,7 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
             db.pool.unfix(pg);
         }
 
+        @Override
         public void remove() 
         { 
             throw new UnsupportedOperationException();
@@ -194,11 +201,13 @@ class BitIndexImpl<T> extends Btree<T> implements BitIndex<T>
         int         counter;
     }
 
+    @Override
     public Iterator<T> iterator() 
     {
         return iterator(0, 0);
     }
 
+    @Override
     public IterableIterator<T> iterator(int set, int clear) 
     { 
         return new BitIndexIterator<T>(set, clear);

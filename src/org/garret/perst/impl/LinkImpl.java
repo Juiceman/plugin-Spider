@@ -11,15 +11,18 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         }
     }
 
+    @Override
     public int size() {
         return used;
     }
 
+    @Override
     public Object clone() throws CloneNotSupportedException { 
         return super.clone();
         
     }
 
+    @Override
     public void setSize(int newSize) { 
         if (newSize < used) { 
             for (int i = used; --i >= newSize; arr[i] = null);
@@ -30,13 +33,15 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public T get(int i) {
         if (i < 0 || i >= used) { 
             throw new IndexOutOfBoundsException();
         }
-        return (T)loadElem(i);
+        return loadElem(i);
     }
 
+    @Override
     public Object getRaw(int i) {
         if (i < 0 || i >= used) { 
             throw new IndexOutOfBoundsException();
@@ -44,12 +49,14 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return arr[i];
     }
 
+    @Override
     public void pin() { 
         for (int i = 0, n = used; i < n; i++) { 
             arr[i] = loadElem(i);
         }
     }
 
+    @Override
     public void unpin() { 
         for (int i = 0, n = used; i < n; i++) { 
             Object elem = arr[i];
@@ -60,16 +67,18 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
     }
 
 
+    @Override
     public T set(int i, T obj) {
         if (i < 0 || i >= used) { 
             throw new IndexOutOfBoundsException();
         }
-        T prev = (T)loadElem(i);
+        T prev = loadElem(i);
         arr[i] = obj;
         modify();
         return prev;
     }
 
+    @Override
     public void setObject(int i, T obj) {
         if (i < 0 || i >= used) { 
             throw new IndexOutOfBoundsException();
@@ -78,6 +87,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public boolean isEmpty() {
         return used == 0;
     }
@@ -97,6 +107,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
     }
 
  
+    @Override
     public void removeObject(int i) {
         if (i < 0 || i >= used) { 
             throw new IndexOutOfBoundsException();
@@ -107,11 +118,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public T remove(int i) {
         if (i < 0 || i >= used) { 
             throw new IndexOutOfBoundsException();
         }
-        T obj = (T)loadElem(i);
+        T obj = loadElem(i);
         used -= 1;
         System.arraycopy(arr, i+1, arr, i, used-i);
         arr[used] = null;
@@ -127,10 +139,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         }
     }
 
+    @Override
     public void add(int i, T obj) { 
         insert(i, obj);
     }
 
+    @Override
     public void insert(int i, T obj) { 
          if (i < 0 || i > used) { 
             throw new IndexOutOfBoundsException();
@@ -142,6 +156,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public boolean add(T obj) {
         reserveSpace(1);
         arr[used++] = obj;
@@ -149,10 +164,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return true;
     }
 
+    @Override
     public void addAll(T[] a) {
         addAll(a, 0, a.length);
     }
     
+    @Override
     public boolean addAll(int index, Collection<? extends T> c) {
         boolean modified = false;
         Iterator<? extends T> e = c.iterator();
@@ -163,6 +180,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return modified;
     }
 
+    @Override
     public void addAll(T[] a, int from, int length) {
         reserveSpace(length);
         System.arraycopy(a, from, arr, used, length);
@@ -170,6 +188,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public boolean addAll(Link<T> link) {        
         int n = link.size();
         reserveSpace(n);
@@ -181,10 +200,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return true;
     }
 
+    @Override
     public Object[] toRawArray() {
         return arr;
     }
 
+    @Override
     public Object[] toArray() {
         Object[] a = new Object[used];
         for (int i = used; --i >= 0;) { 
@@ -193,6 +214,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return a;
     }
     
+    @Override
     public <T> T[] toArray(T[] arr) {
         if (arr.length < used) { 
             arr = (T[])Array.newInstance(arr.getClass().getComponentType(), used);
@@ -206,14 +228,17 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return arr;
     }
     
+    @Override
     public boolean contains(Object obj) {
         return indexOf(obj) >= 0;
     }
 
+    @Override
     public boolean containsObject(T obj) {
         return indexOfObject(obj) >= 0;
     }
 
+    @Override
     public int lastIndexOfObject(Object obj) {
         Object[] a = arr;
         int oid = db.getOid(obj);
@@ -233,6 +258,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return -1;
     }
     
+    @Override
     public int indexOfObject(Object obj) {
         Object[] a = arr;
         int oid = db.getOid(obj);
@@ -252,6 +278,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return -1;
     }
     
+    @Override
     public int indexOf(Object obj) {
         if (obj == null) { 
             for (int i = 0, n = used; i < n; i++) {
@@ -269,6 +296,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return -1;
     }
     
+    @Override
     public int lastIndexOf(Object obj) {
         if (obj == null) { 
             for (int i = used; --i >= 0;) {
@@ -286,12 +314,14 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return -1;
     }
     
+    @Override
     public boolean containsElement(int i, T obj) {
         Object elem = arr[i];
         int oid;
         return elem == obj || (elem != null && (oid = db.getOid(obj)) != 0 && oid == db.getOid(elem));
     }
 
+    @Override
     public void deallocateMembers() {
         for (int i = used; --i >= 0;) { 
             db.deallocate(arr[i]);
@@ -301,6 +331,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public void clear() { 
         for (int i = used; --i >= 0;) { 
             arr[i] = null;
@@ -309,6 +340,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         modify();
     }
 
+    @Override
     public List<T> subList(int fromIndex, int toIndex) {
         return new SubList<T>(this, fromIndex, toIndex);
     }
@@ -333,20 +365,24 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             size = toIndex - fromIndex;
         }
         
+        @Override
         public T set(int index, T element) {
             rangeCheck(index);
             return l.set(index+offset, element);
         }
         
+        @Override
         public T get(int index) {
             rangeCheck(index);
             return l.get(index+offset);
         }
         
+        @Override
         public int size() {
             return size;
         }
 
+        @Override
         public void add(int index, T element) {
             if (index<0 || index>size) {
                 throw new IndexOutOfBoundsException();
@@ -355,6 +391,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             size++;
         }
         
+        @Override
         public T remove(int index) {
             rangeCheck(index);
             T result = l.remove(index+offset);
@@ -362,15 +399,18 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             return result;
         }
 
+        @Override
         protected void removeRange(int fromIndex, int toIndex) {
             l.removeRange(fromIndex+offset, toIndex+offset);
             size -= (toIndex-fromIndex);
         }
 
+        @Override
         public boolean addAll(Collection<? extends T> c) {
             return addAll(size, c);
         }
         
+        @Override
         public boolean addAll(int index, Collection<? extends T> c) {
             if (index<0 || index>size) {
                 throw new IndexOutOfBoundsException("Index: "+index+", Size: "+size);
@@ -384,10 +424,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             return true;
         }
 
+        @Override
         public Iterator<T> iterator() {
             return listIterator();
         }
 
+        @Override
         public ListIterator<T> listIterator(final int index) {
             if (index<0 || index>size) {
                 throw new IndexOutOfBoundsException("Index: "+index+", Size: "+size);
@@ -395,10 +437,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             return new ListIterator<T>() {
                 private ListIterator<T> i = l.listIterator(index+offset);
                 
+                @Override
                 public boolean hasNext() {
                     return nextIndex() < size;
                 }
                 
+                @Override
                 public T next() {
                     if (hasNext()) { 
                         return i.next();
@@ -407,10 +451,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
                     }
                 }
                 
+                @Override
                 public boolean hasPrevious() {
                     return previousIndex() >= 0;
                 }
 
+                @Override
                 public T previous() {
                     if (hasPrevious()) { 
                         return i.previous();
@@ -419,23 +465,28 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
                     } 
                 }
 
+                @Override
                 public int nextIndex() {
                     return i.nextIndex() - offset;
                 }
 
+                @Override
                 public int previousIndex() {
                     return i.previousIndex() - offset;
                 }
                 
+                @Override
                 public void remove() {
                     i.remove();
                     size--;
                 }
 
+                @Override
                 public void set(T o) {
                     i.set(o);
                 }
 
+                @Override
                 public void add(T o) {
                     i.add(o);
                     size++;
@@ -443,6 +494,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             };
         }
 
+        @Override
         public List<T> subList(int fromIndex, int toIndex) {
             return new SubList<T>(l, offset+fromIndex, offset+toIndex);
         }
@@ -463,10 +515,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             last = -1;
         }
 
+        @Override
         public boolean hasNext() {
             return i < size();
         }
 
+        @Override
         public T next() throws NoSuchElementException { 
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -475,14 +529,17 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             return get(i++);
         }
 
+        @Override
         public int nextIndex() { 
             return i;
         }
 
+        @Override
         public boolean hasPrevious() {
             return i > 0;
         }
 
+        @Override
         public T previous() throws NoSuchElementException { 
             if (!hasPrevious()) { 
                 throw new NoSuchElementException();
@@ -490,10 +547,12 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             return get(last = --i);
         }
 
-	public int previousIndex() {
+	@Override
+  public int previousIndex() {
 	    return i-1;
 	}
 
+        @Override
         public int nextOid() throws NoSuchElementException { 
             if (!hasNext()) { 
                 return 0;
@@ -501,6 +560,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             return db.getOid(getRaw(i++));
         }
 
+        @Override
         public void remove() {
 	    if (last < 0) { 
 		throw new IllegalStateException();
@@ -511,19 +571,22 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
             }
         }
 
-	public void set(T o) {
+	@Override
+  public void set(T o) {
 	    if (last < 0) { 
 		throw new IllegalStateException();
             }
             setObject(last, o);
         }
 
-	public void add(T o) {
+	@Override
+  public void add(T o) {
             insert(i++, o);
             last = -1;
         }
      }
 
+    @Override
     public boolean remove(Object o) {
         int i = indexOf(o);
         if (i >= 0) { 
@@ -533,6 +596,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return false;
     }
         
+    @Override
     public boolean containsAll(Collection<?> c) {
 	Iterator<?> e = c.iterator();
 	while (e.hasNext()) {
@@ -543,6 +607,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
 	return true;
     }
 
+    @Override
     public boolean addAll(Collection<? extends T> c) {
 	boolean modified = false;
 	Iterator<? extends T> e = c.iterator();
@@ -554,6 +619,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
 	return modified;
     }
 
+    @Override
     public boolean removeAll(Collection<?> c) {
 	boolean modified = false;
 	Iterator<?> e = iterator();
@@ -566,6 +632,7 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
 	return modified;
     }
 
+    @Override
     public boolean retainAll(Collection<?> c) {
 	boolean modified = false;
 	Iterator<T> e = iterator();
@@ -578,14 +645,17 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
 	return modified;
     }
 
+    @Override
     public Iterator<T> iterator() { 
         return new LinkIterator(0);
     }
 
+    @Override
     public ListIterator<T> listIterator(int index) {
         return new LinkIterator(index);
     }
 
+    @Override
     public ListIterator<T> listIterator() {
         return listIterator(0);
     }
@@ -599,15 +669,18 @@ public class LinkImpl<T> implements EmbeddedLink<T>, ICloneable
         return (T)elem;
     }
 
+    @Override
     public IterableIterator<T> select(Class cls, String predicate) { 
         Query<T> query = new QueryImpl<T>(null);
         return query.select(cls, iterator(), predicate);
     }
 
+    @Override
     public void setOwner(Object obj) { 
         owner = obj;
     }
 
+    @Override
     public Object getOwner() { 
         return owner;
     }

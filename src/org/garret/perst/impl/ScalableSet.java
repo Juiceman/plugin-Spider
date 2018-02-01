@@ -19,14 +19,17 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
 
     ScalableSet() {}
 
+    @Override
     public boolean isEmpty() { 
         return size() != 0;
     }
 
+    @Override
     public int size() { 
         return link != null ? link.size() : set.size();
     }
 
+    @Override
     public void clear() { 
         if (link != null) { 
             link.clear();
@@ -36,18 +39,22 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         }
     }
 
+    @Override
     public boolean contains(Object o) {
         return link != null ? link.contains(o) : set.contains(o);
     }
     
+    @Override
     public Object[] toArray() { 
         return link != null ? link.toArray() : set.toArray();
     }
 
+    @Override
     public <E> E[] toArray(E a[]) { 
         return link != null ? link.<E>toArray(a) : set.<E>toArray(a);
     }
 
+    @Override
     public Iterator<T> iterator() { 
         return link != null ? link.iterator() : set.iterator();
     }
@@ -67,6 +74,7 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         return r;
     }
 
+    @Override
     public boolean add(T obj) { 
         if (link != null) {
             int i = binarySearch(obj);
@@ -92,6 +100,7 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         }
     }
 
+    @Override
     public boolean remove(Object o) { 
         if (link != null) {
             if (link.remove(o)) { 
@@ -104,6 +113,7 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         }
     }
     
+    @Override
     public int hashCode() {
         int h = 0;
         Iterator<T> i = iterator();
@@ -113,6 +123,7 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         return h;
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == this) {
             return true;
@@ -127,6 +138,7 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         return containsAll(c);
     }
 
+    @Override
     public void deallocate() { 
         if (set != null) { 
             set.deallocate();
@@ -134,6 +146,7 @@ class ScalableSet<T> extends PersistentCollection<T> implements IPersistentSet<T
         super.deallocate();
     }
 
+    @Override
     public IterableIterator<T> join(Iterator<T> with) { 
         return with == null ? (IterableIterator<T>)iterator() : new JoinSetIterator<T>(getStorage(), iterator(), with);
     }        

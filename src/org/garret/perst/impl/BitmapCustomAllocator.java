@@ -39,19 +39,23 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     
     protected BitmapCustomAllocator() {}
 
+    @Override
     public long getSegmentBase() { 
         return base;
     }
     
+    @Override
     public long getSegmentSize() {
         return limit;
     }
 
 
+    @Override
     public long getAllocatedMemory() { 
         return (long)pages.size()*BITMAP_PAGE_BITS << quantumBits;
     }
 
+    @Override
     public long getUsedMemory() 
     {
         long used = 0;
@@ -71,6 +75,7 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
         return used << quantumBits;
     }
          
+    @Override
     public long allocate(long size) { 
         size = (size + quantum-1) & ~(quantum-1);
         long objBitSize = size >> quantumBits;
@@ -171,6 +176,7 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     }
 
 
+    @Override
     public long reallocate(long pos, long oldSize, long newSize) {
         StorageImpl db = (StorageImpl)getStorage();
         if (((newSize + quantum - 1) & ~(quantum-1)) > ((oldSize + quantum - 1) & ~(quantum-1))) { 
@@ -181,6 +187,7 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
         return pos;
     }
 
+    @Override
     public void free(long pos, long size) { 
         reserve(pos, (size + quantum - 1) & ~(quantum - 1));
         free0(pos, size);
@@ -196,6 +203,7 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
             this.size = size;
         }
 
+        @Override
         public int compareTo(Object o) { 
             Location loc = (Location)o;
             return pos + size <= loc.pos ? -1 : loc.pos + loc.size <= pos ? 1 : 0;
@@ -255,6 +263,7 @@ public class BitmapCustomAllocator extends Persistent implements CustomAllocator
     }
 
 
+    @Override
     public void commit() {
         reserved.clear();
     }

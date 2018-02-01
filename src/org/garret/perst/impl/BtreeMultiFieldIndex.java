@@ -9,6 +9,7 @@ class MultiFieldValue implements Comparable<MultiFieldValue> {
     Comparable[] values;
     Object       obj;
     
+    @Override
     public int compareTo(MultiFieldValue f) { 
         for (int i = 0; i < values.length; i++) {
             int diff = values[i].compareTo(f.values[i]);
@@ -59,20 +60,24 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public Class getIndexedClass() { 
         return cls;
     }
 
+    @Override
     public Field[] getKeyFields() { 
         return fld;
     }
 
+    @Override
     public void onLoad()
     {
         cls = ClassDescriptor.loadClass(getStorage(), className);
         locateFields();
     }
 
+    @Override
     int compareByteArrays(byte[] key, byte[] item, int offs, int lengtn) { 
         int o1 = 0;
         int o2 = offs;
@@ -182,6 +187,7 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return (String)s;
     }
 
+    @Override
     Object unpackByteArrayKey(Page pg, int pos) {
         int offs = BtreePage.firstKeyOffs + BtreePage.getKeyStrOffs(pg, pos);
         byte[] data = pg.data;
@@ -273,7 +279,7 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
             ByteBuffer buf = new ByteBuffer();
             int dst = 0;
             for (int i = 0; i < fld.length; i++) { 
-                Field f = (Field)fld[i];
+                Field f = fld[i];
                 switch (types[i]) {
                   case ClassDescriptor.tpBoolean:
                     buf.extend(dst+1);
@@ -490,18 +496,22 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return new Key(buf.toArray(), key.inclusion != 0);
     }
             
+    @Override
     public boolean add(T obj) {
         return super.put(extractKey(obj), obj);
     }
 
+    @Override
     public boolean put(T obj) {
         return super.put(extractKey(obj), obj);
     }
 
+    @Override
     public T set(T obj) {
          return super.set(extractKey(obj), obj);
     }
 
+    @Override
     public boolean addAll(Collection<? extends T> c) {
         MultiFieldValue[] arr = new MultiFieldValue[c.size()];
         Iterator<? extends T> e = c.iterator();
@@ -524,18 +534,22 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return arr.length > 0;
     }
 
+    @Override
     public boolean remove(Object obj) {
         return super.removeIfExists(extractKey(obj), obj);
     }
 
+    @Override
     public boolean unlink(Key key, T obj) {
         return super.unlink(convertKey(key), obj);
     }
 
+    @Override
     public T remove(Key key) {
         return super.remove(convertKey(key));
     }
     
+    @Override
     public boolean containsObject(T obj) {
         Key key = extractKey(obj);
         if (unique) { 
@@ -551,6 +565,7 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public boolean contains(Object obj) {
         Key key = extractKey(obj);
         if (unique) { 
@@ -566,10 +581,12 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public void append(T obj) {
         throw new StorageError(StorageError.UNSUPPORTED_INDEX_TYPE);
     }
 
+    @Override
     public T[] get(Key from, Key till) {
         ArrayList list = new ArrayList();
         if (root != 0) { 
@@ -578,16 +595,19 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));
     }
 
+    @Override
     public T[] getPrefix(String prefix) {
         throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
     }
         
 
+    @Override
     public T[] prefixSearch(String key) {
         throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
     }
         
 
+    @Override
     public T[] toArray() {
         T[] arr = (T[])Array.newInstance(cls, nElems);
         if (root != 0) { 
@@ -596,28 +616,34 @@ class BtreeMultiFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return arr;
     }
 
+    @Override
     public T get(Key key) {
         return super.get(convertKey(key));
     }
 
+    @Override
     public IterableIterator<T> iterator(Key from, Key till, int order) {
         return super.iterator(convertKey(from), convertKey(till), order);
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Key from, Key till, int order) {
         return super.entryIterator(convertKey(from), convertKey(till), order);
     }
 
+    @Override
     public IterableIterator<T> queryByExample(T obj) {
         Key key = extractKey(obj);
         return iterator(key, key, ASCENT_ORDER);
     }
             
+    @Override
     public IterableIterator<T> select(String predicate) { 
         Query<T> query = new QueryImpl<T>(getStorage());
         return query.select(cls, iterator(), predicate);
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return false;
     }
@@ -631,10 +657,12 @@ class BtreeCaseInsensitiveMultiFieldIndex<T> extends BtreeMultiFieldIndex<T> {
         super(cls, fieldNames, unique);
     }
 
+    @Override
     String convertString(Object s) { 
         return ((String)s).toLowerCase();
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return true;
     }

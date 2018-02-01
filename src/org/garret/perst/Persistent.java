@@ -1,5 +1,4 @@
 package org.garret.perst;
-import org.garret.perst.impl.StorageImpl;
 
 /**
  * Base class for all persistent capable objects
@@ -12,6 +11,7 @@ public class Persistent extends PinnedPersistent
         super(storage);
     }
 
+    @Override
     protected void finalize() { 
         if ((state & DIRTY) != 0 && oid != 0) { 
             storage.storeFinalizedObject(this);

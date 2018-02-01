@@ -67,10 +67,12 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
     static final int op_duplicate = 4;
     static final int op_overwrite = 5;
 
+    @Override
     public Class[] getKeyTypes() {
         return new Class[]{getKeyType()};
     }
 
+    @Override
     public Class getKeyType() {
         return mapKeyType(type);
     }
@@ -124,6 +126,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return key;
     }            
 
+    @Override
     public T get(Key key) { 
         key = checkKey(key);
         if (root != 0) { 
@@ -140,6 +143,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return null;
     }
 
+    @Override
     public ArrayList<T> prefixSearchList(String key) { 
         if (ClassDescriptor.tpString != type) { 
             throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
@@ -151,11 +155,13 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return list;
     }
 
+    @Override
     public Object[] prefixSearch(String key) {
         ArrayList<T> list = prefixSearchList(key);
         return list.toArray();
     }
 
+    @Override
     public ArrayList<T> getList(Key from, Key till) {
         ArrayList<T> list = new ArrayList<T>();
         if (root != 0) { 
@@ -164,27 +170,33 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return list;
     }
 
+    @Override
     public ArrayList<T> getList(Object from, Object till) {
         return getList(getKeyFromObject(type, from), getKeyFromObject(type, till));
     }
 
+    @Override
     public T get(Object key) { 
         return get(getKeyFromObject(type, key));
     }
 
+    @Override
     public Object[] get(Key from, Key till) {
         ArrayList<T> list = getList(from, till);
         return list.toArray();
     }
 
+    @Override
     public Object[] get(Object from, Object till) {
         return get(getKeyFromObject(type, from), getKeyFromObject(type, till));
     }
 
+    @Override
     public boolean put(Key key, T obj) {
         return insert(key, obj, false) >= 0;
     }
 
+    @Override
     public T set(Key key, T obj) {
         int oid = insert(key, obj, true);
         return (T)((oid != 0) ? ((StorageImpl)getStorage()).lookupObject(oid, null) :  null);
@@ -217,10 +229,12 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return 0;
     }
 
+    @Override
     public void remove(Key key, T obj) {
         remove(new BtreeKey(checkKey(key), getStorage().getOid(obj)));
     }
 
+    @Override
     public boolean unlink(Key key, T obj) {
         return removeIfExists(key, obj);
     }
@@ -274,6 +288,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return true;
     }
         
+    @Override
     public T remove(Key key) {
         if (!unique) { 
             throw new StorageError(StorageError.KEY_NOT_UNIQUE);
@@ -358,40 +373,49 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
     }
         
 
+    @Override
     public ArrayList<T> getPrefixList(String prefix) { 
         return getList(new Key(prefix, true), 
                        new Key(prefix + Character.MAX_VALUE, false));
     }
 
+    @Override
     public Object[] getPrefix(String prefix) { 
         return get(new Key(prefix, true), 
                    new Key(prefix + Character.MAX_VALUE, false));
     }
 
+    @Override
     public boolean put(Object key, T obj) {
         return put(getKeyFromObject(type, key), obj);
     }
 
+    @Override
     public T set(Object key, T obj) {
         return set(getKeyFromObject(type, key), obj);
     }
 
+    @Override
     public void remove(Object key, T obj) {
         remove(getKeyFromObject(type, key), obj);
     }
     
+    @Override
     public T removeKey(Object key) {
         return remove(getKeyFromObject(type, key));
     }
 
+    @Override
     public T remove(String key) {
         return remove(new Key(key));
     }
 
+    @Override
     public int size() {
         return nElems;
     }
     
+    @Override
     public void clear() {
         if (root != 0) { 
             BtreePage.purge((StorageImpl)getStorage(), root, type, height);
@@ -403,6 +427,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         }
     }
         
+    @Override
     public Object[] toArray() {
         Object[] arr = new Object[nElems];
         if (root != 0) { 
@@ -411,6 +436,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return arr;
     }
   
+    @Override
     public <E> E[] toArray(E[] arr) {
         if (arr.length < nElems) { 
             arr = (E[])Array.newInstance(arr.getClass().getComponentType(), nElems);
@@ -424,6 +450,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return arr;
     }
 
+    @Override
     public void deallocate() { 
         if (root != 0) { 
             BtreePage.purge((StorageImpl)getStorage(), root, type, height);
@@ -443,7 +470,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
     {
         // Base B-Tree class has no information about particular enum type
         // so it is not able to correctly unpack enum key
-        return (Object)val;
+        return val;
     }
 
     public void export(XMLExporter exporter) throws java.io.IOException 
@@ -454,19 +481,23 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
     }        
 
     static class BtreeEntry<T> implements Map.Entry<Object,T> {
+        @Override
         public Object getKey() { 
             return key;
         }
 
+        @Override
         public T getValue() { 
             return (T)db.lookupObject(oid, null);
         }
 
+        @Override
         public T setValue(T value) { 
             throw new UnsupportedOperationException();
         }
 
-	public boolean equals(Object o) {
+	@Override
+  public boolean equals(Object o) {
 	    if (!(o instanceof Map.Entry)) {
 		return false;
             }
@@ -475,12 +506,14 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
                 && (getValue() == null ? e.getValue() == null : getValue().equals(e.getValue())); 
 	}
 
-	public int hashCode() {
+	@Override
+  public int hashCode() {
 	    return ((getKey() == null) ? 0 : getKey().hashCode()) ^
                 ((getValue() == null) ? 0 : getValue().hashCode());
 	}
 
-	public String toString() {
+	@Override
+  public String toString() {
 	    return getKey() + "=" + getValue();
 	}
 
@@ -552,10 +585,12 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
     }
                           
 
+    @Override
     public Iterator<T> iterator() { 
         return iterator(null, null, ASCENT_ORDER);
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator() { 
         return entryIterator(null, null, ASCENT_ORDER);
     }
@@ -968,6 +1003,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         }
                 
 
+        @Override
         public boolean hasNext() {
             if (counter != updateCounter) { 
                 if (((StorageImpl)getStorage()).concurrentIterator) { 
@@ -979,6 +1015,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
             return sp != 0;
         }
 
+        @Override
         public E next() {
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -997,6 +1034,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         }
 
 
+        @Override
         public int nextOid() {
            if (!hasNext()) { 
                return 0;                   
@@ -1241,6 +1279,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
             return key;
         }
 
+        @Override
         public void remove() { 
             if (currPage == 0) { 
                 throw new NoSuchElementException();
@@ -1285,6 +1324,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
             super(from, till, order);
         }
             
+        @Override
         protected Object getCurrent(Page pg, int pos) { 
             StorageImpl db = (StorageImpl)getStorage();
             switch (type) { 
@@ -1306,6 +1346,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
             reset();
         }
         
+        @Override
         void reset() { 
             super.reset();
             int skip = (order == ASCENT_ORDER) ? start : nElems - start - 1;
@@ -1317,35 +1358,42 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         int start;
     }
  
+    @Override
     public IterableIterator<T> iterator(Key from, Key till, int order) { 
         return new BtreeSelectionIterator<T>(checkKey(from), checkKey(till), order);
     }
 
+    @Override
     public IterableIterator<T> prefixIterator(String prefix) {
         return prefixIterator(prefix, ASCENT_ORDER);
     }
 
+    @Override
     public IterableIterator<T> prefixIterator(String prefix, int order) {
         return iterator(new Key(prefix), 
                         new Key(prefix + Character.MAX_VALUE, false), order);
     }
 
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Key from, Key till, int order) { 
         return new BtreeSelectionEntryIterator(checkKey(from), checkKey(till), order);
     }
 
 
+    @Override
     public IterableIterator<T> iterator(Object from, Object till, int order) { 
         return new BtreeSelectionIterator<T>(checkKey(getKeyFromObject(type, from)), 
                                              checkKey(getKeyFromObject(type, till)), order);
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Object from, Object till, int order) { 
         return new BtreeSelectionEntryIterator(checkKey(getKeyFromObject(type, from)), 
                                                checkKey(getKeyFromObject(type, till)), order);
     }
 
+    @Override
     public int indexOf(Key key) { 
         PersistentIterator iterator = (PersistentIterator)iterator(null, key, DESCENT_ORDER);
         int i;
@@ -1353,6 +1401,7 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return i;
     }
 
+    @Override
     public T getAt(int i) {
         IterableIterator<Map.Entry<Object,T>> iterator;
         if (i < 0 || i >= nElems) {
@@ -1373,10 +1422,12 @@ class Btree<T> extends PersistentCollection<T> implements Index<T> {
         return iterator.next().getValue();   
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(int start, int order) {
         return new BtreeEntryStartFromIterator(start, order);
     }
 
+    @Override
     public boolean isUnique() {
         return unique;
     }

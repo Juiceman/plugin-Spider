@@ -1,6 +1,5 @@
 package plugins.Spider;
 
-import java.lang.Character.UnicodeBlock;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
@@ -109,7 +108,8 @@ public class SearchTokenizer implements Iterable<String>, Iterator<String> {
 		}
 	}
 
-	public String toString() {
+	@Override
+  public String toString() {
 		StringBuilder str = new StringBuilder();
 		str.append("->[");
 
@@ -130,16 +130,19 @@ public class SearchTokenizer implements Iterable<String>, Iterator<String> {
 		return str.toString();
 	}
 
-	public Iterator<String> iterator() {
+	@Override
+  public Iterator<String> iterator() {
 		return this;
 	}
 
-	public boolean hasNext() {
+	@Override
+  public boolean hasNext() {
 		return (cjkTokenizer != null && cjkTokenizer.hasNext()) ||
 			(nextPos < segments.size());
 	}
 
-	public String next() {
+	@Override
+  public String next() {
 		if (cjkTokenizer != null) {
 			if (cjkTokenizer.hasNext())
 				return cjkTokenizer.next();
@@ -193,7 +196,8 @@ public class SearchTokenizer implements Iterable<String>, Iterator<String> {
 		return cjkToken.iterator();
 	}
 
-	public void remove() {
+	@Override
+  public void remove() {
 		throw new UnsupportedOperationException();
 	}
 

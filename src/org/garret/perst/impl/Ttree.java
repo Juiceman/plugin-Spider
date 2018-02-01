@@ -22,14 +22,17 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      * Get comparator used in this collection
      * @return collection comparator
      */
+    @Override
     public PersistentComparator<T> getComparator() { 
         return comparator;
     }
 
+    @Override
     public boolean recursiveLoading() {
         return false;
     }
 
+    @Override
     public T get(Object key) { 
         if (root != null) { 
             ArrayList list = new ArrayList();
@@ -45,6 +48,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
         return null;
     }
             
+    @Override
     public ArrayList<T> getList(Object from, Object till) { 
         ArrayList list = new ArrayList();
         if (root != null) { 
@@ -53,6 +57,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
         return list;
     }
 
+    @Override
     public ArrayList<T> getList(Object from, boolean fromInclusive, Object till, boolean tillInclusive) { 
         ArrayList list = new ArrayList();
         if (root != null) { 
@@ -62,10 +67,12 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
     }
 
 
+    @Override
     public Object[] get(Object from, Object till) { 
         return getList(from, till).toArray();
     }
 
+    @Override
     public Object[] get(Object from, boolean fromInclusive, Object till, boolean tillInclusive) { 
         return getList(from, fromInclusive, till, tillInclusive).toArray();
     }
@@ -77,6 +84,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      * <code>false</code> if collection was declared as unique and there is already member with such value
      * of the key in the collection. 
      */
+    @Override
     public boolean add(T obj) { 
         TtreePage newRoot;
         if (root == null) { 
@@ -99,14 +107,17 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      * Check if collections contains specified member
      * @return <code>true</code> if specified member belongs to the collection
      */
+    @Override
     public boolean containsObject(T member) {
         return (root != null && member != null)  ? root.containsObject(comparator, member) : false;
     }    
     
+    @Override
     public boolean contains(Object member) {
         return (root != null && member != null) ? root.contains(comparator, member) : false;
     } 
        
+    @Override
     public boolean containsKey(Object key) {
         return (root != null && key != null) ? root.containsKey(comparator, key) : false;
     } 
@@ -117,6 +128,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      * @param obj member to be removed
      * @return <code>true</code> in case of success, <code>false</code> if there is no such key in the collection
      */
+    @Override
     public boolean remove(Object obj) {
         if (root != null) {
             TtreePage.PageReference ref = new TtreePage.PageReference(root);
@@ -134,6 +146,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      * Get number of objects in the collection
      * @return number of objects in the collection
      */
+    @Override
     public int size() {
         return nMembers;
     }
@@ -141,6 +154,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
     /**
      * Remove all objects from the collection
      */
+    @Override
     public void clear() {
         if (root != null) { 
             root.prune();
@@ -153,6 +167,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
     /**
      * T-Tree destructor
      */
+    @Override
     public void deallocate() {
         if (root != null) { 
             root.prune();
@@ -166,6 +181,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      */
     static final Object[] emptySelection = new Object[0];
 
+    @Override
     public Object[] toArray() {
         if (root == null) { 
             return emptySelection;
@@ -190,6 +206,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
      * not contain any <tt>null</tt> elements.)<p>
      * @return array of objects in the index ordered by key value
      */
+    @Override
     public <E> E[] toArray(E[] arr) {
         if (arr.length < nMembers) { 
             arr = (E[])Array.newInstance(arr.getClass().getComponentType(), nMembers);
@@ -213,6 +230,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
             i = -1;
         }
         
+        @Override
         public T next() { 
             if (i+1 >= list.size()) { 
                 throw new NoSuchElementException();
@@ -221,6 +239,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
             return (T)list.get(++i);
         }
         
+        @Override
         public int nextOid() { 
             if (i+1 >= list.size()) { 
                 return 0;
@@ -229,6 +248,7 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
             return getStorage().getOid(list.get(++i));
         }
         
+        @Override
         public void remove() { 
             if (removed || i < 0 || i >= list.size()) { 
                 throw new IllegalStateException();
@@ -238,19 +258,23 @@ public class Ttree<T> extends PersistentCollection<T> implements SortedCollectio
             removed = true;
         }
             
+        @Override
         public boolean hasNext() {
             return i+1 < list.size();
         }
     }
         
+    @Override
     public Iterator<T> iterator() {
         return iterator(null, null);
     }
 
+    @Override
     public IterableIterator<T> iterator(Object from, Object till) {
         return iterator(from, true, till, true);
     }
 
+    @Override
     public IterableIterator<T> iterator(Object from, boolean fromInclusive, Object till, boolean tillInclusive) {
         ArrayList list = new ArrayList();
         if (root != null) { 

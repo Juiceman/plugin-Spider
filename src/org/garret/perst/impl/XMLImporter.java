@@ -6,7 +6,6 @@ import java.util.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.text.ParsePosition;
-import java.lang.reflect.Field;
 
 public class XMLImporter { 
     public XMLImporter(StorageImpl storage, Reader reader) { 
@@ -777,7 +776,7 @@ public class XMLImporter {
                     buf.extend(offs + 4);
                     if (elem != null) { 
                         if (elem.isIntValue()) {
-                            Bytes.pack4(buf.arr, offs, Float.floatToIntBits((float)elem.getIntValue()));
+                            Bytes.pack4(buf.arr, offs, Float.floatToIntBits(elem.getIntValue()));
                         } else if (elem.isRealValue()) {
                             Bytes.pack4(buf.arr, offs, Float.floatToIntBits((float)elem.getRealValue()));
                         } else { 
@@ -790,9 +789,9 @@ public class XMLImporter {
                     buf.extend(offs + 8);
                     if (elem != null) { 
                         if (elem.isIntValue()) {
-                            Bytes.pack8(buf.arr, offs, Double.doubleToLongBits((double)elem.getIntValue()));
+                            Bytes.pack8(buf.arr, offs, Double.doubleToLongBits(elem.getIntValue()));
                         } else if (elem.isRealValue()) {
-                            Bytes.pack8(buf.arr, offs, Double.doubleToLongBits((double)elem.getRealValue()));
+                            Bytes.pack8(buf.arr, offs, Double.doubleToLongBits(elem.getRealValue()));
                         } else { 
                             throwException("Conversion for field " + fieldName + " is not possible");
                         }
@@ -1007,7 +1006,7 @@ public class XMLImporter {
                         offs += 4;
                         while (--len >= 0) { 
                             if (item.isIntValue()) { 
-                                Bytes.pack4(buf.arr, offs, Float.floatToIntBits((float)item.getIntValue()));
+                                Bytes.pack4(buf.arr, offs, Float.floatToIntBits(item.getIntValue()));
                             } else if (item.isRealValue()) { 
                                 Bytes.pack4(buf.arr, offs, Float.floatToIntBits((float)item.getRealValue()));
                             } else {
@@ -1029,9 +1028,9 @@ public class XMLImporter {
                         offs += 4;
                         while (--len >= 0) { 
                             if (item.isIntValue()) { 
-                                Bytes.pack8(buf.arr, offs, Double.doubleToLongBits((double)item.getIntValue()));
+                                Bytes.pack8(buf.arr, offs, Double.doubleToLongBits(item.getIntValue()));
                             } else if (item.isRealValue()) { 
-                                Bytes.pack8(buf.arr, offs, Double.doubleToLongBits((double)item.getRealValue()));
+                                Bytes.pack8(buf.arr, offs, Double.doubleToLongBits(item.getRealValue()));
                             } else {
                                 throwException("Conversion for field " + fieldName + " is not possible");
                             }

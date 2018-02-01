@@ -14,6 +14,7 @@ public class ReplicationDynamicSlaveStorageImpl extends ReplicationSlaveStorageI
         this.port = port;
     }
 
+    @Override
     public void open(IFile file, long pagePoolSize) {
         initialized = false;
         prevIndex = -1;
@@ -21,6 +22,7 @@ public class ReplicationDynamicSlaveStorageImpl extends ReplicationSlaveStorageI
         super.open(file, pagePoolSize);
     }
 
+    @Override
     Socket getSocket() throws IOException { 
         return new Socket(host, port);
     }

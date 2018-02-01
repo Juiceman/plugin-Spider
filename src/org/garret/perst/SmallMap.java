@@ -15,18 +15,22 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
         pairs = new Pair[0];
     }
 
+    @Override
     public int size() { 
         return pairs.length;
     }
 
+    @Override
     public boolean isEmpty() {
         return pairs.length == 0;
     }
 
+    @Override
     public boolean containsKey(Object key) {
         return getEntry(key) != null;
     }
 
+    @Override
     public boolean containsValue(Object value) {
         for (int i = 0; i < pairs.length; i++) { 
             if (pairs[i].value == value || (value != null && value.equals(pairs[i].value))) {
@@ -36,6 +40,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
         return false;
     }
 
+    @Override
     public V get(Object key) {
         Entry<K,V> entry = getEntry(key);
         return entry != null ? entry.getValue() : null;
@@ -50,6 +55,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
         return null;
     }
 
+    @Override
     public V put(K key, V value) {
         int n = pairs.length;
         if (key == null) { 
@@ -71,6 +77,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
         return null;
     }
 
+    @Override
     public V remove(Object key) {
         Entry<K,V> e = removeEntry(key);
         return (e == null ? null : e.getValue());
@@ -95,6 +102,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
         return null;
     }
 
+    @Override
     public void putAll(Map<? extends K, ? extends V> m) {
        for (Iterator<? extends Map.Entry<? extends K, ? extends V>> i = m.entrySet().iterator(); i.hasNext(); ) {
             Map.Entry<? extends K, ? extends V> e = i.next();
@@ -102,63 +110,78 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
         }
     }
     
+    @Override
     public void clear() { 
         pairs = new Pair[0];
         modify();
     }
     
+    @Override
     public Set<K> keySet() {
         Set<K> ks = keySet;
         return (ks != null ? ks : (keySet = new KeySet()));
     }
 
     private final class KeySet extends AbstractSet<K> {
+        @Override
         public Iterator<K> iterator() {
             return new KeyIterator();
         }
+        @Override
         public int size() {
             return pairs.length;
         }
+        @Override
         public boolean contains(Object o) {
             return containsKey(o);
         }
+        @Override
         public boolean remove(Object o) {
             return SmallMap.this.removeEntry(o) != null;
         }
+        @Override
         public void clear() {
             SmallMap.this.clear();
         }
     }
 
+    @Override
     public Collection<V> values() {
         Collection<V> vs = values;
         return (vs != null ? vs : (values = new Values()));
     }
 
     private final class Values extends AbstractCollection<V> {
+        @Override
         public Iterator<V> iterator() {
             return new ValueIterator();
         }
+        @Override
         public int size() {
             return pairs.length;
         }
+        @Override
         public boolean contains(Object o) {
             return containsValue(o);
         }
+        @Override
         public void clear() {
             SmallMap.this.clear();
         }
     }
 
+    @Override
     public Set<Map.Entry<K,V>> entrySet() {
         Set<Map.Entry<K,V>> es = entrySet;
         return es != null ? es : (entrySet = new EntrySet());
     }
 
     private final class EntrySet extends AbstractSet<Map.Entry<K,V>> {
+        @Override
         public Iterator<Map.Entry<K,V>> iterator() {
             return new EntryIterator();
         }
+        @Override
         public boolean contains(Object o) {
             if (!(o instanceof Map.Entry)) {
                 return false;
@@ -167,6 +190,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
             Entry<K,V> candidate = getEntry(e.getKey());
             return candidate != null && candidate.equals(e);
         }
+        @Override
         public boolean remove(Object o) {
             Entry<K,V> pair = getEntry(o);
             if (pair != null && pair.equals(o)) {
@@ -175,9 +199,11 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
             }
             return false;
         }
+        @Override
         public int size() {
             return pairs.length;
         }
+        @Override
         public void clear() {
             SmallMap.this.clear();
         }
@@ -194,10 +220,12 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
             key = k;
         }
 
+        @Override
         public final K getKey() {
             return key;
         }
 
+        @Override
         public final V getValue() {
             return value;
         }
@@ -206,12 +234,14 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
          * In case of updating pair value usingg this method it is necessary to explicitely call
          * modify() method for the parent SmallMap object
          */
+        @Override
         public final V setValue(V newValue) {
 	    V oldValue = value;
             value = newValue;
             return oldValue;
         }
 
+        @Override
         public final boolean equals(Object o) {
             if (!(o instanceof Map.Entry)) { 
                 return false;
@@ -229,10 +259,12 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
             return false;
         }
 
+        @Override
         public final int hashCode() {
             return key.hashCode() ^ (value==null ? 0 : value.hashCode());
         }
 
+        @Override
         public final String toString() {
             return getKey() + "=" + getValue();
         }
@@ -245,6 +277,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
             current = -1;
         }
 
+        @Override
         public final boolean hasNext() {
             return current+1 < pairs.length;
         }
@@ -256,6 +289,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
             return pairs[++current];
         }
         
+        @Override
         public void remove() {
             if (current < 0 || current >= pairs.length) {
                 throw new IllegalStateException();
@@ -265,23 +299,27 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
     }
 
     private final class ValueIterator extends ArrayIterator<V> {
+        @Override
         public V next() {
             return nextEntry().getValue();
         }
     }
 
     private final class KeyIterator extends ArrayIterator<K> {
+        @Override
         public K next() {
             return nextEntry().getKey();
         }
     }
 
     private final class EntryIterator extends ArrayIterator<Map.Entry<K,V>> {
+        @Override
         public Map.Entry<K,V> next() {
             return nextEntry();
         }
     }
 
+    @Override
     public boolean equals(Object o) {
 	if (o == this) {
 	    return true;
@@ -311,6 +349,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
 	return true;
     }
 
+    @Override
     public int hashCode() {
 	int h = 0;
 	Iterator<Entry<K,V>> i = entrySet().iterator();
@@ -320,6 +359,7 @@ public class SmallMap<K,V> extends PersistentResource implements Map<K,V>
 	return h;
     }
 
+    @Override
     public String toString() {
 	Iterator<Entry<K,V>> i = entrySet().iterator();
 	if (! i.hasNext()) {

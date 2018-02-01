@@ -26,11 +26,13 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
         protected long  currChunkPos;
         protected Iterator iterator;
 
+        @Override
         public int read() {
             byte[] b = new byte[1];
             return read(b, 0, 1) == 1 ? b[0] & 0xFF : -1;
         }
 
+        @Override
         public int read(byte b[], int off, int len) {
             if (currPos >= size) { 
                 return -1;
@@ -65,33 +67,39 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
             return rc;
         }
 
+        @Override
         public long setPosition(long newPos) { 
             if (newPos < 0) { 
                 return -1;
             }
             currPos = newPos > size ? size : newPos;
-            iterator = chunks.entryIterator(new Key(currPos/CHUNK_SIZE*CHUNK_SIZE), null, Index.ASCENT_ORDER);
+            iterator = chunks.entryIterator(new Key(currPos/CHUNK_SIZE*CHUNK_SIZE), null, GenericIndex.ASCENT_ORDER);
             currChunkPos = Long.MIN_VALUE;
             currChunk = null;
             return currPos;
         }
 
+        @Override
         public long getPosition() { 
             return currPos;
         }
 
+        @Override
         public long size() {
             return size;
         }
 
+        @Override
         public long skip(long offs) {
             return setPosition(currPos + offs);
         }
 
+        @Override
         public int available() {
             return (int)(size - currPos);
         }
 
+        @Override
         public void close() {
             currChunk = null;
             iterator = null;
@@ -108,12 +116,14 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
         protected long  currChunkPos;
         protected Iterator iterator;
 
+        @Override
         public void write(int b) { 
             byte[] buf = new byte[1];
             buf[0] = (byte)b;
             write(buf, 0, 1);
         }
 
+        @Override
         public void write(byte b[], int off, int len) { 
             while (len > 0) {
                 boolean newChunk = false;
@@ -142,7 +152,7 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
                 off += copy;
                 if (newChunk) { 
                     chunks.put(new Key(currChunkPos), currChunk);
-                    iterator = chunks.entryIterator(new Key(currChunkPos + CHUNK_SIZE), null, Index.ASCENT_ORDER);
+                    iterator = chunks.entryIterator(new Key(currChunkPos + CHUNK_SIZE), null, GenericIndex.ASCENT_ORDER);
                 } else { 
                     currChunk.modify();
                 }
@@ -153,21 +163,24 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
             }
         }
 
+        @Override
         public long setPosition(long newPos) { 
             if (newPos < 0) { 
                 return -1;
             }
             currPos = newPos;
-            iterator = chunks.entryIterator(new Key(currPos/CHUNK_SIZE*CHUNK_SIZE), null, Index.ASCENT_ORDER);
+            iterator = chunks.entryIterator(new Key(currPos/CHUNK_SIZE*CHUNK_SIZE), null, GenericIndex.ASCENT_ORDER);
             currChunkPos = Long.MIN_VALUE;
             currChunk = null;
             return currPos;
         }
 
+        @Override
         public long getPosition() { 
             return currPos;
         }
 
+        @Override
         public long size() {
             return size;
         }
@@ -176,6 +189,7 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
             return setPosition(currPos + offs);
         }
 
+        @Override
         public void close() {
             currChunk = null;
             iterator = null;
@@ -186,32 +200,39 @@ public class RandomAccessBlobImpl extends PersistentResource implements Blob {
         }
     }
 
+    @Override
     public RandomAccessInputStream getInputStream() { 
         return getInputStream(0);
     }
 
+    @Override
     public RandomAccessInputStream getInputStream(int flags) { 
         return new BlobInputStream();
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream() { 
         return getOutputStream(0);
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream(boolean multisession) { 
         return getOutputStream(0);
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream(long position, boolean multisession) { 
         RandomAccessOutputStream stream = getOutputStream(multisession);
         stream.setPosition(position);
         return stream;
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream(int flags) { 
         return new BlobOutputStream(flags);
     }
 
+    @Override
     public void deallocate() { 
         Iterator iterator = chunks.iterator();
         while (iterator.hasNext()) { 

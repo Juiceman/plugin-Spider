@@ -104,6 +104,7 @@ public class FullTextSearchHelper extends Persistent
         }
     }
 
+    @Override
     public void onLoad() { 
         fillStopList();
     }

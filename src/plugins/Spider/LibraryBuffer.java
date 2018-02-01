@@ -230,7 +230,8 @@ public class LibraryBuffer implements FredPluginTalker {
 		return timeNotStalled;
 	}
 
-	public void onReply(String pluginname, String indentifier, SimpleFieldSet params, Bucket data) {
+	@Override
+  public void onReply(String pluginname, String indentifier, SimpleFieldSet params, Bucket data) {
 		String reply = params.get("reply");
 		if("getSpiderURI".equals(reply)) {
 			String s = params.get("publicUSK");

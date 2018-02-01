@@ -32,6 +32,7 @@ public class Occurrence implements Comparable
         this.kind = kind;
     }
 
+    @Override
     public int compareTo(Object o) { 
         Occurrence occ = (Occurrence)o;
         int diff = word.compareTo(occ.word);

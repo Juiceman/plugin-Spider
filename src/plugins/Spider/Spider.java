@@ -98,11 +98,13 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 	
 	public static final String pluginName = "Spider " + version;
 
-	public String getVersion() {
+	@Override
+  public String getVersion() {
 		return version + "(" + dbVersion + ") r" + Version.getSvnRevision();
 	}
 	
-	public long getRealVersion() {
+	@Override
+  public long getRealVersion() {
 		return version;
 	}
 
@@ -280,7 +282,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 			Logger.minor(this, "Queued OnSuccess: " + page + " (q:" + callbackExecutor.getQueue().size() + ")");
 		}
 
-		public String toString() {
+		@Override
+    public String toString() {
 			return super.toString() + ":" + page;
 		}
 
@@ -312,7 +315,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 			this.page = page;
 		}
 
-		public void run() {
+		@Override
+    public void run() {
 			onFailure(e, state, page);
 		}
 	}
@@ -331,7 +335,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 			this.page = page;
 		}
 
-		public void run() {
+		@Override
+    public void run() {
 			onSuccess(result, state, page);
 		}
 	}
@@ -346,7 +351,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 			this.config = config;
 		}
 
-		public void run() {
+		@Override
+    public void run() {
 			synchronized (getRoot()) {
 				getRoot().setConfig(config);
 				startSomeRequests();
@@ -358,7 +364,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 		StartSomeRequestsCallback() {
 		}
 
-		public void run() {
+		@Override
+    public void run() {
 			try {
 				Thread.sleep(30000);
 			} catch (InterruptedException e) {
@@ -369,7 +376,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 	}
 
 	protected static class CallbackPrioritizer implements Comparator<Runnable> {
-		public int compare(Runnable o1, Runnable o2) {
+		@Override
+    public int compare(Runnable o1, Runnable o2) {
 			if (o1.getClass() == o2.getClass()) return 0;
 
 			return getPriority(o1) - getPriority(o2);
@@ -396,7 +404,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 			1, 1, 600, TimeUnit.SECONDS, //
 	        new PriorityBlockingQueue<Runnable>(5, new CallbackPrioritizer()), //
 	        new ThreadFactory() {
-		        public Thread newThread(Runnable r) {
+		        @Override
+            public Thread newThread(Runnable r) {
 			        Thread t = new NativeThread(r, "Spider", NativeThread.NORM_PRIORITY - 1, true);
 			        t.setDaemon(true);
 			        t.setContextClassLoader(Spider.this.getClass().getClassLoader());
@@ -553,7 +562,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 	/**
 	 * Stop the plugin, pausing any writing which is happening
 	 */
-	public void terminate(){
+	@Override
+  public void terminate(){
 		Logger.normal(this, "Spider terminating");
 
 		synchronized (this) {
@@ -581,7 +591,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 	 * Start plugin
 	 * @param pr
 	 */
-	public synchronized void runPlugin(PluginRespirator pr) {
+	@Override
+  public synchronized void runPlugin(PluginRespirator pr) {
 		this.core = pr.getNode().clientCore;
 		this.pr = pr;
 		pageMaker = pr.getPageMaker();
@@ -857,7 +868,8 @@ public class Spider implements FredPlugin, FredPluginThreadless,
 		System.out.println("Reset "+count+" pages status from "+from+" to "+to);
 	}
 
-	public boolean realTimeFlag() {
+	@Override
+  public boolean realTimeFlag() {
 		return false; // We definitely want throughput here.
 	}
 

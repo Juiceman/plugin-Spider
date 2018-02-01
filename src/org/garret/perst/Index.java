@@ -1,7 +1,5 @@
 package org.garret.perst;
 
-import java.util.*;
-
 /**
  * Interface of object index.
  * Index is used to provide fast access to the object by key. 

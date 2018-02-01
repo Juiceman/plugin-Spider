@@ -29,26 +29,32 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         throw new StorageError(StorageError.KEY_NOT_UNIQUE);
     }
 
+    @Override
     public T get(Key key) {
         return getFromRelation(index.get(key));
     }
                   
+    @Override
     public T get(Object key) {
         return getFromRelation(index.get(key));
     }
 
+    @Override
     public ArrayList<T> getList(Key from, Key till) { 
         return extendList(index.getList(from, till));
     }
 
+    @Override
     public ArrayList<T> getList(Object from, Object till) { 
         return extendList(index.getList(from, till));
     }
    
+    @Override
     public Object[] get(Key from, Key till) {
         return extend(index.get(from, till));
     }
      
+    @Override
     public Object[] get(Object from, Object till) {
         return extend(index.get(from, till));
     }
@@ -74,26 +80,32 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         return get(new Key(key));
     }
                       
+    @Override
     public Object[] getPrefix(String prefix) { 
         return extend(index.getPrefix(prefix));
     }
     
+    @Override
     public ArrayList<T> getPrefixList(String prefix) { 
         return extendList(index.getPrefixList(prefix));
     }
     
+    @Override
     public Object[] prefixSearch(String word) { 
         return extend(index.prefixSearch(word));
     }
            
+    @Override
     public ArrayList<T> prefixSearchList(String word) { 
         return extendList(index.prefixSearchList(word));
     }
            
+    @Override
     public int size() { 
         return nElems;
     }
     
+    @Override
     public void clear() { 
         for (Object p : index) { 
             ((IPersistent)p).deallocate();
@@ -103,10 +115,12 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         modify();
     }
 
+    @Override
     public Object[] toArray() { 
         return extend(index.toArray());
     }
         
+    @Override
     public <E> E[] toArray(E[] arr) { 
         ArrayList<E> list = new ArrayList<E>();
         for (Object c : index) { 
@@ -116,10 +130,12 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
     }
 
     static class ExtendIterator<E> extends IterableIterator<E> implements PersistentIterator {  
+        @Override
         public boolean hasNext() { 
             return inner != null;
         }
 
+        @Override
         public E next() { 
             if (inner == null) { 
                 throw new NoSuchElementException();
@@ -135,6 +151,7 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
             return obj;
         }
 
+        @Override
         public int nextOid() { 
             if (inner == null) { 
                 return 0;
@@ -152,6 +169,7 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
             return oid;
         }
 
+        @Override
         public void remove() { 
             throw new UnsupportedOperationException();
         }
@@ -172,14 +190,17 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
     }
 
     static class ExtendEntry<E> implements Map.Entry<Object,E> {
+        @Override
         public Object getKey() { 
             return key;
         }
 
+        @Override
         public E getValue() { 
             return value;
         }
 
+        @Override
         public E setValue(E value) { 
             throw new UnsupportedOperationException();
         }
@@ -194,10 +215,12 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
     }
 
     static class ExtendEntryIterator<E> extends IterableIterator<Map.Entry<Object,E>> {  
+        @Override
         public boolean hasNext() { 
             return inner != null;
         }
 
+        @Override
         public Map.Entry<Object,E> next() { 
             ExtendEntry<E> curr = new ExtendEntry<E>(key, inner.next());
             if (!inner.hasNext()) {                 
@@ -212,6 +235,7 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
             return curr;
         }
 
+        @Override
         public void remove() { 
             throw new UnsupportedOperationException();
         }
@@ -240,46 +264,57 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         }
     }            
 
+    @Override
     public Iterator<T> iterator() { 
         return new ExtendIterator<T>(index.iterator());
     }
     
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator() { 
         return new ExtendEntryIterator<T>(index.entryIterator());
     }
 
+    @Override
     public IterableIterator<T> iterator(Key from, Key till, int order) { 
         return new ExtendIterator<T>(index.iterator(from, till, order));
     }
         
+    @Override
     public IterableIterator<T> iterator(Object from, Object till, int order) { 
         return new ExtendIterator<T>(index.iterator(from, till, order));
     }
         
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Key from, Key till, int order) { 
         return new ExtendEntryIterator<T>(index.entryIterator(from, till, order));
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Object from, Object till, int order) { 
         return new ExtendEntryIterator<T>(index.entryIterator(from, till, order));
     }
 
+    @Override
     public IterableIterator<T> prefixIterator(String prefix) { 
         return prefixIterator(prefix, ASCENT_ORDER);
     }
 
+    @Override
     public IterableIterator<T> prefixIterator(String prefix, int order) { 
         return new ExtendIterator<T>(index.prefixIterator(prefix, order));
     }
 
+    @Override
     public Class getKeyType() { 
         return index.getKeyType();
     }
 
+    @Override
     public Class[] getKeyTypes() {
         return new Class[]{getKeyType()};
     }
 
+    @Override
     public boolean put(Key key, T obj) { 
         Object s = index.get(key);
         Storage storage = getStorage();
@@ -321,6 +356,7 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         return true;
     }
 
+    @Override
     public T set(Key key, T obj) {
         Object s = index.get(key);
         Storage storage = getStorage();
@@ -346,6 +382,7 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         throw new StorageError(StorageError.KEY_NOT_UNIQUE);
     }
 
+    @Override
     public boolean unlink(Key key, T obj) {
         return removeIfExists(key, obj);
     }
@@ -390,42 +427,51 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         return false;
     }
 
+    @Override
     public void remove(Key key, T obj) { 
         if (!removeIfExists(key, obj)) { 
             throw new StorageError(StorageError.KEY_NOT_FOUND);
         }
     }
 
+    @Override
     public T remove(Key key) {
         throw new StorageError(StorageError.KEY_NOT_UNIQUE);
     }
 
+    @Override
     public boolean put(Object key, T obj) {
         return put(Btree.getKeyFromObject(key), obj);
     }
 
+    @Override
     public T set(Object key, T obj) {
         return set(Btree.getKeyFromObject(key), obj);
     }
 
+    @Override
     public void remove(Object key, T obj) {
         remove(Btree.getKeyFromObject(key), obj);
     }
 
+    @Override
     public T remove(String key) {
         throw new StorageError(StorageError.KEY_NOT_UNIQUE);
     }
 
+    @Override
     public T removeKey(Object key) {
         throw new StorageError(StorageError.KEY_NOT_UNIQUE);
     }
 
+    @Override
     public void deallocate() {
         clear();
         index.deallocate();
         super.deallocate();
     }
 
+    @Override
     public int indexOf(Key key) { 
         PersistentIterator iterator = (PersistentIterator)iterator(null, key, DESCENT_ORDER);
         int i;
@@ -433,6 +479,7 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         return i;
     }
 
+    @Override
     public T getAt(int i) {
         IterableIterator<Map.Entry<Object,T>> iterator;
         if (i < 0 || i >= nElems) {
@@ -453,10 +500,12 @@ class ThickIndex<T> extends PersistentCollection<T> implements Index<T> {
         return iterator.next().getValue();   
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(int start, int order) {
         return new ExtendEntryStartFromIterator(start, order);
     }
 
+    @Override
     public boolean isUnique() {
         return false;
     }

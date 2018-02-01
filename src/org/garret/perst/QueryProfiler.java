@@ -14,6 +14,7 @@ public class QueryProfiler extends StorageListener
         public long count;
         public boolean sequentialSearch;
 
+        @Override
         public int compareTo(QueryInfo info) { 
             return (totalTime > info.totalTime) ? -1 : (totalTime < info.totalTime) ? 1 
                 : (count > info.count) ? -1 : (count < info.count) ? 1: 0;

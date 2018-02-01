@@ -21,6 +21,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         this.comparator = new ReflectionMultidimensionalComparator<T>(storage, cls, fieldNames, treateZeroAsUndefinedValue);
     }
 
+    @Override
     public MultidimensionalComparator<T> getComparator() { 
         return comparator;
     }
@@ -44,11 +45,13 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
 
         private KDTreeNode() {}
 
+        @Override
         public void load() {
             super.load();
             getStorage().load(obj);
         }
 
+        @Override
         public boolean recursiveLoading() {
             return false;
         }
@@ -120,6 +123,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
             return NOT_FOUND;
         }
                 
+        @Override
         public void deallocate() { 
             load();
             if (deleted) { 
@@ -135,6 +139,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         }
     }
 
+    @Override
     public void optimize() { 
         Iterator<T> itr = iterator();
         int n = nMembers;
@@ -155,6 +160,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         }
     }           
 
+    @Override
     public boolean add(T obj) 
     { 
         modify();
@@ -171,6 +177,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         return true;
     }
 
+    @Override
     public boolean remove(Object obj) 
     {
         if (root == null) { 
@@ -188,22 +195,27 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         return true;
     }
 
+    @Override
     public Iterator<T> iterator() { 
         return iterator(null, null);
     }
 
+    @Override
     public IterableIterator<T> iterator(T pattern) { 
         return iterator(pattern, pattern);
     }
 
+    @Override
     public IterableIterator<T> iterator(T low, T high) { 
         return new KDTreeIterator(low, high);
     }
 
+    @Override
     public ArrayList<T> queryByExample(T pattern) { 
         return queryByExample(pattern, pattern);
     }
 
+    @Override
     public ArrayList<T> queryByExample(T low, T high) { 
         Iterator<T> i = iterator(low, high);
         ArrayList<T> list = new ArrayList<T>();
@@ -213,22 +225,27 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         return list;
     }
 
+    @Override
     public Object[] toArray() {
         return  queryByExample(null, null).toArray();
     }
 
+    @Override
     public <E> E[] toArray(E[] arr) {
         return queryByExample(null, null).toArray(arr);
     }
 
+    @Override
     public int size() { 
         return nMembers;
     }
 
+    @Override
     public int getHeight() { 
         return height;
     }
 
+    @Override
     public void clear() {
         if (root != null) { 
             root.deallocate();
@@ -239,6 +256,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         }
     }
 
+    @Override
     public boolean contains(Object member) {
         Iterator<T> i = iterator((T)member);
         while (i.hasNext()) { 
@@ -249,6 +267,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
         return false;
     } 
 
+    @Override
     public void deallocate() {
         if (root != null) { 
             root.deallocate();
@@ -322,6 +341,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
             return false;
         }
 
+        @Override
         public boolean hasNext() {
             if (next != null) { 
                 return true;
@@ -359,6 +379,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
             return false;
         }                                
 
+        @Override
         public T next() { 
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -368,6 +389,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
             return curr.obj;
         }
         
+        @Override
         public int nextOid() { 
             if (!hasNext()) { 
                 return 0;
@@ -377,6 +399,7 @@ public class KDTree<T> extends PersistentCollection<T> implements Multidimension
             return getStorage().getOid(curr.obj);
         }
         
+        @Override
         public void remove() { 
             if (curr == null) { 
                 throw new IllegalStateException();

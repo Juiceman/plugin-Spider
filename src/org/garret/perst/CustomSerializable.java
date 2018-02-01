@@ -9,5 +9,6 @@ public interface CustomSerializable {
      * by CustomSerailize.parse method to create new instance of this object
      * @return string representation of object
      */
+    @Override
     public String toString();
 }

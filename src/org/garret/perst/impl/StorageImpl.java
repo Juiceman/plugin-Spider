@@ -137,6 +137,7 @@ public class StorageImpl implements Storage {
         return oid;
     }
 
+    @Override
     public/*protected*/ synchronized void deallocateObject(Object obj)
     {
         synchronized (objectCache) {
@@ -154,6 +155,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void throwObject(Object obj)
     {
         objectCache.remove(getOid(obj));
@@ -320,14 +322,17 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public long getUsedSize() {
         return usedSize;
     }
 
+    @Override
     public long getDatabaseSize() {
         return header.root[1-currIndex].size;
     }
 
+    @Override
     public int getMaxOid() {
         return currIndexSize;
     }
@@ -903,14 +908,17 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void open(String filePath) {
         open(filePath, DEFAULT_PAGE_POOL_SIZE);
     }
 
+    @Override
     public void open(IFile file) {
         open(file, DEFAULT_PAGE_POOL_SIZE);
     }
 
+    @Override
     public synchronized void open(String filePath, long pagePoolSize) {
         IFile file = filePath.startsWith("@")
             ? (IFile)new MultiFile(filePath.substring(1), readOnly, noFlush)
@@ -923,6 +931,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public synchronized void open(String filePath, long pagePoolSize, String cryptKey) {
         Rc4File file = new Rc4File(filePath, readOnly, noFlush, cryptKey);
         try {
@@ -934,6 +943,7 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public void clearObjectCache() {
         objectCache.clear();
     }
@@ -1006,6 +1016,7 @@ public class StorageImpl implements Storage {
         pool.open(file);
     }
 
+    @Override
     public synchronized void open(IFile file, long pagePoolSize) {
         Page pg;
         int i;
@@ -1171,6 +1182,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public boolean isOpened() {
         return opened;
     }
@@ -1267,6 +1279,7 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public synchronized Object getRoot() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1275,6 +1288,7 @@ public class StorageImpl implements Storage {
         return (rootOid == 0) ? null : lookupObject(rootOid, null);
     }
 
+    @Override
     public synchronized void setRoot(Object root) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1290,6 +1304,7 @@ public class StorageImpl implements Storage {
         modified = true;
     }
 
+    @Override
     public void commit() {
         if (useSerializableTransactions && getTransactionContext().nested != 0) {
             // Store should not be used in serializable transaction mode
@@ -1483,6 +1498,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public synchronized void rollback() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1543,6 +1559,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void backup(String filePath, String cryptKey) throws java.io.IOException
     {
         backup(new IFileOutputStream(cryptKey != null
@@ -1550,6 +1567,7 @@ public class StorageImpl implements Storage {
                                      : (IFile)new OSFile(filePath, false, false)));
     }
 
+    @Override
     public /*synchronized*/ void backup(OutputStream out) throws java.io.IOException
     {
         if (!opened) {
@@ -1564,7 +1582,7 @@ public class StorageImpl implements Storage {
         long  indexOffs = header.root[curr].index;
         int   i, j, k;
         int   nUsedIndexPages = (nObjects + dbHandlesPerPage - 1) / dbHandlesPerPage;
-        int   nIndexPages = (int)((header.root[curr].indexSize + dbHandlesPerPage - 1) / dbHandlesPerPage);
+        int   nIndexPages = (header.root[curr].indexSize + dbHandlesPerPage - 1) / dbHandlesPerPage;
         long  totalRecordsSize = 0;
         long  nPagedObjects = 0;
         int   bitmapExtent = header.root[curr].bitmapExtent;
@@ -1600,7 +1618,7 @@ public class StorageImpl implements Storage {
         newHeader.curr = 0;
         newHeader.dirty = false;
         newHeader.databaseFormatVersion = header.databaseFormatVersion;
-        long newFileSize = (long)(nPagedObjects + nIndexPages*2 + 1)*Page.pageSize + totalRecordsSize;
+        long newFileSize = (nPagedObjects + nIndexPages*2 + 1)*Page.pageSize + totalRecordsSize;
         newFileSize = (newFileSize + Page.pageSize-1) & ~(Page.pageSize-1);
         newHeader.root = new RootPage[2];
         newHeader.root[0] = new RootPage();
@@ -1622,14 +1640,17 @@ public class StorageImpl implements Storage {
         out.write(page);
 
         long pageOffs = (long)(nIndexPages*2 + 1)*Page.pageSize;
-        long recOffs = (long)(nPagedObjects + nIndexPages*2 + 1)*Page.pageSize;
+        long recOffs = (nPagedObjects + nIndexPages*2 + 1)*Page.pageSize;
         GenericSort.sort(new GenericSortArray() {
+                @Override
                 public int size() {
                     return nObjects;
                 }
+                @Override
                 public int compare(int i, int j) {
                     return index[i] < index[j] ? -1 : index[i] == index[j] ? 0 : 1;
                 }
+                @Override
                 public void swap(int i, int j) {
                     long t1 = index[i];
                     index[i] = index[j];
@@ -1723,18 +1744,22 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public <T> Query<T> createQuery() {
         return new QueryImpl<T>(this);
     }
 
+    @Override
     public Bitmap createBitmap(Iterator iterator) {
         return new Bitmap(this, iterator);
     }
 
+    @Override
     public synchronized <T> IPersistentSet<T> createScalableSet() {
         return createScalableSet(8);
     }
 
+    @Override
     public synchronized <T> IPersistentSet<T> createScalableSet(int initialSize) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1742,6 +1767,7 @@ public class StorageImpl implements Storage {
         return new ScalableSet(this, initialSize);
     }
 
+    @Override
     public <T> IPersistentList<T> createList() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1749,10 +1775,12 @@ public class StorageImpl implements Storage {
         return new PersistentListImpl<T>(this);
     }
 
+    @Override
     public <T> IPersistentList<T> createScalableList() {
         return createScalableList(8);
     }
 
+    @Override
     public <T> IPersistentList<T> createScalableList(int initialSize) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1760,10 +1788,12 @@ public class StorageImpl implements Storage {
         return new ScalableList<T>(this, initialSize);
     }
 
+    @Override
     public <K,V> IPersistentHash<K, V> createHash() {
         return createHash(101, 2);
     }
 
+    @Override
     public <K,V> IPersistentHash<K, V> createHash(int pageSize, int loadFactor) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1771,10 +1801,12 @@ public class StorageImpl implements Storage {
         return new PersistentHashImpl<K,V>(this, pageSize, loadFactor);
     }
 
+    @Override
     public <K extends Comparable, V> IPersistentMap<K, V> createMap(Class keyType) {
         return createMap(keyType, 4);
     }
 
+    @Override
     public <K extends Comparable, V> IPersistentMap<K, V> createMap(Class keyType, int initialSize) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1782,6 +1814,7 @@ public class StorageImpl implements Storage {
         return new PersistentMapImpl<K,V>(this, keyType, initialSize);
     }
 
+    @Override
     public synchronized <T> IPersistentSet<T> createHashSet() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1789,6 +1822,7 @@ public class StorageImpl implements Storage {
         return new HashSetImpl(this);
     }
 
+    @Override
     public synchronized <T> IPersistentSet<T> createSet() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1800,6 +1834,7 @@ public class StorageImpl implements Storage {
         return set;
     }
 
+    @Override
     public synchronized <T> IPersistentSet<T> createBag() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1811,6 +1846,7 @@ public class StorageImpl implements Storage {
         return set;
     }
 
+    @Override
     public synchronized <T> BitIndex<T> createBitIndex() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1820,6 +1856,7 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public synchronized <T> Index<T> createIndex(Class keyType, boolean unique) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1831,6 +1868,7 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public synchronized <T> Index<T> createIndex(Class[] keyTypes, boolean unique) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1842,6 +1880,7 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public synchronized <T> MultidimensionalIndex<T> createMultidimensionalIndex(MultidimensionalComparator<T> comparator)
     {
         if (!opened) {
@@ -1850,6 +1889,7 @@ public class StorageImpl implements Storage {
         return new KDTree<T>(this, comparator);
     }
 
+    @Override
     public synchronized <T> MultidimensionalIndex<T> createMultidimensionalIndex(Class type, String[] fieldNames, boolean treateZeroAsUndefinedValue)
     {
         if (!opened) {
@@ -1858,6 +1898,7 @@ public class StorageImpl implements Storage {
         return new KDTree<T>(this, type, fieldNames, treateZeroAsUndefinedValue);
     }
 
+    @Override
     public synchronized <T> Index<T> createThickIndex(Class keyType) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1865,6 +1906,7 @@ public class StorageImpl implements Storage {
         return new ThickIndex<T>(this, keyType);
     }
 
+    @Override
     public synchronized <T> SpatialIndex<T> createSpatialIndex() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1872,6 +1914,7 @@ public class StorageImpl implements Storage {
         return new Rtree<T>();
     }
 
+    @Override
     public synchronized <T> SpatialIndexR2<T> createSpatialIndexR2() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1879,6 +1922,7 @@ public class StorageImpl implements Storage {
         return new RtreeR2<T>(this);
     }
 
+    @Override
     public synchronized <T> SpatialIndexRn<T> createSpatialIndexRn() {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1886,18 +1930,22 @@ public class StorageImpl implements Storage {
         return new RtreeRn<T>(this);
     }
 
+    @Override
     public <T> FieldIndex<T> createFieldIndex(Class type, String fieldName, boolean unique) {
         return this.<T>createFieldIndex(type, fieldName, unique, false);
     }
 
+    @Override
     public <T> FieldIndex<T> createFieldIndex(Class type, String fieldName, boolean unique, boolean caseInsensitive) {
         return this.<T>createFieldIndex(type, fieldName, unique, caseInsensitive, false);
     }
 
+    @Override
     public <T> RegexIndex<T> createRegexIndex(Class type, String fieldName) {
         return createRegexIndex(type, fieldName, true, 3);
     }
 
+    @Override
     public synchronized <T> RegexIndex<T> createRegexIndex(Class type, String fieldName, boolean caseInsensitive, int nGrams)
     {
          if (!opened) {
@@ -1906,6 +1954,7 @@ public class StorageImpl implements Storage {
          return new RegexIndexImpl(this, type, fieldName, caseInsensitive, nGrams);
     }
 
+    @Override
     public synchronized <T> FieldIndex<T> createFieldIndex(Class type, String fieldName, boolean unique, boolean caseInsensitive, boolean thick)
     {
         if (!opened) {
@@ -1926,10 +1975,12 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public <T> FieldIndex<T> createFieldIndex(Class type, String[] fieldNames, boolean unique) {
         return this.<T>createFieldIndex(type, fieldNames, unique, false);
     }
 
+    @Override
     public synchronized <T> FieldIndex<T> createFieldIndex(Class type, String[] fieldNames, boolean unique, boolean caseInsensitive) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1945,6 +1996,7 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public synchronized <T> Index<T> createRandomAccessIndex(Class keyType, boolean unique) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1954,6 +2006,7 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public synchronized  <T> Index<T> createRandomAccessIndex(Class[] keyTypes, boolean unique) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1964,10 +2017,12 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String fieldName, boolean unique) {
         return this.<T>createRandomAccessFieldIndex(type, fieldName, unique, false);
     }
 
+    @Override
     public synchronized <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String fieldName, boolean unique, boolean caseInsensitive) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1979,10 +2034,12 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String[] fieldNames, boolean unique) {
         return this.<T>createRandomAccessFieldIndex(type, fieldNames, unique, false);
     }
 
+    @Override
     public synchronized <T> FieldIndex<T> createRandomAccessFieldIndex(Class type, String[] fieldNames, boolean unique, boolean caseInsensitive) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -1994,6 +2051,7 @@ public class StorageImpl implements Storage {
         return index;
     }
 
+    @Override
     public <T> SortedCollection<T> createSortedCollection(PersistentComparator<T> comparator, boolean unique) {
         if (!opened) {
             throw new StorageError(StorageError.STORAGE_NOT_OPENED);
@@ -2008,38 +2066,47 @@ public class StorageImpl implements Storage {
         return new Ttree<T>(this, new DefaultPersistentComparator<T>(), unique);
     }
 
+    @Override
     public <T> Link<T> createLink() {
         return createLink(8);
     }
 
+    @Override
     public <T> Link<T> createLink(int initialSize) {
         return new LinkImpl<T>(this, initialSize);
     }
 
+    @Override
     public <M, O> Relation<M,O> createRelation(O owner) {
         return new RelationImpl<M,O>(this, owner);
     }
 
+    @Override
     public Blob createBlob() {
         return new BlobImpl(this, Page.pageSize - BlobImpl.headerSize);
     }
 
+    @Override
     public Blob createRandomAccessBlob() {
         return new RandomAccessBlobImpl(this);
     }
 
+    @Override
     public <T extends TimeSeries.Tick> TimeSeries<T> createTimeSeries(Class blockClass, long maxBlockTimeInterval) {
         return new TimeSeriesImpl<T>(this, blockClass, maxBlockTimeInterval);
     }
 
+    @Override
     public <T> PatriciaTrie<T> createPatriciaTrie() {
         return new PTrie<T>();
     }
 
+    @Override
     public FullTextIndex createFullTextIndex(FullTextSearchHelper helper) {
         return new FullTextIndexImpl(this, helper);
     }
 
+    @Override
     public FullTextIndex createFullTextIndex() {
         return createFullTextIndex(new FullTextSearchHelper(this));
     }
@@ -2072,6 +2139,7 @@ public class StorageImpl implements Storage {
         return pool.getPage(getGCPos(oid) & ~dbPageFlagsMask);
     }
 
+    @Override
     public void setGcThreshold(long maxAllocatedDelta) {
         gcThreshold = maxAllocatedDelta;
     }
@@ -2190,6 +2258,7 @@ public class StorageImpl implements Storage {
             }
         }
 
+        @Override
         public void run() {
             try {
                 while (true) {
@@ -2219,6 +2288,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public synchronized int gc() {
         return gc0();
     }
@@ -2247,6 +2317,7 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public synchronized HashMap getMemoryDump() {
         synchronized (objectCache) {
             if (!opened) {
@@ -2615,6 +2686,7 @@ public class StorageImpl implements Storage {
      * use in another thread. I will make it possible to share one transaction between multiple threads.
      * @return transaction context associated with current thread
      */
+    @Override
     public ThreadTransactionContext getTransactionContext() {
         return (ThreadTransactionContext)transactionContext.get();
     }
@@ -2625,12 +2697,14 @@ public class StorageImpl implements Storage {
      * @param ctx new transaction context
      * @return transaction context previously associated with this thread
      */
+    @Override
     public ThreadTransactionContext setTransactionContext(ThreadTransactionContext ctx) {
         ThreadTransactionContext oldCtx = (ThreadTransactionContext)transactionContext.get();
         transactionContext.set(ctx);
         return oldCtx;
     }
 
+    @Override
     public void beginSerializableTransaction()
     {
         if (multiclientSupport) {
@@ -2640,6 +2714,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void commitSerializableTransaction()
     {
         if (!isInsideThreadTransaction()) {
@@ -2648,6 +2723,7 @@ public class StorageImpl implements Storage {
         endThreadTransaction(Integer.MAX_VALUE);
     }
 
+    @Override
     public void rollbackSerializableTransaction()
     {
         if (!isInsideThreadTransaction()) {
@@ -2656,6 +2732,7 @@ public class StorageImpl implements Storage {
         rollbackThreadTransaction();
     }
 
+    @Override
     public void beginThreadTransaction(int mode)
     {
         switch (mode) {
@@ -2726,10 +2803,12 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void endThreadTransaction() {
         endThreadTransaction(Integer.MAX_VALUE);
     }
 
+    @Override
     public void endThreadTransaction(int maxDelay)
     {
         if (multiclientSupport) {
@@ -2814,10 +2893,12 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public boolean isInsideThreadTransaction() {
         return getTransactionContext().nested != 0 || nNestedTransactions != 0;
     }
 
+    @Override
     public void rollbackThreadTransaction()
     {
         if (multiclientSupport) {
@@ -2874,6 +2955,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public/*protected*/  boolean lockObject(Object obj) {
         if (useSerializableTransactions) {
             ThreadTransactionContext ctx = getTransactionContext();
@@ -2884,6 +2966,7 @@ public class StorageImpl implements Storage {
         return true;
     }
 
+    @Override
     public void close()
     {
         synchronized (backgroundGcMonitor) {
@@ -2916,6 +2999,7 @@ public class StorageImpl implements Storage {
         descList = null;
     }
 
+    @Override
     public synchronized void exportXML(java.io.Writer writer) throws java.io.IOException
     {
         if (!opened) {
@@ -2929,6 +3013,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public synchronized void importXML(java.io.Reader reader) throws XMLImportException
     {
         if (!opened) {
@@ -2964,6 +3049,7 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public void setProperties(Properties props)
     {
         String value;
@@ -2999,7 +3085,7 @@ public class StorageImpl implements Storage {
             noFlush = getBooleanValue(value);
         }
         if ((value = props.getProperty("perst.xml.date.format")) != null) {
-            xmlDateFormat = (String)value;
+            xmlDateFormat = value;
         }
         if ((value = props.getProperty("perst.alternative.btree")) != null) {
             alternativeBtree = getBooleanValue(value);
@@ -3057,6 +3143,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void setProperty(String name, Object value)
     {
         properties.put(name, value);
@@ -3123,17 +3210,20 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public Object getProperty(String name)
     {
         return properties.get(name);
     }
 
+    @Override
     public Properties getProperties()
     {
         return properties;
     }
 
 
+    @Override
     public StorageListener setListener(StorageListener listener)
     {
         StorageListener prevListener = this.listener;
@@ -3141,16 +3231,19 @@ public class StorageImpl implements Storage {
         return prevListener;
     }
 
+    @Override
     public StorageListener getListener()
     {
         return listener;
     }
 
+    @Override
     public synchronized Object getObjectByOID(int oid)
     {
         return oid == 0 ? null : lookupObject(oid, null);
     }
 
+    @Override
     public/*protected*/ synchronized void modifyObject(Object obj) {
         synchronized(objectCache) {
             if (!isModified(obj)) {
@@ -3167,6 +3260,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public/*protected*/ synchronized void storeObject(Object obj)
     {
         if (!opened) {
@@ -3181,6 +3275,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public/*protected*/ void storeFinalizedObject(Object obj)
     {
         if (opened) {
@@ -3197,6 +3292,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public synchronized int makePersistent(Object obj)
     {
         if (!opened) {
@@ -3326,6 +3422,7 @@ public class StorageImpl implements Storage {
         pool.put(pos, data, newSize);
     }
 
+    @Override
     public/*protected*/ synchronized void loadObject(Object obj) {
         if (isRaw(obj)) {
             loadStub(getOid(obj), obj, obj.getClass());
@@ -3376,6 +3473,7 @@ public class StorageImpl implements Storage {
             return buf.length - in.available();
         }
 
+        @Override
         public String readString() throws IOException {
             int offs = getPosition();
             ArrayPos pos = new ArrayPos(buf, offs);
@@ -3384,6 +3482,7 @@ public class StorageImpl implements Storage {
             return str;
         }
 
+        @Override
         public Object readObject() throws IOException {
             int offs = getPosition();
             Object obj = null;
@@ -3484,6 +3583,7 @@ public class StorageImpl implements Storage {
             enableResolveObject(true);
         }
 
+        @Override
         protected Object resolveObject(Object obj) throws IOException {
             int oid = getOid(obj);
             if (oid != 0) {
@@ -3492,6 +3592,7 @@ public class StorageImpl implements Storage {
             return obj;
         }
 
+        @Override
         protected Class resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {
             String classLoaderName = null;
             if (loaderMap != null && (compatibilityMode & CLASS_LOADER_SERIALIZATION_COMPATIBILITY_MODE) == 0) {
@@ -3523,6 +3624,7 @@ public class StorageImpl implements Storage {
             super(out);
         }
 
+        @Override
         protected void annotateClass(Class cls) throws IOException {
             ClassLoader loader = cls.getClassLoader();
             writeObject((loader instanceof INamedClassLoader)
@@ -4298,7 +4400,7 @@ public class StorageImpl implements Storage {
         } else if (value instanceof IPersistent) {
             buf.extend(offs + 8);
             Bytes.pack4(buf.arr, offs, -2-ClassDescriptor.tpObject);
-            Bytes.pack4(buf.arr, offs+4, swizzle((IPersistent)value, buf.finalized));
+            Bytes.pack4(buf.arr, offs+4, swizzle(value, buf.finalized));
             offs += 8;
         } else {
             Class c = value.getClass();
@@ -4913,7 +5015,7 @@ public class StorageImpl implements Storage {
                         Bytes.pack4(buf.arr, offs, len);
                         offs += 4;
                         for (int j = 0; j < len; j++) {
-                            offs = buf.packString(offs, (String)arr[j]);
+                            offs = buf.packString(offs, arr[j]);
                         }
                     }
                     continue;
@@ -4987,6 +5089,7 @@ public class StorageImpl implements Storage {
         return offs;
     }
 
+    @Override
     public ClassLoader setClassLoader(ClassLoader loader)
     {
         ClassLoader prev = loader;
@@ -4994,10 +5097,12 @@ public class StorageImpl implements Storage {
         return prev;
     }
 
+    @Override
     public ClassLoader getClassLoader() {
         return loader;
     }
 
+    @Override
     public void registerClassLoader(INamedClassLoader loader) {
         if (loaderMap == null) {
             loaderMap = new HashMap();
@@ -5005,6 +5110,7 @@ public class StorageImpl implements Storage {
         loaderMap.put(loader.getName(), loader);
     }
 
+    @Override
     public ClassLoader findClassLoader(String name) {
         if (loaderMap == null) {
             return null;
@@ -5013,6 +5119,7 @@ public class StorageImpl implements Storage {
     }
 
 
+    @Override
     public void setCustomSerializer(CustomSerializer serializer) {
         this.serializer = serializer;
     }
@@ -5026,24 +5133,29 @@ public class StorageImpl implements Storage {
             oids = result.iterator();
         }
 
+        @Override
         public Object next() {
             int oid = ((Integer)oids.next()).intValue();
             return lookupObject(oid, null);
         }
 
+        @Override
         public int nextOid() {
             return oids.hasNext() ? ((Integer)oids.next()).intValue() : 0;
         }
 
+        @Override
         public boolean hasNext() {
             return oids.hasNext();
         }
 
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }
     }
 
+    @Override
     public Iterator merge(Iterator[] selections) {
         HashSet result = null;
         for (int i = 0; i < selections.length; i++) {
@@ -5067,6 +5179,7 @@ public class StorageImpl implements Storage {
         return new HashIterator(result);
     }
 
+    @Override
     public Iterator join(Iterator[] selections) {
         HashSet result = new HashSet();
         for (int i = 0; i < selections.length; i++) {
@@ -5079,6 +5192,7 @@ public class StorageImpl implements Storage {
         return new HashIterator(result);
     }
 
+    @Override
     public synchronized void registerCustomAllocator(Class cls, CustomAllocator allocator) {
         synchronized (objectCache) {
             ClassDescriptor desc = getClassDescriptor(cls);
@@ -5095,23 +5209,28 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public CustomAllocator createBitmapAllocator(int quantum, long base, long extension, long limit) {
         return new BitmapCustomAllocator(this, quantum, base, extension, limit);
     }
 
+    @Override
     public int getPerstVersion() {
         return 437;
     }
 
+    @Override
     public int getDatabaseFormatVersion() {
         return header.databaseFormatVersion;
     }
 
+    @Override
     public void deallocate(Object obj)
     {
         deallocateObject(obj);
     }
 
+    @Override
     public void store(Object obj)
     {
         if (obj instanceof IPersistent) {
@@ -5121,11 +5240,11 @@ public class StorageImpl implements Storage {
                 synchronized (objectCache) {
                     synchronized (objMap) {
                         ObjectMap.Entry e = objMap.put(obj);
-                        if ((e.state & Persistent.RAW) != 0) {
+                        if ((e.state & PinnedPersistent.RAW) != 0) {
                             throw new StorageError(StorageError.ACCESS_TO_STUB);
                         }
                         storeObject(obj);
-                        e.state &= ~Persistent.DIRTY;
+                        e.state &= ~PinnedPersistent.DIRTY;
                     }
                 }
             }
@@ -5149,7 +5268,7 @@ public class StorageImpl implements Storage {
                 ObjectMap.Entry e = objMap.put(obj);
                 e.oid = oid;
                 if (raw) {
-                    e.state = Persistent.RAW;
+                    e.state = PinnedPersistent.RAW;
                 }
             }
         }
@@ -5158,6 +5277,7 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public void modify(Object obj)
     {
         if (obj instanceof IPersistent) {
@@ -5174,13 +5294,13 @@ public class StorageImpl implements Storage {
                 synchronized (objectCache) {
                     synchronized (objMap) {
                         ObjectMap.Entry e = objMap.put(obj);
-                        if ((e.state & Persistent.DIRTY) == 0 && e.oid != 0) {
-                            if ((e.state & Persistent.RAW) != 0) {
+                        if ((e.state & PinnedPersistent.DIRTY) == 0 && e.oid != 0) {
+                            if ((e.state & PinnedPersistent.RAW) != 0) {
                                 throw new StorageError(StorageError.ACCESS_TO_STUB);
                             }
-                            Assert.that((e.state & Persistent.DELETED) == 0);
+                            Assert.that((e.state & PinnedPersistent.DELETED) == 0);
                             storeObject(obj);
-                            e.state &= ~Persistent.DIRTY;
+                            e.state &= ~PinnedPersistent.DIRTY;
                         }
                     }
                 }
@@ -5195,12 +5315,13 @@ public class StorageImpl implements Storage {
         } else {
             synchronized (objMap) {
                 ObjectMap.Entry e = objMap.put(obj);
-                e.state &= ~Persistent.DIRTY;
-                e.state |= Persistent.RAW;
+                e.state &= ~PinnedPersistent.DIRTY;
+                e.state |= PinnedPersistent.RAW;
             }
         }
     }
 
+    @Override
     public void load(Object obj)
     {
         if (obj instanceof IPersistent) {
@@ -5208,7 +5329,7 @@ public class StorageImpl implements Storage {
         } else {
             synchronized (objMap) {
                 ObjectMap.Entry e = objMap.get(obj);
-                if (e == null || (e.state & Persistent.RAW) == 0 || e.oid == 0) {
+                if (e == null || (e.state & PinnedPersistent.RAW) == 0 || e.oid == 0) {
                     return;
                 }
             }
@@ -5225,11 +5346,12 @@ public class StorageImpl implements Storage {
             synchronized (objMap)
             {
                 ObjectMap.Entry e = objMap.get(obj);
-                return e != null && (e.state & Persistent.RAW) == 0 && e.oid != 0;
+                return e != null && (e.state & PinnedPersistent.RAW) == 0 && e.oid != 0;
             }
         }
     }
 
+    @Override
     public int getOid(Object obj)
     {
         return (obj instanceof IPersistent) ? ((IPersistent)obj).getOid() : obj == null ? 0 : objMap.getOid(obj);
@@ -5242,7 +5364,7 @@ public class StorageImpl implements Storage {
 
     boolean isDeleted(Object obj)
     {
-        return (obj instanceof IPersistent) ? ((IPersistent)obj).isDeleted() : obj == null ? false : (objMap.getState(obj) & Persistent.DELETED) != 0;
+        return (obj instanceof IPersistent) ? ((IPersistent)obj).isDeleted() : obj == null ? false : (objMap.getState(obj) & PinnedPersistent.DELETED) != 0;
     }
 
     boolean recursiveLoading(Object obj)
@@ -5263,6 +5385,7 @@ public class StorageImpl implements Storage {
         return (obj instanceof IPersistent) ? ((IPersistent)obj).recursiveLoading() : true;
     }
 
+    @Override
     public boolean setRecursiveLoading(Class type, boolean enabled)
     {
         synchronized (recursiveLoadingPolicy)
@@ -5273,18 +5396,19 @@ public class StorageImpl implements Storage {
         }
     }
 
+    @Override
     public SqlOptimizerParameters getSqlOptimizerParameters() {
         return sqlOptimizerParameters;
     }
 
     boolean isModified(Object obj)
     {
-        return (obj instanceof IPersistent) ? ((IPersistent)obj).isModified() : obj == null ? false : (objMap.getState(obj) & Persistent.DIRTY) != 0;
+        return (obj instanceof IPersistent) ? ((IPersistent)obj).isModified() : obj == null ? false : (objMap.getState(obj) & PinnedPersistent.DIRTY) != 0;
     }
 
     boolean isRaw(Object obj)
     {
-        return (obj instanceof IPersistent) ? ((IPersistent)obj).isRaw() : obj == null ? false : (objMap.getState(obj) & Persistent.RAW) != 0;
+        return (obj instanceof IPersistent) ? ((IPersistent)obj).isRaw() : obj == null ? false : (objMap.getState(obj) & PinnedPersistent.RAW) != 0;
     }
 
     private ObjectMap objMap;
@@ -5382,7 +5506,8 @@ public class StorageImpl implements Storage {
     PersistentResource transactionLock;
 
     final ThreadLocal transactionContext = new ThreadLocal() {
-         protected synchronized Object initialValue() {
+         @Override
+        protected synchronized Object initialValue() {
              return new ThreadTransactionContext();
          }
     };

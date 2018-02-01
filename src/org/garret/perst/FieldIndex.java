@@ -1,7 +1,5 @@
 package org.garret.perst;
 
-import java.util.Iterator;
-import java.util.Map;
 import java.lang.reflect.Field;
 
 /**

@@ -19,10 +19,12 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
     { 
         Map.Entry entry;
 
+        @Override
         public String getNormalForm() { 
             return (String)entry.getKey();
         }
 
+        @Override
         public long getNumberOfOccurrences() { 
             return ((InverseList)entry.getValue()).size();
         }
@@ -34,14 +36,17 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
 
     static class KeywordIterator implements Iterator<Keyword> 
     {
+        @Override
         public boolean hasNext() { 
             return iterator.hasNext();
         }
                                                 
+        @Override
         public Keyword next() { 
             return new KeywordImpl((Map.Entry)iterator.next());
         }
         
+        @Override
         public void remove() { 
             throw new UnsupportedOperationException();
         }
@@ -54,10 +59,11 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
     }
 
 
+    @Override
     public Iterator<Keyword> getKeywords(String prefix) {
         return new KeywordIterator(inverseIndex.entryIterator(new Key(prefix), 
                                                               new Key(prefix + Character.MAX_VALUE, false), 
-                                                              Index.ASCENT_ORDER));
+                                                              GenericIndex.ASCENT_ORDER));
     }
     
     static class DocumentOccurrences extends Persistent {
@@ -137,6 +143,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
 
         InverseList() {}
 
+        @Override
         public int size() { 
             return oids != null ? oids.length : super.size();
         }
@@ -145,7 +152,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
             if (oids != null) { 
                 return oids[0];
             }
-            Map.Entry entry = (Map.Entry)entryIterator(null, null, Index.ASCENT_ORDER).next();
+            Map.Entry entry = (Map.Entry)entryIterator(null, null, GenericIndex.ASCENT_ORDER).next();
             return ((Integer)entry.getKey()).intValue();
         }
 
@@ -153,7 +160,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
             if (oids != null) { 
                 return oids[oids.length-1];
             }
-            Map.Entry entry = (Map.Entry)entryIterator(null, null, Index.DESCENT_ORDER).next();
+            Map.Entry entry = (Map.Entry)entryIterator(null, null, GenericIndex.DESCENT_ORDER).next();
             return ((Integer)entry.getKey()).intValue();
         }
 
@@ -165,20 +172,26 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
                 i = pos;
             }
             
+            @Override
             public boolean hasNext() { 
                 return i < oids.length;
             }
 
+            @Override
             public Object next() { 
                 final int j = i++;
                 return new Map.Entry() { 
+                        @Override
                         public Object getKey() { return new Integer(oids[j]); }
+                        @Override
                         public Object getValue() { return docs.get(j); }
+                        @Override
                         public Object setValue(Object value) { return null; }
                         public Object setKey(Object key) { return null; }
                     };
             }
             
+            @Override
             public void remove() {}
         }
 
@@ -196,7 +209,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
                 }
                 return new InverstListIterator(r);
             } else { 
-                return entryIterator(new Key(oid), null, Index.ASCENT_ORDER);
+                return entryIterator(new Key(oid), null, GenericIndex.ASCENT_ORDER);
             }
         }
 
@@ -255,10 +268,12 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         }
     }
 
+    @Override
     public void add(FullTextSearchable obj) {
         add(obj, obj.getText(), obj.getLanguage());
     }
     
+    @Override
     public void add(Object obj, Reader text, String language) { 
         Occurrence[] occurrences;
         try { 
@@ -322,6 +337,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         }
     }
 
+    @Override
     public void delete(Object obj) { 
         Key key = new Key(obj);
         Document doc = (Document)documents.get(key);
@@ -336,24 +352,29 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         }
     }
     
+    @Override
     public void deallocate() { 
         clear();
         super.deallocate();
     }
 
+    @Override
     public void clear() { 
         inverseIndex.deallocateMembers();
         documents.deallocateMembers();
     }
 
+    @Override
     public int getNumberOfWords() { 
         return inverseIndex.size();
     }
 
+    @Override
     public int getNumberOfDocuments() { 
         return documents.size();
     }
 
+    @Override
     public FullTextSearchResult search(String query, String language, int maxResults, int timeLimit) {
         return search(helper.parseQuery(query, language), maxResults, timeLimit);
     }
@@ -381,6 +402,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         int weight;
         FullTextQuery expr;
         
+        @Override
         public int compareTo(Object o) { 
             return weight - ((ExpressionWeight)o).weight;
         }
@@ -394,6 +416,7 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         int           nOccurrences;
         float[]       occurrenceKindWeight;
 
+        @Override
         public void visit(FullTextQueryMatchOp q) { 
             q.wno = kwdList.size(); 
             KeywordList kwd = new KeywordList(q.word);
@@ -896,16 +919,19 @@ public class FullTextIndexImpl extends PersistentResource implements FullTextInd
         }
     }
 
+    @Override
     public FullTextSearchResult search(FullTextQuery query, int maxResults, int timeLimit) { 
         FullTextSearchEngine engine = new FullTextSearchEngine();
         return engine.search(query, maxResults, timeLimit);
     }
 
+    @Override
     public FullTextSearchResult searchPrefix(String prefix, int maxResults, int timeLimit, boolean sort) { 
         FullTextSearchEngine engine = new FullTextSearchEngine();
         return engine.searchPrefix(prefix, maxResults, timeLimit, sort);
     }
 
+    @Override
     public FullTextSearchHelper getHelper() {
         return helper;
     }

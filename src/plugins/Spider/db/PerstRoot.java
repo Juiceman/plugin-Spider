@@ -1,10 +1,7 @@
 package plugins.Spider.db;
 
 import java.util.Iterator;
-import java.util.List;
-
 import org.garret.perst.FieldIndex;
-import org.garret.perst.IterableIterator;
 import org.garret.perst.Key;
 import org.garret.perst.Persistent;
 import org.garret.perst.Storage;

@@ -31,7 +31,8 @@ class ConfigPage implements WebPage {
 	 * @see plugins.Spider.WebPage#processPostRequest(freenet.support.api.HTTPRequest,
 	 * freenet.support.HTMLNode)
 	 */
-	public synchronized void processPostRequest(HTTPRequest request, HTMLNode contentNode) {
+	@Override
+  public synchronized void processPostRequest(HTTPRequest request, HTMLNode contentNode) {
 		config = spider.getConfig().clone();
 		
 		if (request.isPartSet("maxParallelRequestsWorking")) {
@@ -108,7 +109,8 @@ class ConfigPage implements WebPage {
 	 * @see plugins.Spider.WebPage#writeContent(freenet.support.api.HTTPRequest,
 	 * freenet.support.HTMLNode)
 	 */
-	public void writeContent(HTTPRequest request, HTMLNode contentNode) {	
+	@Override
+  public void writeContent(HTTPRequest request, HTMLNode contentNode) {	
 		HTMLNode configContent = pageMaker.getInfobox("#", "Configuration", contentNode);
 		HTMLNode configForm = pr.addFormChild(configContent, "", "configForm");
 	

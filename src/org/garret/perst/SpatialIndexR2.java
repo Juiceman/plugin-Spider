@@ -50,6 +50,7 @@ public interface SpatialIndexR2<T> extends IPersistent, IResource, ITable<T> {
      * It is not possible to modify spatial index during iteration.
      * @return iterator through all objects in the index
      */
+    @Override
     public Iterator<T> iterator();
 
     /**

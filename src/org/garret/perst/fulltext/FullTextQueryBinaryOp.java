@@ -12,6 +12,7 @@ public class FullTextQueryBinaryOp extends FullTextQuery
     /**
      * Query node visitor.
      */
+    @Override
     public void visit(FullTextQueryVisitor visitor) { 
         visitor.visit(this);
         left.visit(visitor);
@@ -22,12 +23,14 @@ public class FullTextQueryBinaryOp extends FullTextQuery
      * This method checks that query can be executed by interection of keyword occurrences lists
      * @return true if quuery can be executed by FullTextIndex, false otherwise
      */
+    @Override
     public boolean isConstrained() { 
         return op == OR 
             ? left.isConstrained() && right.isConstrained()
             : left.isConstrained() || right.isConstrained();
     }
 
+    @Override
     public String toString() {
         return op == OR
             ? '(' + left.toString() + ") OR (" + right.toString() + ')'

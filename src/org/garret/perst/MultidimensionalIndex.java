@@ -22,6 +22,7 @@ public interface MultidimensionalIndex<T> extends IPersistent, IResource, ITable
      * This iterator supports remove() method. 
      * @return index iterator
      */
+    @Override
     public Iterator<T> iterator();
 
     /**

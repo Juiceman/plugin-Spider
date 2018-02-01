@@ -8,6 +8,7 @@ class FieldValue implements Comparable<FieldValue> {
     Comparable value;
     Object     obj;
     
+    @Override
     public int compareTo(FieldValue f) { 
         return value.compareTo(f.value);
     }
@@ -35,14 +36,17 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public Class getIndexedClass() { 
         return cls;
     }
 
+    @Override
     public Field[] getKeyFields() { 
         return new Field[]{fld};
     }
 
+    @Override
     public void onLoad()
     {
         cls = ClassDescriptor.loadClass(getStorage(), className);
@@ -63,6 +67,7 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         type = checkType(fld.getType());
     }
 
+    @Override
     protected Object unpackEnum(int val) {
         return fld.getType().getEnumConstants()[val];
     }
@@ -125,15 +130,18 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
             
+    @Override
     public boolean add(T obj) {
         return put(obj);
     }
 
+    @Override
     public boolean put(T obj) { 
         Key key = extractKey(obj);
         return key != null && super.insert(key, obj, false) >= 0;
     }
 
+    @Override
     public T set(T obj) {
         Key key = extractKey(obj);
         if (key == null) {
@@ -142,6 +150,7 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return super.set(key, obj);
     }
 
+    @Override
     public boolean addAll(Collection<? extends T> c) {
         FieldValue[] arr = new FieldValue[c.size()];
         Iterator<? extends T> e = c.iterator();
@@ -160,11 +169,13 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return arr.length > 0;
     }
 
+    @Override
     public boolean remove(Object obj) {
         Key key = extractKey(obj);
         return key != null && super.removeIfExists(key, obj);
     }
 
+    @Override
     public boolean containsObject(T obj) {
         Key key = extractKey(obj);
         if (key == null) { 
@@ -183,6 +194,7 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public boolean contains(Object obj) {
         Key key = extractKey(obj);
         if (key == null) { 
@@ -201,6 +213,7 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public synchronized void append(T obj) {
         Key key;
         try { 
@@ -224,16 +237,19 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         super.insert(key, obj, false);
     }
 
+    @Override
     public T[] getPrefix(String prefix) { 
         ArrayList<T> list = getList(new Key(prefix, true), new Key(prefix + Character.MAX_VALUE, false));
-        return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));        
+        return list.toArray((T[])Array.newInstance(cls, list.size()));        
     }
 
+    @Override
     public T[] prefixSearch(String key) { 
         ArrayList<T> list = prefixSearchList(key);
-        return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));
+        return list.toArray((T[])Array.newInstance(cls, list.size()));
     }
 
+    @Override
     public T[] get(Key from, Key till) {
         ArrayList list = new ArrayList();
         if (root != 0) { 
@@ -242,6 +258,7 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));
     }
 
+    @Override
     public T[] toArray() {
         T[] arr = (T[])Array.newInstance(cls, nElems);
         if (root != 0) { 
@@ -250,16 +267,19 @@ class BtreeFieldIndex<T> extends Btree<T> implements FieldIndex<T> {
         return arr;
     }
 
+    @Override
     public IterableIterator<T> queryByExample(T obj) {
         Key key = extractKey(obj);
         return iterator(key, key, ASCENT_ORDER);
     }
             
+    @Override
     public IterableIterator<T> select(String predicate) { 
         Query<T> query = new QueryImpl<T>(getStorage());
         return query.select(cls, iterator(), predicate);
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return false;
     }
@@ -276,6 +296,7 @@ class BtreeCaseInsensitiveFieldIndex<T>  extends BtreeFieldIndex<T> {
         super(cls, fieldName, unique, autoincCount);
     }
 
+    @Override
     Key checkKey(Key key) { 
         if (key != null && key.oval instanceof String) { 
             key = new Key(((String)key.oval).toLowerCase(), key.inclusion != 0);
@@ -283,6 +304,7 @@ class BtreeCaseInsensitiveFieldIndex<T>  extends BtreeFieldIndex<T> {
         return super.checkKey(key);
     }  
 
+    @Override
     public boolean isCaseInsensitive() { 
         return true;
     }

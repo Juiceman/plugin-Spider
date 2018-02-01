@@ -25,6 +25,7 @@ public class FullTextSearchHit implements Comparable {
 
     public final Storage storage;
 
+    @Override
     public int compareTo(Object o) {
         float oRank = ((FullTextSearchHit)o).rank;
         return rank > oRank ? -1 : rank < oRank ? 1 : 0;

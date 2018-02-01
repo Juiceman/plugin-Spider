@@ -15,6 +15,7 @@ public class Page extends LRU implements Comparable {
     public static final int pageSizeLog = 12;
     public static final int pageSize = 1 << pageSizeLog;
 
+    @Override
     public int compareTo(Object o) 
     { 
         long po = ((Page)o).offs;

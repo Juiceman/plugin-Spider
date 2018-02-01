@@ -5,7 +5,6 @@ package plugins.Spider.db;
 
 import freenet.support.Logger;
 import org.garret.perst.FieldIndex;
-import org.garret.perst.IPersistentMap;
 import org.garret.perst.Persistent;
 import org.garret.perst.Storage;
 import org.garret.perst.StorageError;
@@ -98,7 +97,8 @@ public class Page extends Persistent implements Comparable<Page> {
 		+ "]";
 	}
 
-	public int compareTo(Page o) {
+	@Override
+  public int compareTo(Page o) {
 		return new Long(id).compareTo(o.id);
 	}
 	

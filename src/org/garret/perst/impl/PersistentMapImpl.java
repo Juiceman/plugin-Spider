@@ -26,14 +26,17 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         K key;
         V value;
 
+        @Override
         public K getKey() { 
             return key;
         }
 
+        @Override
         public V getValue() { 
             return value;
         }
 
+        @Override
         public V setValue(V value) { 
             modify();
             V prevValue = this.value;
@@ -49,10 +52,12 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
     }
 
     static class PersistentMapComparator<K extends Comparable, V> extends PersistentComparator<PersistentMapEntry<K,V>> { 
+        @Override
         public int compareMembers(PersistentMapEntry<K,V> m1, PersistentMapEntry<K,V> m2) {
             return m1.key.compareTo(m2.key);
         }
 
+        @Override
         public int compareMemberWithKey(PersistentMapEntry<K,V> mbr, Object key) {
             return mbr.key.compareTo(key);
         }
@@ -90,14 +95,17 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public int size() {
         return index != null ? ((Collection)index).size() : values.size();
     }
 
+    @Override
     public boolean isEmpty() {
 	return size() == 0;
     }
 
+    @Override
     public boolean containsValue(Object value) {
 	Iterator<Entry<K,V>> i = entrySet().iterator();
 	if (value==null) {
@@ -130,13 +138,14 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         return r;
     }
 
+    @Override
     public boolean containsKey(Object key) {
         if (index != null) { 
             if (type == ClassDescriptor.tpValue) { 
                 return ((SortedCollection)index).containsKey(key);
             } else { 
                 Key k = generateKey(key);
-                return ((Index)index).entryIterator(k, k, Index.ASCENT_ORDER).hasNext();
+                return ((Index)index).entryIterator(k, k, GenericIndex.ASCENT_ORDER).hasNext();
             } 
         } else {
             int i = binarySearch(key);
@@ -144,6 +153,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public V get(Object key) {
         if (index != null) { 
             if (type == ClassDescriptor.tpValue) { 
@@ -161,6 +171,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public Entry<K,V> getEntry(Object key) {
         if (index != null) { 
             if (type == ClassDescriptor.tpValue) { 
@@ -179,6 +190,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
     
+    @Override
     public V put(K key, V value) {
         V prev = null;
         if (index == null) { 
@@ -194,7 +206,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                             = getStorage().<PersistentMapEntry<K,V>>createSortedCollection(new PersistentMapComparator<K,V>(), true);
                         index = col;
                         for (i = 0; i < size; i++) { 
-                            col.add(new PersistentMapEntry((K)keys[i], values.get(i)));
+                            col.add(new PersistentMapEntry(keys[i], values.get(i)));
                         }                
                         prev = insertInSortedCollection(key, value);
                     } else { 
@@ -246,6 +258,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         return prev;
     }
 
+    @Override
     public V remove(Object key) {
         if (index == null) { 
             int size = values.size();
@@ -278,6 +291,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public void putAll(Map<? extends K, ? extends V> t) {
 	Iterator<? extends Entry<? extends K, ? extends V>> i = t.entrySet().iterator();
 	while (i.hasNext()) {
@@ -286,6 +300,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
 	}
     }
 
+    @Override
     public void clear() {
         if (index != null) { 
             ((Collection)index).clear();
@@ -295,32 +310,39 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public Set<K> keySet() {
 	if (keySet == null) {
 	    keySet = new AbstractSet<K>() {
-		public Iterator<K> iterator() {
+		@Override
+    public Iterator<K> iterator() {
 		    return new Iterator<K>() {
 			private Iterator<Entry<K,V>> i = entrySet().iterator();
 
-			public boolean hasNext() {
+			@Override
+      public boolean hasNext() {
 			    return i.hasNext();
 			}
 
-			public K next() {
+			@Override
+      public K next() {
 			    return i.next().getKey();
 			}
 
-			public void remove() {
+			@Override
+      public void remove() {
 			    i.remove();
 			}
                     };
 		}
 
-		public int size() {
+		@Override
+    public int size() {
 		    return PersistentMapImpl.this.size();
 		}
 
-		public boolean contains(Object k) {
+		@Override
+    public boolean contains(Object k) {
 		    return PersistentMapImpl.this.containsKey(k);
 		}
 	    };
@@ -328,32 +350,39 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
 	return keySet;
     }
 
+    @Override
     public Collection<V> values() {
 	if (valuesCol == null) {
 	    valuesCol = new AbstractCollection<V>() {
-		public Iterator<V> iterator() {
+		@Override
+    public Iterator<V> iterator() {
 		    return new Iterator<V>() {
 			private Iterator<Entry<K,V>> i = entrySet().iterator();
 
-			public boolean hasNext() {
+			@Override
+      public boolean hasNext() {
 			    return i.hasNext();
 			}
 
-			public V next() {
+			@Override
+      public V next() {
 			    return i.next().getValue();
 			}
 
-			public void remove() {
+			@Override
+      public void remove() {
 			    i.remove();
 			}
                     };
                 }
 
-		public int size() {
+		@Override
+    public int size() {
 		    return PersistentMapImpl.this.size();
 		}
 
-		public boolean contains(Object v) {
+		@Override
+    public boolean contains(Object v) {
 		    return PersistentMapImpl.this.containsValue(v);
 		}
 	    };
@@ -367,14 +396,17 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                 return new Iterator<Entry<K,V>>() {          
                     private Iterator<PersistentMapEntry<K,V>> i = ((SortedCollection<PersistentMapEntry<K,V>>)index).iterator();
 
+                    @Override
                     public boolean hasNext() {
                         return i.hasNext();
                     }
                     
+                    @Override
                     public Entry<K,V> next() {
                         return i.next();
                     }
 
+                    @Override
                     public void remove() {
                         i.remove();
                     }
@@ -383,25 +415,31 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                 return new Iterator<Entry<K,V>>() {          
                     private Iterator<Entry<Object,V>> i = ((Index<V>)index).entryIterator();
 
+                    @Override
                     public boolean hasNext() {
                         return i.hasNext();
                     }
                     
+                    @Override
                     public Entry<K,V> next() {
                         final Entry<Object,V> e = i.next();
                         return new Entry<K,V>() {
+                            @Override
                             public K getKey() { 
                                 return (K)e.getKey();
                             }
+                            @Override
                             public V getValue() { 
                                 return e.getValue();
                             }
+                            @Override
                             public V setValue(V value) {
                                 throw new UnsupportedOperationException("Entry.Map.setValue");
                             }
                         };                        
                     }
 
+                    @Override
                     public void remove() {
                         i.remove();
                     }
@@ -411,28 +449,34 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             return new Iterator<Entry<K,V>>() {                     
                 private int i = -1;
 
+                @Override
                 public boolean hasNext() {
                     return i+1 < values.size();
                 }
 
+                @Override
                 public Entry<K,V> next() {
                     if (!hasNext()) { 
                         throw new NoSuchElementException(); 
                     }
                     i += 1;
                     return new Entry<K,V>() {
+                        @Override
                         public K getKey() { 
                             return (K)(((Comparable[])keys)[i]);
                         }
+                        @Override
                         public V getValue() { 
                             return values.get(i);
                         }
+                        @Override
                         public V setValue(V value) {
                             throw new UnsupportedOperationException("Entry.Map.setValue");
                         }
                     };  
                 }
 
+                @Override
                 public void remove() {
                     if (i < 0) {
                         throw new IllegalStateException();
@@ -447,17 +491,21 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public Set<Entry<K,V>> entrySet() {
 	if (entrySet == null) {
 	    entrySet = new AbstractSet<Entry<K,V>>() {
-		public Iterator<Entry<K,V>> iterator() {
+		@Override
+    public Iterator<Entry<K,V>> iterator() {
 		    return entryIterator();
 		}
 
-		public int size() {
+		@Override
+    public int size() {
 		    return PersistentMapImpl.this.size();
 		}
 
+                @Override
                 public boolean remove(Object o) {
                     if (!(o instanceof Map.Entry)) {
                         return false;
@@ -482,7 +530,8 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                     return false;
                 }
                 
-		public boolean contains(Object k) {
+		@Override
+    public boolean contains(Object k) {
                     Entry<K,V> e = (Entry<K,V>)k;
                     if (e.getValue() != null) { 
                         return e.getValue().equals(PersistentMapImpl.this.get(e.getKey()));
@@ -497,6 +546,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
     }   
 
      
+    @Override
     public boolean equals(Object o) {
 	if (o == this) {
 	    return true;
@@ -534,6 +584,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
 	return true;
     }
 
+    @Override
     public int hashCode() {
 	int h = 0;
 	Iterator<Entry<K,V>> i = entrySet().iterator();
@@ -543,6 +594,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
 	return h;
     }
 
+    @Override
     public String toString() {
 	StringBuffer buf = new StringBuffer();
 	buf.append("{");
@@ -606,10 +658,12 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public Comparator<? super K> comparator() {
         return null;
     }
 
+    @Override
     public SortedMap<K,V> subMap(K from, K to) {
         if (from.compareTo(to) > 0) {
             throw new IllegalArgumentException("from > to");
@@ -617,10 +671,12 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         return new SubMap(from, to);
     }
 
+    @Override
     public SortedMap<K,V> headMap(K to) {
         return new SubMap(null, to);
     }
 
+    @Override
     public SortedMap<K,V> tailMap(K from) {
         return new SubMap(from, null);
     }
@@ -639,14 +695,17 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             this.toKey = to != null ? generateKey(to, false) : null;
         }
 
+        @Override
         public boolean isEmpty() {
             return entrySet().isEmpty();
         }
 
+        @Override
         public boolean containsKey(Object key) {
             return inRange((K)key) && PersistentMapImpl.this.containsKey(key);
         }
 
+        @Override
         public V get(Object key) {
             if (!inRange((K)key)) {
                 return null;
@@ -654,6 +713,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             return PersistentMapImpl.this.get(key);
         }
 
+        @Override
         public V put(K key, V value) {
             if (!inRange(key)) {
                 throw new IllegalArgumentException("key out of range");
@@ -661,31 +721,37 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             return PersistentMapImpl.this.put(key, value);
         }
 
+        @Override
         public Comparator<? super K> comparator() {
             return null;
         }
 
+        @Override
         public K firstKey() {
-            return entryIterator(Index.ASCENT_ORDER).next().getKey();
+            return entryIterator(GenericIndex.ASCENT_ORDER).next().getKey();
         }
 
+        @Override
         public K lastKey() {
-            return entryIterator(Index.DESCENT_ORDER).next().getKey();
+            return entryIterator(GenericIndex.DESCENT_ORDER).next().getKey();
         }
 
         protected Iterator<Entry<K,V>> entryIterator(final int order) {
             if (index != null) { 
                 if (type == ClassDescriptor.tpValue) {               
-                    if (order == Index.ASCENT_ORDER) { 
+                    if (order == GenericIndex.ASCENT_ORDER) { 
                         return new Iterator<Entry<K,V>>() { 
                             private Iterator<PersistentMapEntry<K,V>> i = ((SortedCollection<PersistentMapEntry<K,V>>)index).iterator(fromKey, toKey);
 
+                            @Override
                             public boolean hasNext() {
                                 return i.hasNext();
                             }
+                            @Override
                             public Entry<K,V> next() {
                                 return i.next();
                             }
+                            @Override
                             public void remove() {
                                 i.remove();
                             }
@@ -696,9 +762,11 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                                 = ((SortedCollection<PersistentMapEntry<K,V>>)index).getList(fromKey, toKey);
                             private int i = entries.size();
                             
+                            @Override
                             public boolean hasNext() {
                                 return i > 0;
                             }
+                            @Override
                             public Entry<K,V> next() {
                                 if (!hasNext()) { 
                                     throw new NoSuchElementException(); 
@@ -706,6 +774,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                                 return entries.get(--i);
                             }
                             
+                            @Override
                             public void remove() {
                                 if (i < entries.size() || entries.get(i) == null) {
                                     throw new IllegalStateException();
@@ -719,60 +788,72 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                     return new Iterator<Entry<K,V>>() {                        
                         private Iterator<Entry<Object,V>> i = ((Index<V>)index).entryIterator(fromKey, toKey, order);
                         
+                        @Override
                         public boolean hasNext() {
                             return i.hasNext();
                         }
                         
+                        @Override
                         public Entry<K,V> next() {
                             final Entry<Object,V> e = i.next();
                             return new Entry<K,V>() {
+                                @Override
                                 public K getKey() { 
                                     return (K)e.getKey();
                                 }
+                                @Override
                                 public V getValue() { 
                                     return e.getValue();
                                 }
+                                @Override
                                 public V setValue(V value) {
                                     throw new UnsupportedOperationException("Entry.Map.setValue");
                                 }
                             };  
                         }
                         
+                        @Override
                         public void remove() {
                             i.remove();
                         }
                     };
                 } 
             } else {
-                if (order == Index.ASCENT_ORDER) { 
+                if (order == GenericIndex.ASCENT_ORDER) { 
                     final int beg = (from != null ? binarySearch(from) : 0) - 1;
                     final int end = values.size();
 
                     return new Iterator<Entry<K,V>>() {                     
                         private int i = beg;
                         
+                        @Override
                         public boolean hasNext() {
                             return i+1 < end && (to == null || ((Comparable[])keys)[i+1].compareTo(to) < 0);
                         }
                         
+                        @Override
                         public Entry<K,V> next() {
                             if (!hasNext()) { 
                                 throw new NoSuchElementException(); 
                             }
                             i += 1;
                             return new Entry<K,V>() {
+                                @Override
                                 public K getKey() { 
                                     return (K)((Comparable[])keys)[i];
                                 }
+                                @Override
                                 public V getValue() { 
                                     return values.get(i);
                                 }
+                                @Override
                                 public V setValue(V value) {
                                     throw new UnsupportedOperationException("Entry.Map.setValue");
                                 }
                             };  
                         }
                         
+                        @Override
                         public void remove() {
                             if (i < 0) {
                                 throw new IllegalStateException();
@@ -790,28 +871,34 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                     return new Iterator<Entry<K,V>>() {                     
                         private int i = beg;
                         
+                        @Override
                         public boolean hasNext() {
                             return i > 0 && (from == null || ((Comparable[])keys)[i-1].compareTo(from) >= 0);
                         }
                         
+                        @Override
                         public Entry<K,V> next() {
                             if (!hasNext()) { 
                                 throw new NoSuchElementException(); 
                             }
                             i -= 1;
                             return new Entry<K,V>() {
+                                @Override
                                 public K getKey() { 
                                     return (K)((Comparable[])keys)[i];
                                 }
+                                @Override
                                 public V getValue() { 
                                     return values.get(i);
                                 }
+                                @Override
                                 public V setValue(V value) {
                                     throw new UnsupportedOperationException("Entry.Map.setValue");
                                 }
                             };  
                         }
                         
+                        @Override
                         public void remove() {
                             if (i < 0) {
                                 throw new IllegalStateException();
@@ -826,13 +913,16 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             }
         }
 
+        @Override
         public Set<Entry<K,V>> entrySet() {
             if (entrySet == null) {
                 entrySet = new AbstractSet<Entry<K,V>>() {
+                    @Override
                     public Iterator<Entry<K,V>> iterator() {
-                        return entryIterator(Index.ASCENT_ORDER);
+                        return entryIterator(GenericIndex.ASCENT_ORDER);
                     }
                     
+                    @Override
                     public int size() {
                         Iterator<Entry<K,V>> i = iterator();
                         int n;
@@ -842,10 +932,12 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                         return n;
                     }
 
+                    @Override
                     public boolean isEmpty() {
                         return !iterator().hasNext();
                     }
 
+                    @Override
                     public boolean remove(Object o) {
                         if (!(o instanceof Map.Entry)) {
                             return false;
@@ -873,6 +965,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
                         return false;
                     }
 
+                    @Override
                     public boolean contains(Object k) {
                         Entry<K,V> e = (Entry<K,V>)k;
                         if (!inRange(e.getKey())) {
@@ -890,6 +983,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             return entrySet;
         }   
 
+        @Override
         public SortedMap<K,V> subMap(K from, K to) {
             if (!inRange2(from)) {
                 throw new IllegalArgumentException("'from' out of range");
@@ -900,6 +994,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             return new SubMap(from, to);
         }
 
+        @Override
         public SortedMap<K,V> headMap(K to) {
             if (!inRange2(to)) {
                 throw new IllegalArgumentException("'to' out of range");
@@ -907,6 +1002,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             return new SubMap(this.from, to);
         }
 
+        @Override
         public SortedMap<K,V> tailMap(K from) {
             if (!inRange2(from)) {
                 throw new IllegalArgumentException("'from' out of range");
@@ -926,6 +1022,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public K firstKey() {
         if (index != null) { 
             if (type == ClassDescriptor.tpValue) {               
@@ -938,17 +1035,18 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
             if (values.size() == 0) {
                 throw new NoSuchElementException(); 
             }
-            return (K)((Comparable[])keys)[0];
+            return (K)keys[0];
         }
     }
 
+    @Override
     public K lastKey() {
         if (index != null) { 
             if (type == ClassDescriptor.tpValue) {       
                 ArrayList<PersistentMapEntry<K,V>> entries = ((SortedCollection<PersistentMapEntry<K,V>>)index).getList(null, null);
                 return entries.get(entries.size()-1).key;
             } else { 
-                return (K)((Index<V>)index).entryIterator(null, null, Index.DESCENT_ORDER).next().getKey();
+                return (K)((Index<V>)index).entryIterator(null, null, GenericIndex.DESCENT_ORDER).next().getKey();
             }
         } else { 
             int size = values.size();
@@ -959,6 +1057,7 @@ class PersistentMapImpl<K extends Comparable, V> extends PersistentResource impl
         }
     }
 
+    @Override
     public Iterator<V> select(Class cls, String predicate) { 
         Query<V> query = new QueryImpl<V>(getStorage());
         return query.select(cls, values().iterator(), predicate);

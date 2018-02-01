@@ -1,10 +1,10 @@
 package org.garret.perst;
-import  org.garret.perst.*;
 import  org.garret.perst.impl.QueryImpl;
 import  java.util.*;
 
 public abstract class PersistentCollection<T> extends PersistentResource implements ITable<T>
 {
+    @Override
     public IterableIterator<T> select(Class cls, String predicate) { 
         Query<T> query = new QueryImpl<T>(getStorage());
         return query.select(cls, iterator(), predicate);
@@ -26,6 +26,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * 
      * @see #contains(Object)
      */
+    @Override
     public boolean containsAll(Collection<?> c) {
 	Iterator<?> e = c.iterator();
 	while (e.hasNext())
@@ -58,6 +59,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * 
      * @see #add(Object)
      */
+    @Override
     public boolean addAll(Collection<? extends T> c) {
 	boolean modified = false;
 	Iterator<? extends T> e = c.iterator();
@@ -93,6 +95,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * @see #remove(Object)
      * @see #contains(Object)
      */
+    @Override
     public boolean removeAll(Collection<?> c) {
         boolean modified = false;
         Iterator<?> i = c.iterator();
@@ -129,6 +132,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * @see #remove(Object)
      * @see #contains(Object)
      */
+    @Override
     public boolean retainAll(Collection<?> c) {
         ArrayList<T> toBeRemoved = new ArrayList<T>();
         Iterator<T> i = iterator();
@@ -157,6 +161,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * @param o object to be checked for containment in this collection.
      * @return <tt>true</tt> if this collection contains the specified element.
      */
+    @Override
     public boolean contains(Object o) {
 	Iterator<T> e = iterator();
 	if (o==null) {
@@ -195,6 +200,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * @throws UnsupportedOperationException if the <tt>remove</tt> method is
      * 		  not supported by this collection.
      */
+    @Override
     public boolean remove(Object o) {
 	Iterator<T> e = iterator();
 	if (o==null) {
@@ -246,6 +252,7 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      * @throws IllegalArgumentException if some aspect of this element
      *            prevents it from being added to this collection.
      */
+    @Override
     public boolean add(T o) {
 	throw new UnsupportedOperationException();
     }
@@ -257,10 +264,12 @@ public abstract class PersistentCollection<T> extends PersistentResource impleme
      *
      * @return <tt>true</tt> if this collection contains no elements.
      */
+    @Override
     public boolean isEmpty() {
 	return size() == 0;
     }
 
+    @Override
     public void deallocateMembers() {
         Iterator<T> i = iterator();
         while (i.hasNext()) { 

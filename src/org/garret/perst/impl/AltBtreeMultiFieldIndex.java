@@ -35,14 +35,17 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public Class getIndexedClass() { 
         return cls;
     }
 
+    @Override
     public Field[] getKeyFields() { 
         return fld;
     }
 
+    @Override
     public void onLoad()
     {
         cls = ClassDescriptor.loadClass(getStorage(), className);
@@ -52,6 +55,7 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
     static class CompoundKey implements Comparable, IValue {
         Object[] keys;
 
+        @Override
         public int compareTo(Object o) { 
             CompoundKey c = (CompoundKey)o;
             int n = keys.length < c.keys.length ? keys.length : c.keys.length; 
@@ -103,18 +107,22 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return new Key(new CompoundKey(keys));
     }
 
+    @Override
     public boolean add(T obj) {
         return super.put(extractKey(obj), obj);
     }
 
+    @Override
     public boolean put(T obj) {
         return super.put(extractKey(obj), obj);
     }
 
+    @Override
     public T set(T obj) {
         return super.set(extractKey(obj), obj);
     }
 
+    @Override
     public boolean addAll(Collection<? extends T> c) {
         MultiFieldValue[] arr = new MultiFieldValue[c.size()];
         Iterator<? extends T> e = c.iterator();
@@ -137,18 +145,22 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return arr.length > 0;
     }
 
+    @Override
     public boolean remove(Object obj) {
         return super.removeIfExists(extractKey(obj), obj);
     }
 
+    @Override
     public boolean unlink(Key key, T obj) {
         return super.unlink(convertKey(key), obj);
     }
 
+    @Override
     public T remove(Key key) {
         return super.remove(convertKey(key));
     }
     
+    @Override
     public boolean containsObject(T obj) {
         Key key = extractKey(obj);
         if (unique) { 
@@ -164,6 +176,7 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public boolean contains(Object obj) {
         Key key = extractKey(obj);
         if (unique) { 
@@ -179,10 +192,12 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public void append(T obj) {
         throw new StorageError(StorageError.UNSUPPORTED_INDEX_TYPE);
     }
 
+    @Override
     public T[] get(Key from, Key till) {
         ArrayList list = new ArrayList();
         if (root != null) { 
@@ -191,15 +206,18 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));
     }
 
+    @Override
     public T[] getPrefix(String prefix) {
         throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
     }
         
 
+    @Override
     public T[] prefixSearch(String key) {
         throw new StorageError(StorageError.INCOMPATIBLE_KEY_TYPE);
     }
 
+    @Override
     public T[] toArray() {
         T[] arr = (T[])Array.newInstance(cls, nElems);
         if (root != null) { 
@@ -208,28 +226,34 @@ class AltBtreeMultiFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return arr;
     }
 
+    @Override
     public T get(Key key) {
         return super.get(convertKey(key));
     }
 
+    @Override
     public IterableIterator<T> iterator(Key from, Key till, int order) {
         return super.iterator(convertKey(from), convertKey(till), order);
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Key from, Key till, int order) {
         return super.entryIterator(convertKey(from), convertKey(till), order);
     }
 
+    @Override
     public IterableIterator<T> queryByExample(T obj) {
         Key key = extractKey(obj);
         return iterator(key, key, ASCENT_ORDER);
     }
 
+    @Override
     public IterableIterator<T> select(String predicate) { 
         Query<T> query = new QueryImpl<T>(getStorage());
         return query.select(cls, iterator(), predicate);
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return false;
     }
@@ -242,6 +266,7 @@ class AltBtreeCaseInsensitiveMultiFieldIndex<T> extends AltBtreeMultiFieldIndex<
         super(cls, fieldNames, unique);
     }
 
+    @Override
     Key checkKey(Key key) { 
         if (key != null) { 
             CompoundKey ck = (CompoundKey)key.oval;
@@ -254,6 +279,7 @@ class AltBtreeCaseInsensitiveMultiFieldIndex<T> extends AltBtreeMultiFieldIndex<
         return super.checkKey(key);
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return true;
     }

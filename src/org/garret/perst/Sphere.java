@@ -56,6 +56,7 @@ class Point3D
         return Math.sqrt(x*x + y*y + z*z);
     }
     
+    @Override
     public boolean equals(Object o) { 
         if (o instanceof Point3D)  { 
             Point3D p = (Point3D)o;
@@ -281,6 +282,7 @@ public class Sphere
             return 2 * Math.asin(Math.sqrt(x * (z - y) + y));
         }
 
+        @Override
         public boolean equals(Object o) { 
             if (o instanceof Point)  { 
                 Point p = (Point)o;
@@ -289,6 +291,7 @@ public class Sphere
             return false;
         } 
 
+        @Override
         public RectangleRn wrappingRectangle() { 
             double x = Math.cos(ra)*Math.cos(dec);
             double y = Math.sin(ra)*Math.cos(dec);
@@ -303,10 +306,12 @@ public class Sphere
             return new PointRn(new double[]{x, y, z});
         }
 
+        @Override
         public boolean contains(Point p) { 
             return equals(p);
         }
 
+        @Override
         public String toString() { 
             return "(" + ra + "," + dec + ")";
         }
@@ -322,6 +327,7 @@ public class Sphere
         public final Point sw; // source-west
         public final Point ne; // nord-east
 
+        @Override
         public boolean equals(Object o) { 
             if (o instanceof Box)  { 
                 Box b = (Box)o;
@@ -330,6 +336,7 @@ public class Sphere
             return false;
         }
 
+        @Override
         public boolean contains(Point p) { 
             return contains(p.ra, p.dec);
         }
@@ -354,6 +361,7 @@ public class Sphere
             return true;
         }
            
+        @Override
         public RectangleRn wrappingRectangle() { 
             RectangleRn r = sw.wrappingRectangle();
             double ra, dec;
@@ -394,10 +402,12 @@ public class Sphere
             this.radius = radius;
         }
         
+        @Override
         public String toString() { 
             return "<" + center + "," + radius + ">";
         }
 
+        @Override
         public boolean equals(Object o) { 
             if (o instanceof Circle)  { 
                 Circle c = (Circle)o;
@@ -406,11 +416,13 @@ public class Sphere
             return false;
         }
 
+        @Override
         public boolean contains(Point p) { 
             double distance = center.distance(p);
             return FP.le(distance, radius);
         }
 
+        @Override
         public RectangleRn wrappingRectangle() { 
             Point3D[] v = new Point3D[8];
             Point3D tv = new Point3D();
@@ -523,11 +535,13 @@ public class Sphere
             return new Point(psi, -theta);
         }
 
+        @Override
         public boolean contains(Point p) { 
             // too complex implementation
             throw new UnsupportedOperationException();
         }            
 
+        @Override
         public boolean equals(Object o) { 
             if (o instanceof Ellipse)  { 
                 Ellipse e = (Ellipse)o;
@@ -536,6 +550,7 @@ public class Sphere
             return false;
         }
 
+        @Override
         public RectangleRn wrappingRectangle() { 
             Point3D[] v = new Point3D[8];
             Point3D tv = new Point3D();
@@ -627,6 +642,7 @@ public class Sphere
          */
         public final double length; 
         
+        @Override
         public boolean equals(Object o) { 
             if (o instanceof Line) { 
                 Line l = (Line)o;
@@ -635,6 +651,7 @@ public class Sphere
             return false;
         }
 
+        @Override
         public boolean contains(Point p) { 
             Euler euler = new Euler();
             Point3D spt = new Point3D();
@@ -698,6 +715,7 @@ public class Sphere
             }
         }
 
+        @Override
         public RectangleRn wrappingRectangle() { 
            Euler euler = new Euler();
            euler.phi      = phi;
@@ -785,10 +803,12 @@ public class Sphere
             this.points = points;
         }
 
+        @Override
         public boolean contains(Point p) { 
             throw new UnsupportedOperationException();
         }            
 
+        @Override
         public RectangleRn wrappingRectangle() { 
             RectangleRn wr = null;
             for (int i=0; i < points.length; i++) {

@@ -14,39 +14,47 @@ import org.garret.perst.impl.StorageImpl;
  */
 public class PinnedPersistent implements IPersistent, ICloneable 
 { 
+    @Override
     public synchronized void load() {
         if (oid != 0 && (state & RAW) != 0) { 
             storage.loadObject(this);
         }
     }
 
+    @Override
     public synchronized void loadAndModify() {
         load();
         modify();
     }
 
+    @Override
     public final boolean isRaw() { 
         return (state & RAW) != 0;
     } 
     
+    @Override
     public final boolean isModified() { 
         return (state & DIRTY) != 0;
     } 
     
+    @Override
     public final boolean isDeleted() { 
         return (state & DELETED) != 0;
     } 
     
+    @Override
     public final boolean isPersistent() { 
         return oid != 0;
     }
     
+    @Override
     public void makePersistent(Storage storage) { 
         if (oid == 0) { 
             storage.makePersistent(this);
         }
     }
 
+    @Override
     public void store() {
         if ((state & RAW) != 0) { 
             throw new StorageError(StorageError.ACCESS_TO_STUB);
@@ -57,6 +65,7 @@ public class PinnedPersistent implements IPersistent, ICloneable
         }
     }
   
+    @Override
     public void modify() { 
         if ((state & DIRTY) == 0 && oid != 0) { 
             if ((state & RAW) != 0) { 
@@ -74,24 +83,29 @@ public class PinnedPersistent implements IPersistent, ICloneable
         this.storage = storage;
     }
 
+    @Override
     public final int getOid() {
         return oid;
     }
 
+    @Override
     public void deallocate() { 
         if (oid != 0) { 
             storage.deallocateObject(this);
         }
     }
 
+    @Override
     public boolean recursiveLoading() {
         return true;
     }
     
+    @Override
     public final Storage getStorage() {
         return storage;
     }
     
+    @Override
     public boolean equals(Object o) { 
         if (o == this) {
             return true;
@@ -102,16 +116,20 @@ public class PinnedPersistent implements IPersistent, ICloneable
         return o instanceof IPersistent && ((IPersistent)o).getOid() == oid;
     }
 
+    @Override
     public int hashCode() {
         return oid;
     }
 
+    @Override
     public void onLoad() {
     }
 
+    @Override
     public void onStore() {
     }
 
+    @Override
     public void invalidate() { 
         state &= ~DIRTY;
         state |= RAW;
@@ -125,12 +143,14 @@ public class PinnedPersistent implements IPersistent, ICloneable
     static public final int DIRTY = 2;
     static public final int DELETED = 4;
 
+    @Override
     public void unassignOid() {
         oid = 0;
         state = DELETED;
         storage = null;
     }
 
+    @Override
     public void assignOid(Storage storage, int oid, boolean raw) { 
         this.oid = oid;
         this.storage = storage;
@@ -146,6 +166,7 @@ public class PinnedPersistent implements IPersistent, ICloneable
         oid = 0;
     }
 
+    @Override
     public Object clone() throws CloneNotSupportedException { 
         Persistent p = (Persistent)super.clone();
         p.oid = 0;
@@ -153,11 +174,13 @@ public class PinnedPersistent implements IPersistent, ICloneable
         return p;
     }
 
+    @Override
     public void readExternal(java.io.ObjectInput s) throws java.io.IOException, ClassNotFoundException
     {
         oid = s.readInt();
     }
 
+    @Override
     public void writeExternal(java.io.ObjectOutput s) throws java.io.IOException
     {
         if (s instanceof StorageImpl.PersistentObjectOutputStream) { 

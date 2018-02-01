@@ -13,6 +13,7 @@ public class ReplicationStaticSlaveStorageImpl extends ReplicationSlaveStorageIm
         this.port = port;
     }
 
+    @Override
     public void open(IFile file, long pagePoolSize) {
         try { 
             acceptor = new ServerSocket(port);
@@ -32,11 +33,13 @@ public class ReplicationStaticSlaveStorageImpl extends ReplicationSlaveStorageIm
         super.open(file, pagePoolSize);
     }
 
+    @Override
     Socket getSocket() throws IOException { 
         return acceptor.accept();
     }
 
     // Cancel accept
+    @Override
     void cancelIO() { 
         try { 
             Socket s = new Socket("localhost", port);

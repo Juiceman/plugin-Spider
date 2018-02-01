@@ -17,6 +17,7 @@ public final class ClassDescriptor extends Persistent {
         ClassDescriptor valueDesc;
         transient Field field;
 
+        @Override
         public int compareTo(Object o) { 
             return fieldName.compareTo(((FieldDescriptor)o).fieldName);
         }
@@ -188,7 +189,8 @@ public final class ClassDescriptor extends Persistent {
         }
         Field[] flds = cls.getDeclaredFields();
         if (storage.getDatabaseFormatVersion() >= 2) { 
-            Arrays.sort(flds, new Comparator<Field>() { public int compare(Field f1, Field f2) { return f1.getName().compareTo(f2.getName()); } });
+            Arrays.sort(flds, new Comparator<Field>() { @Override
+            public int compare(Field f1, Field f2) { return f1.getName().compareTo(f2.getName()); } });
         } else { // preserve backward compatibility
             if (ClassDescriptor.class.equals(cls)) { 
                 for (int i = 0; i < flds.length; i++) { 
@@ -407,6 +409,7 @@ public final class ClassDescriptor extends Persistent {
         }
     }
 
+    @Override
     public void onLoad() {         
         StorageImpl s = (StorageImpl)getStorage();
         cls = loadClass(s, name);
@@ -480,6 +483,7 @@ public final class ClassDescriptor extends Persistent {
         }
     }            
 
+    @Override
     public boolean recursiveLoading() { 
         return false;
     }

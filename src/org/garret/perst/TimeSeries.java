@@ -57,6 +57,7 @@ public interface TimeSeries<T extends TimeSeries.Tick> extends IPersistent, IRes
      * Add new tick to time series
      * @param tick new time series element
      */
+    @Override
     boolean add(T tick);    
 
     /**
@@ -78,6 +79,7 @@ public interface TimeSeries<T extends TimeSeries.Tick> extends IPersistent, IRes
      * time series during iteration.
      * @return forward iterator 
      */
+    @Override
     Iterator<T> iterator();
 
     /**

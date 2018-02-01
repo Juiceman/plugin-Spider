@@ -1,7 +1,5 @@
 package org.garret.perst;
 
-import java.util.*;
-
 /**
  * Interface of string field index for regular expression search.
  */

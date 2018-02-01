@@ -19,18 +19,21 @@ public class MultiFile implements IFile
     }
 
 
+    @Override
     public void write(long pos, byte[] b) 
     {
         pos = seek(pos);
         segment[currSeg].f.write(pos, b);
     }
 
+    @Override
     public int read(long pos, byte[] b) 
     { 
         pos = seek(pos);
         return segment[currSeg].f.read(pos, b);
     }
         
+    @Override
     public void sync()
     { 
         if (!noFlush) { 
@@ -40,22 +43,26 @@ public class MultiFile implements IFile
         }
     }
     
+    @Override
     public boolean tryLock(boolean shared) 
     { 
         return segment[0].f.tryLock(shared);
     }
 
+    @Override
     public void lock(boolean shared) 
     {
         segment[0].f.lock(shared);
     }
 
+    @Override
     public void unlock() 
     { 
         segment[0].f.unlock();
     }
 
 
+    @Override
     public void close() 
     { 
         for (int i = segment.length; --i >= 0;) { 
@@ -131,6 +138,7 @@ public class MultiFile implements IFile
         }
     }
 
+    @Override
     public long length() {
         return fixedSize +  segment[segment.length-1].f.length();
     }

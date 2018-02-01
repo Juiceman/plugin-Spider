@@ -57,10 +57,12 @@ public class ByteBuffer {
     }
 
     class ByteBufferOutputStream extends OutputStream { 
+        @Override
         public void write(int b) {
             write(new byte[]{(byte)b}, 0, 1);
         }
 
+        @Override
         public void write(byte b[], int off, int len) {
             int pos = used;
             extend(pos + len);
@@ -73,6 +75,7 @@ public class ByteBuffer {
             super(new ByteBufferOutputStream());
         }
 
+        @Override
         public void writeObject(Object obj) throws IOException {                
             try { 
                 flush();
@@ -82,6 +85,7 @@ public class ByteBuffer {
             } 
         }
         
+        @Override
         public void writeString(String str) throws IOException {      
             flush();
             packString(used, str);

@@ -1,7 +1,5 @@
 package org.garret.perst;
 
-import java.util.*;
-
 /**
  * Interface of bit index.
  * Bit index allows to effiicently search object with specified 

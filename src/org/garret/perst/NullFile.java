@@ -11,26 +11,34 @@ package org.garret.perst;
  */
 public class NullFile implements IFile 
 { 
+    @Override
     public void write(long pos, byte[] buf) {}
 
+    @Override
     public int read(long pos, byte[] buf) {
         return 0;
     }
 
+    @Override
     public void sync() {}
 
+    @Override
     public boolean tryLock(boolean shared) { 
         return true;
     }
 
+    @Override
     public void lock(boolean shared) { 
     }
 
+    @Override
     public void unlock() { 
     }
 
+    @Override
     public void close() {}
 
+    @Override
     public long length() { 
         return 0;
     }

@@ -162,11 +162,13 @@ public class Aggregator
      */
     public static class TopAggregate implements Aggregate<Comparable>
     {
+        @Override
         public void initialize(Comparable val) {
             max[0] = val;
             used = 1;
         }
     
+        @Override
         public void accumulate(Comparable val) { 
             int l = 0, n = used, r = n;
             while (l < r) { 
@@ -191,6 +193,7 @@ public class Aggregator
          * Result of aggregation
          * @return array with top N values. If there are less than N object in aggregated set, then size of result array may be smaller than N 
          */
+        @Override
         public Object result() { 
             if (used < max.length) { 
                 Comparable[] res = new Comparable[used];
@@ -200,6 +203,7 @@ public class Aggregator
             return max;
         }
 
+        @Override
         public void merge(Aggregate<Comparable> other) { 
             for (Comparable obj : (Comparable[])other.result()) { 
                 accumulate(obj);
@@ -224,20 +228,24 @@ public class Aggregator
      */
     public static class MaxAggregate implements Aggregate<Comparable>
     {
+        @Override
         public void initialize(Comparable val) {
             max = val;
         }
     
+        @Override
         public void accumulate(Comparable val) { 
             if (val.compareTo(max) > 0) { 
                 max = val;
             }
         }
 
+        @Override
         public Object result() { 
             return max;
         }
         
+        @Override
         public void merge(Aggregate<Comparable> other) { 
             accumulate((Comparable)other.result());
         }
@@ -250,20 +258,24 @@ public class Aggregator
      */
     public static class MinAggregate implements Aggregate<Comparable>
     {
+        @Override
         public void initialize(Comparable val) {
             min = val;
         }
     
+        @Override
         public void accumulate(Comparable val) { 
             if (val.compareTo(min) < 0) { 
                 min = val;
             }
         }
 
+        @Override
         public Object result() { 
             return min;
         }
 
+        @Override
         public void merge(Aggregate<Comparable> other) { 
             accumulate((Comparable)other.result());
         }
@@ -276,18 +288,22 @@ public class Aggregator
      */
     public static class RealSumAggregate implements Aggregate<Number>
     {
+        @Override
         public void initialize(Number val) {
             sum = val.doubleValue();
         }
     
+        @Override
         public void accumulate(Number val) { 
             sum += val.doubleValue();
         }
 
+        @Override
         public Object result() { 
             return new Double(sum);
         }
 
+        @Override
         public void merge(Aggregate<Number> other) { 
             sum += ((RealSumAggregate)other).sum;
         }
@@ -300,18 +316,22 @@ public class Aggregator
      */
     public static class IntegerSumAggregate implements Aggregate<Number>
     {
+        @Override
         public void initialize(Number val) {
             sum = val.longValue();
         }
     
+        @Override
         public void accumulate(Number val) { 
             sum += val.longValue();
         }
 
+        @Override
         public Object result() { 
             return new Long(sum);
         }
 
+        @Override
         public void merge(Aggregate<Number> other) { 
             sum += ((IntegerSumAggregate)other).sum;
         }
@@ -324,20 +344,24 @@ public class Aggregator
      */
     public static class AvgAggregate implements Aggregate<Number>
     {
+        @Override
         public void initialize(Number val) {
             sum = val.doubleValue();
             count = 1;
         }
     
+        @Override
         public void accumulate(Number val) { 
             sum += val.doubleValue();
             count += 1;
         }
 
+        @Override
         public Object result() { 
             return new Double(sum/count);
         }
 
+        @Override
         public void merge(Aggregate<Number> other) { 
             AvgAggregate otherAvg = (AvgAggregate)other;
             sum += otherAvg.sum;
@@ -353,18 +377,22 @@ public class Aggregator
      */
     public static class PrdAggregate implements Aggregate<Number>
     {
+        @Override
         public void initialize(Number val) {
             prd = val.doubleValue();
         }
     
+        @Override
         public void accumulate(Number val) { 
             prd *= val.doubleValue();
         }
 
+        @Override
         public Object result() { 
             return new Double(prd);
         }
 
+        @Override
         public void merge(Aggregate<Number> other) { 
             prd *= ((PrdAggregate)other).prd;
         }
@@ -377,6 +405,7 @@ public class Aggregator
      */
     public static class VarAggregate implements Aggregate<Number>
     {
+        @Override
         public void initialize(Number val) {
             double v = val.doubleValue();
             sum = v;
@@ -384,6 +413,7 @@ public class Aggregator
             count = 1;
         }
     
+        @Override
         public void accumulate(Number val) { 
             double v = val.doubleValue();
             sum += v;
@@ -391,10 +421,12 @@ public class Aggregator
             count += 1;
         }
 
+        @Override
         public Object result() { 
             return new Double((sum2 - sum*sum/count)/count);
         }
 
+        @Override
         public void merge(Aggregate<Number> other) { 
             VarAggregate otherVar = (VarAggregate)other;
             sum += otherVar.sum;
@@ -412,6 +444,7 @@ public class Aggregator
      */
     public static class DevAggregate extends VarAggregate
     {
+        @Override
         public Object result() { 
             return new Double(Math.sqrt((sum2 - sum*sum/count)/count));
         }
@@ -422,18 +455,22 @@ public class Aggregator
      */
     public static class CountAggregate implements Aggregate
     {
+        @Override
         public void initialize(Object val) {
             count = 1;
         }
     
+        @Override
         public void accumulate(Object val) { 
             count += 1;
         }
 
+        @Override
         public Object result() { 
             return new Long(count);
         }
 
+        @Override
         public void merge(Aggregate other) { 
             count += ((CountAggregate)other).count;
         }
@@ -446,18 +483,22 @@ public class Aggregator
      */
     public static class DistinctCountAggregate implements Aggregate
     {
+        @Override
         public void initialize(Object val) {
             accumulate(val);
         }
     
+        @Override
         public void accumulate(Object val) { 
             set.add(val);
         }
 
+        @Override
         public Object result() { 
             return new Long(set.size());
         }
 
+        @Override
         public void merge(Aggregate other) { 
             set.addAll(((DistinctCountAggregate)other).set);
         }
@@ -478,10 +519,12 @@ public class Aggregator
             }
         }
 
+        @Override
         public void initialize(Object val) {
             accumulate(val);
         }
     
+        @Override
         public void accumulate(Object val) { 
             Counter counter = occ.get(val);
             if (counter == null) { 
@@ -495,10 +538,12 @@ public class Aggregator
             }
         }
 
+        @Override
         public Object result() { 
             return new Long(count);
         }
 
+        @Override
         public void merge(Aggregate other) { 
             for (Map.Entry<Object,Counter> pair : ((RepeatCountAggregate)other).occ.entrySet()) { 
                 Object key = pair.getKey();
@@ -540,10 +585,12 @@ public class Aggregator
         static final int HASH_BITS = 25;
         static final int N_HASHES = 1 << (32 - HASH_BITS);
 
+        @Override
         public void initialize(Object val) {
             accumulate(val);
         }
     
+        @Override
         public void accumulate(Object val) { 
             int h = val.hashCode();
             int j = h >>> HASH_BITS;
@@ -557,16 +604,17 @@ public class Aggregator
             }            
         }
 
+        @Override
         public Object result()
         { 
             final int m = N_HASHES;
-            final double alpha_m = 0.7213 / (1 + 1.079 / (double)m);
+            final double alpha_m = 0.7213 / (1 + 1.079 / m);
             final double pow_2_32 = 0xffffffff;
             double E, c = 0;
             int i;
             for (i = 0; i < m; i++)
             {
-                c += 1 / Math.pow(2., (double)maxZeroBits[i]);
+                c += 1 / Math.pow(2., maxZeroBits[i]);
             }
             E = alpha_m * m * m / c;    
             
@@ -591,6 +639,7 @@ public class Aggregator
             return new Long((long)E);
         }
         
+        @Override
         public void merge(Aggregate other) { 
             int[] otherMaxZeroBits = ((ApproxDistinctCountAggregate)other).maxZeroBits;
             for (int i = 0; i < N_HASHES; i++) { 
@@ -608,17 +657,21 @@ public class Aggregator
      */
     public static class FirstAggregate implements Aggregate
     {
+        @Override
         public void initialize(Object val) {
             first = val;
         }
     
+        @Override
         public void accumulate(Object val) { 
         }
 
+        @Override
         public Object result() { 
             return first;
         }
 
+        @Override
         public void merge(Aggregate other) {}
  
         Object first;
@@ -629,18 +682,22 @@ public class Aggregator
      */
     public static class LastAggregate implements Aggregate
     {
+        @Override
         public void initialize(Object val) {
             last = val;
         }
     
+        @Override
         public void accumulate(Object val) { 
             last = val;
         }
 
+        @Override
         public Object result() { 
             return last;
         }
 
+        @Override
         public void merge(Aggregate other) { 
             last = ((LastAggregate)other).last;
         }
@@ -653,18 +710,21 @@ public class Aggregator
      */
     public static class CompoundAggregate implements Aggregate
     {
+        @Override
         public void initialize(Object val) {
             for (Aggregate agg : aggregates) { 
                 agg.initialize(val);
             }
         }
     
+        @Override
         public void accumulate(Object val) { 
             for (Aggregate agg : aggregates) { 
                 agg.accumulate(val);
             }
         }
 
+        @Override
         public Object result() { 
             Object[] arr = new Object[aggregates.length];
             for (int i = 0; i < aggregates.length; i++) { 
@@ -673,6 +733,7 @@ public class Aggregator
             return arr;
         }
  
+        @Override
         public void merge(Aggregate other) { 
             Aggregate[] otherAggregates = ((CompoundAggregate)other).aggregates;
             for (int i = 0; i < otherAggregates.length; i++) { 

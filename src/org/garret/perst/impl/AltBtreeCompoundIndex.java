@@ -44,6 +44,7 @@ class AltBtreeCompoundIndex<T> extends AltBtree<T> implements Index<T> {
         }
     }
 
+    @Override
     public Class[] getKeyTypes() {
         Class[] keyTypes = new Class[types.length];
         for (int i = 0; i < keyTypes.length; i++) { 
@@ -55,6 +56,7 @@ class AltBtreeCompoundIndex<T> extends AltBtree<T> implements Index<T> {
     static class CompoundKey implements Comparable, IValue {
         Object[] keys;
 
+        @Override
         public int compareTo(Object o) { 
             CompoundKey c = (CompoundKey)o;
             int n = keys.length < c.keys.length ? keys.length : c.keys.length; 
@@ -106,38 +108,47 @@ class AltBtreeCompoundIndex<T> extends AltBtree<T> implements Index<T> {
         return new Key(new CompoundKey(keyComponents), key.inclusion != 0);
     }
             
+    @Override
     public ArrayList<T> getList(Key from, Key till) {
         return super.getList(convertKey(from), convertKey(till));
     }
 
+    @Override
     public T get(Key key) {
         return super.get(convertKey(key));
     }
 
+    @Override
     public T  remove(Key key) { 
         return super.remove(convertKey(key, false));
     }
 
+    @Override
     public void remove(Key key, T obj) { 
         super.remove(convertKey(key, false), obj);
     }
 
+    @Override
     public boolean unlink(Key key, T obj) {
         return super.unlink(convertKey(key, false), obj);
     }
 
+    @Override
     public T  set(Key key, T obj) { 
         return super.set(convertKey(key, false), obj);
     }
 
+    @Override
     public boolean put(Key key, T obj) {
         return super.put(convertKey(key, false), obj);
     }
 
+    @Override
     public IterableIterator<T> iterator(Key from, Key till, int order) {
         return super.iterator(convertKey(from), convertKey(till), order);
     }
 
+    @Override
     public IterableIterator<Map.Entry<Object,T>> entryIterator(Key from, Key till, int order) {
         return super.entryIterator(convertKey(from), convertKey(till), order);
     }

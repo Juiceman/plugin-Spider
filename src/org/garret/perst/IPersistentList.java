@@ -1,7 +1,6 @@
 package org.garret.perst;
 
 import java.util.List;
-import java.util.RandomAccess;
 
 /**
  * Interface for ordered collection (sequence). 

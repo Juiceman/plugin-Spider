@@ -6,6 +6,7 @@ public class SoftHashTable extends WeakHashTable {
         super(db, initialCapacity);
     }
     
+    @Override
     protected Reference createReference(Object obj) { 
         return new SoftReference(obj);
     }

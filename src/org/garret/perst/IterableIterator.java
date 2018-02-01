@@ -9,6 +9,7 @@ public abstract class IterableIterator<T> implements Iterable<T>, Iterator<T> {
     /**
      * This class itself is iterator
      */
+    @Override
     public Iterator<T> iterator() { 
         return this;
     }
@@ -34,6 +35,7 @@ public abstract class IterableIterator<T> implements Iterable<T>, Iterator<T> {
         return count;
     }
 
+    @Override
     public void remove()
     {
         throw new UnsupportedOperationException();

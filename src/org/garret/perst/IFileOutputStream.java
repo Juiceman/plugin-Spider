@@ -9,6 +9,7 @@ import org.garret.perst.impl.Page;
  */
 public class IFileOutputStream extends OutputStream
 {
+    @Override
     public void write(int b) throws IOException
     {
         byte[] bytes = new byte[1];
@@ -16,6 +17,7 @@ public class IFileOutputStream extends OutputStream
         write(bytes, 0, 1);
     }
 
+    @Override
     public void write(byte b[], int srcOff, int len) throws IOException 
     {
         while (len > 0) { 
@@ -32,11 +34,13 @@ public class IFileOutputStream extends OutputStream
         }
     }    
 
+    @Override
     public void flush() throws IOException {
         int dstOff = (int)(currPos % Page.pageSize);
         file.write(currPos - dstOff, page);
     }
 
+    @Override
     public void close() throws IOException {
         flush();
         file.close();

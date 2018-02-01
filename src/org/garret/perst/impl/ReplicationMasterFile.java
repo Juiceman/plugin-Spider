@@ -105,6 +105,7 @@ public class ReplicationMasterFile implements IFile, Runnable
         }
     }
 
+    @Override
     public void run() { 
         while (true) { 
             Socket s = null;
@@ -283,6 +284,7 @@ public class ReplicationMasterFile implements IFile, Runnable
             //setPriority(Thread.NORM_PRIORITY-1);
         }
 
+        @Override
         public void run() { 
             synchronizeNode(i);
         }
@@ -352,6 +354,7 @@ public class ReplicationMasterFile implements IFile, Runnable
     }
 
 
+    @Override
     public void write(long pos, byte[] buf) {
         synchronized (mutex) { 
             if (pageTimestamps != null) { 
@@ -400,10 +403,12 @@ public class ReplicationMasterFile implements IFile, Runnable
         file.write(pos, buf);
     }
 
+    @Override
     public int read(long pos, byte[] buf) {
         return file.read(pos, buf);
     }
 
+    @Override
     public void sync() {
         if (pageTimestamps != null) { 
             synchronized (mutex) { 
@@ -437,18 +442,22 @@ public class ReplicationMasterFile implements IFile, Runnable
         file.sync();
     }
 
+    @Override
     public boolean tryLock(boolean shared) { 
         return file.tryLock(shared);
     }
 
+    @Override
     public void lock(boolean shared) { 
         file.lock(shared);
     }
 
+    @Override
     public void unlock() { 
         file.unlock();
     }
 
+    @Override
     public void close() {
         if (listenThread != null) { 
             synchronized (mutex) { 
@@ -492,6 +501,7 @@ public class ReplicationMasterFile implements IFile, Runnable
         }
     }
 
+    @Override
     public long length() {
         return file.length();
     }

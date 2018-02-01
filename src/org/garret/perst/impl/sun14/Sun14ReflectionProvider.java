@@ -35,6 +35,7 @@ public class Sun14ReflectionProvider implements ReflectionProvider {
         }
     }
 
+    @Override
     public Constructor getDefaultConstructor(Class cls) throws Exception { 
         Constructor cons = (Constructor)constructorHash.get(cls);
         if (cons == null) { 
@@ -48,38 +49,47 @@ public class Sun14ReflectionProvider implements ReflectionProvider {
         return cons;
     }
 
+    @Override
     public void setInt(Field field, Object object, int value) throws Exception { 
         unsafe.putInt(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setLong(Field field, Object object, long value) throws Exception { 
         unsafe.putLong(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setShort(Field field, Object object, short value) throws Exception { 
         unsafe.putShort(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setChar(Field field, Object object, char value) throws Exception { 
         unsafe.putChar(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setByte(Field field, Object object, byte value) throws Exception { 
         unsafe.putByte(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setFloat(Field field, Object object, float value) throws Exception { 
         unsafe.putFloat(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setDouble(Field field, Object object, double value) throws Exception { 
         unsafe.putDouble(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void setBoolean(Field field, Object object, boolean value) throws Exception { 
         unsafe.putBoolean(object, unsafe.objectFieldOffset(field), value);
     }
 
+    @Override
     public void set(Field field, Object object, Object value) throws Exception { 
         unsafe.putObject(object, unsafe.objectFieldOffset(field), value);
     }

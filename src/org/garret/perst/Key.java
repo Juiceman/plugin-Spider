@@ -14,6 +14,7 @@ public class Key {
 
     public final int     inclusion;
 
+    @Override
     public boolean equals(Object o) { 
         if (o instanceof Key) { 
             Key key = (Key)o;

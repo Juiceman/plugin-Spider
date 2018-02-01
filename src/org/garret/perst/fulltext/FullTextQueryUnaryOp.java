@@ -10,6 +10,7 @@ public class FullTextQueryUnaryOp extends FullTextQuery
     /**
      * Query node visitor.
      */
+    @Override
     public void visit(FullTextQueryVisitor visitor) { 
         visitor.visit(this);
         opd.visit(visitor);
@@ -19,10 +20,12 @@ public class FullTextQueryUnaryOp extends FullTextQuery
      * This method checks that query can be executed by interection of keyword occurrences lists
      * @return true if quuery can be executed by FullTextIndex, false otherwise
      */
+    @Override
     public boolean isConstrained() { 
         return op == NOT ? false : opd.isConstrained();
     }
 
+    @Override
     public String toString() { 
         return operatorName[op] + '(' + opd.toString() + ')';
     }

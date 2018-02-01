@@ -32,7 +32,8 @@ public class MainPageToadlet extends Toadlet {
 		return "/spider/";
 	}
 
-	public void handleMethodGET(URI uri, final HTTPRequest request, final ToadletContext ctx) 
+	@Override
+  public void handleMethodGET(URI uri, final HTTPRequest request, final ToadletContext ctx) 
 	throws ToadletContextClosedException, IOException, RedirectException {
 		ClassLoader origClassLoader = Thread.currentThread().getContextClassLoader();
 		Thread.currentThread().setContextClassLoader(Spider.class.getClassLoader());

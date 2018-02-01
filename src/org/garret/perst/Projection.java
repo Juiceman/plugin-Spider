@@ -98,6 +98,7 @@ public class Projection<From, To> extends HashSet<To> {
      * Add object to the set
      * @param obj objet to be added
      */
+    @Override
     public boolean add(To obj) { 
         if (obj != null) { 
             return super.add(obj);

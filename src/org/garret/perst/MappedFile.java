@@ -3,7 +3,6 @@ package org.garret.perst;
 import java.io.*;
 import java.nio.*;
 import java.nio.channels.*;
-import org.garret.perst.impl.OSFile;
 
 /**
  * Class using NIO mapping file on virtual mapping.
@@ -24,6 +23,7 @@ public class MappedFile implements IFile {
         }
     }
 
+    @Override
     public void write(long pos, byte[] buf) 
     {
         try { 
@@ -35,6 +35,7 @@ public class MappedFile implements IFile {
         }
     }
 
+    @Override
     public int read(long pos, byte[] buf) 
     { 
         if (pos >= mapSize) { 
@@ -45,11 +46,13 @@ public class MappedFile implements IFile {
         return buf.length;
     }
         
+    @Override
     public void sync()
     { 
         map.force();
     }
     
+    @Override
     public void close() 
     { 
         try { 
@@ -60,6 +63,7 @@ public class MappedFile implements IFile {
         }
     }
 
+    @Override
     public boolean tryLock(boolean shared) 
     { 
         try { 
@@ -69,6 +73,7 @@ public class MappedFile implements IFile {
             return true;
         }
     }
+    @Override
     public void lock(boolean shared) 
     { 
         try { 
@@ -78,6 +83,7 @@ public class MappedFile implements IFile {
         }
     }
 
+    @Override
     public void unlock() 
     { 
         try { 
@@ -87,6 +93,7 @@ public class MappedFile implements IFile {
         }
     }
 
+    @Override
     public long length() { 
         try { 
             return f.length();

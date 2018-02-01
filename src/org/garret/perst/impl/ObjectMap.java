@@ -87,7 +87,7 @@ class ObjectMap
     {
         Entry e = put(obj);
         e.state = state;              
-        if ((state & Persistent.DIRTY) != 0) {
+        if ((state & PinnedPersistent.DIRTY) != 0) {
             e.pin = obj;
         } else {
             e.pin = null;
@@ -117,7 +117,7 @@ class ObjectMap
     synchronized  int getState(Object obj)
     {
         Entry e = get(obj);
-        return e != null ? e.state : Persistent.DELETED;
+        return e != null ? e.state : PinnedPersistent.DELETED;
     }
 		
     void  rehash()

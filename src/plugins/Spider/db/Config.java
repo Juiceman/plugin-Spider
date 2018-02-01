@@ -64,7 +64,8 @@ public class Config extends Persistent implements Cloneable {
 		storage.makePersistent(this);
 	}
 
-	public synchronized Config clone() {
+	@Override
+  public synchronized Config clone() {
 		try {
 			Config config = (Config) super.clone();
 			assert !config.isPersistent();

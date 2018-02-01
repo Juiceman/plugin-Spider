@@ -13,10 +13,12 @@ public class CompressedFile implements IFile
 { 
     static final int SEGMENT_LENGTH = 128*1024;
 
+    @Override
     public void write(long pos, byte[] buf) {
         throw new UnsupportedOperationException("ZipFile.write");
     }
 
+    @Override
     public int read(long pos, byte[] buf) {
         try {
             int seg = (int)(pos / SEGMENT_LENGTH);
@@ -46,19 +48,24 @@ public class CompressedFile implements IFile
         }
     }
 
+    @Override
     public void sync() {
     }
 
+    @Override
     public boolean tryLock(boolean shared) { 
         return true;
     }
 
+    @Override
     public void lock(boolean shared) { 
     }
 
+    @Override
     public void unlock() { 
     }
 
+    @Override
     public void close() {
         try {
             file.close();
@@ -67,6 +74,7 @@ public class CompressedFile implements IFile
         }
     }
 
+    @Override
     public long length() { 
         return (long)(entries.length-1)*SEGMENT_LENGTH + entries[entries.length-1].getSize();
     }

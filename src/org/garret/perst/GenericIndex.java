@@ -109,6 +109,7 @@ public interface GenericIndex<T> extends IPersistent, IResource, ITable<T> {
      * property (by default it is not supported because it cause extra overhead during iteration)
      * @return index iterator
      */
+    @Override
     public Iterator<T> iterator();
 
     /**

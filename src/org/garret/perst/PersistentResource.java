@@ -5,6 +5,7 @@ package org.garret.perst;
  */
 
 public class PersistentResource extends Persistent implements IResource {
+    @Override
     public synchronized void sharedLock() {
         Thread currThread = Thread.currentThread();
         try { 
@@ -26,6 +27,7 @@ public class PersistentResource extends Persistent implements IResource {
         }
     }
                     
+    @Override
     public boolean sharedLock(long timeout) {
         Thread currThread = Thread.currentThread();
         long startTime = System.currentTimeMillis();
@@ -57,6 +59,7 @@ public class PersistentResource extends Persistent implements IResource {
         }
     }
                     
+    @Override
     public synchronized void exclusiveLock() {
         Thread currThread = Thread.currentThread();
         try { 
@@ -80,6 +83,7 @@ public class PersistentResource extends Persistent implements IResource {
         }
     }
                     
+    @Override
     public boolean exclusiveLock(long timeout) {
         Thread currThread = Thread.currentThread();
         long startTime = System.currentTimeMillis();
@@ -113,6 +117,7 @@ public class PersistentResource extends Persistent implements IResource {
         }
     }
                    
+    @Override
     public synchronized void unlock() { 
         if (nWriters != 0) { 
             if (--nWriters == 0) { 
@@ -126,6 +131,7 @@ public class PersistentResource extends Persistent implements IResource {
         }
     }
 
+    @Override
     public synchronized void reset() { 
         if (nWriters > 0) { 
             nWriters = 0;

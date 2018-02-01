@@ -31,6 +31,7 @@ import  org.garret.perst.*;
 
 public class Rc4File implements IFile 
 { 
+    @Override
     public void write(long pos, byte[] buf) 
     {
         if (pos > length) { 
@@ -49,6 +50,7 @@ public class Rc4File implements IFile
         file.write(pos, cipherBuf);
     }
 
+    @Override
     public int read(long pos, byte[] buf) 
     { 
         if (pos < length) { 
@@ -109,27 +111,33 @@ public class Rc4File implements IFile
         }
     }
 
+    @Override
     public void close() { 
         file.close();
     }
 
+    @Override
     public boolean tryLock(boolean shared) { 
         return file.tryLock(shared);
     }
 
+    @Override
     public void lock(boolean shared) { 
         file.lock(shared);
         length = file.length() & ~(Page.pageSize-1);
     }
 
+    @Override
     public void unlock() { 
         file.unlock();
     }
 
+    @Override
     public void sync() { 
         file.sync();
     }
 
+    @Override
     public long length() {
         return file.length();
     }

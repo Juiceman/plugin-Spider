@@ -21,14 +21,17 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public Class getIndexedClass() { 
         return cls;
     }
 
+    @Override
     public Field[] getKeyFields() { 
         return new Field[]{fld};
     }
 
+    @Override
     public void onLoad()
     {
         cls = ClassDescriptor.loadClass(getStorage(), className);
@@ -106,11 +109,13 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
     }
             
 
+    @Override
     public boolean put(T obj) {
         Key key = extractKey(obj);
         return key != null && super.insert(key, obj, false) == null;
     }
 
+    @Override
     public T set(T obj) {
         Key key = extractKey(obj);
         if (key == null) {
@@ -119,10 +124,12 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return super.set(key, obj);
     }
 
+    @Override
     public boolean add(T obj) {
         return put(obj);
     }
 
+    @Override
     public boolean addAll(Collection<? extends T> c) {
         FieldValue[] arr = new FieldValue[c.size()];
         Iterator<? extends T> e = c.iterator();
@@ -141,11 +148,13 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return arr.length > 0;
     }
 
+    @Override
     public boolean remove(Object obj) {
         Key key = extractKey(obj);
         return key != null && super.removeIfExists(key, obj);
     }
 
+    @Override
     public boolean containsObject(T obj) {
         Key key = extractKey(obj);
         if (key == null) { 
@@ -164,6 +173,7 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public boolean contains(Object obj) {
         Key key = extractKey(obj);
         if (key == null) { 
@@ -182,6 +192,7 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         }
     }
 
+    @Override
     public synchronized void append(T obj) {
         Key key;
         try { 
@@ -205,24 +216,28 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         super.insert(key, obj, false);
     }
 
+    @Override
     public T[] getPrefix(String prefix) { 
         ArrayList<T> list = getList(new Key(prefix, true), new Key(prefix + Character.MAX_VALUE, false));
-        return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));        
+        return list.toArray((T[])Array.newInstance(cls, list.size()));        
     }
 
+    @Override
     public T[] prefixSearch(String key) { 
         ArrayList<T> list = prefixSearchList(key);
-        return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));
+        return list.toArray((T[])Array.newInstance(cls, list.size()));
     }
 
+    @Override
     public T[] get(Key from, Key till) {
         ArrayList<T> list = new ArrayList();
         if (root != null) { 
             root.find(checkKey(from), checkKey(till), height, list);
         }
-        return (T[])list.toArray((T[])Array.newInstance(cls, list.size()));
+        return list.toArray((T[])Array.newInstance(cls, list.size()));
     }
 
+    @Override
     public T[] toArray() {
         T[] arr = (T[])Array.newInstance(cls, nElems);
         if (root != null) { 
@@ -231,16 +246,19 @@ class AltBtreeFieldIndex<T> extends AltBtree<T> implements FieldIndex<T> {
         return arr;
     }
 
+    @Override
     public IterableIterator<T> queryByExample(T obj) {
         Key key = extractKey(obj);
         return iterator(key, key, ASCENT_ORDER);
     }
             
+    @Override
     public IterableIterator<T> select(String predicate) { 
         Query<T> query = new QueryImpl<T>(getStorage());
         return query.select(cls, iterator(), predicate);
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return false;
     }
@@ -253,6 +271,7 @@ class AltBtreeCaseInsensitiveFieldIndex<T> extends AltBtreeFieldIndex<T> {
         super(cls, fieldName, unique);
     }
 
+    @Override
     Key checkKey(Key key) { 
         if (key != null && key.oval instanceof String) { 
             key = new Key(((String)key.oval).toLowerCase(), key.inclusion != 0);
@@ -260,6 +279,7 @@ class AltBtreeCaseInsensitiveFieldIndex<T> extends AltBtreeFieldIndex<T> {
         return super.checkKey(key);
     }  
 
+    @Override
     public boolean isCaseInsensitive() { 
         return true;
     }

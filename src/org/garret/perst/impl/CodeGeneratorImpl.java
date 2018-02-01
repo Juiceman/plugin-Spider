@@ -21,6 +21,7 @@ class CodeGeneratorImpl implements CodeGenerator
         return new CurrentNode(cls);
     }
 
+    @Override
     public Code literal(Object value) {
         if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte) {
             return new IntLiteralNode(((Number)value).longValue());
@@ -39,6 +40,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code list(Code... values) {
         Node list = null;
         for (int i = 0; i < values.length; i++) { 
@@ -47,6 +49,7 @@ class CodeGeneratorImpl implements CodeGenerator
         return list;
     }
 
+    @Override
     public Code parameter(int n, Class type) {
         int paramType;
         if (n < 1) { 
@@ -69,10 +72,12 @@ class CodeGeneratorImpl implements CodeGenerator
     }
 
 
+    @Override
     public  Code field(String name) {
         return field(null, name);
     }
 
+    @Override
     public Code field(Code base, String name) {
         Class scope = (base == null) ? cls : ((Node)base).getType();
         Field f = ClassDescriptor.locateField(scope, name);                    
@@ -82,6 +87,7 @@ class CodeGeneratorImpl implements CodeGenerator
         return new LoadNode((Node)base, f);
     }
 
+    @Override
     public Code invoke(Code base, String name, Code... arguments) {
         Class[] profile = new Class[arguments.length];
         Node[] args = new Node[arguments.length];
@@ -151,11 +157,13 @@ class CodeGeneratorImpl implements CodeGenerator
         return new InvokeNode((Node)base, mth, args);
     }
 
+    @Override
     public Code invoke(String name, Code... arguments) {
         return invoke(null, name, arguments);
     }
 
 
+    @Override
     public Code and(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -168,6 +176,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code or(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -181,6 +190,7 @@ class CodeGeneratorImpl implements CodeGenerator
     }
 
 
+    @Override
     public Code add(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -205,6 +215,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code sub(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -227,6 +238,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code mul(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -249,6 +261,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code div(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -271,6 +284,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code pow(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -293,6 +307,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code like(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -302,6 +317,7 @@ class CodeGeneratorImpl implements CodeGenerator
         return new CompareNode(Node.opStrLike, left, right, null);
     }
 
+    @Override
     public Code like(Code opd1, Code opd2, Code opd3) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -313,6 +329,7 @@ class CodeGeneratorImpl implements CodeGenerator
     }
 
 
+    @Override
     public Code eq(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -353,6 +370,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code ge(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -389,6 +407,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code gt(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -425,6 +444,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code lt(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -461,6 +481,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code le(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -497,6 +518,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code ne(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -538,6 +560,7 @@ class CodeGeneratorImpl implements CodeGenerator
     }
 
 
+    @Override
     public Code neg(Code opd) {
         Node expr = (Node)opd;
         if (expr.type == Node.tpInt) { 
@@ -560,6 +583,7 @@ class CodeGeneratorImpl implements CodeGenerator
         return expr;
     }
 
+    @Override
     public Code abs(Code opd) {
         Node expr = (Node)opd;
         if (expr.type == Node.tpInt) { 
@@ -571,6 +595,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }        
     }
 
+    @Override
     public Code not(Code opd) {
         Node expr = (Node)opd;
         if (expr.type == Node.tpInt) { 
@@ -589,6 +614,7 @@ class CodeGeneratorImpl implements CodeGenerator
     }
 
 
+    @Override
     public Code between(Code opd1, Code opd2, Code opd3) {
         Node expr = (Node)opd1;
         Node low  = (Node)opd2;
@@ -676,6 +702,7 @@ class CodeGeneratorImpl implements CodeGenerator
         return tree;
     }
 
+    @Override
     public Code in(Code opd1, Code opd2) {
         Node left = (Node)opd1;
         Node right = (Node)opd2;
@@ -734,46 +761,57 @@ class CodeGeneratorImpl implements CodeGenerator
         return new UnaryOpNode(Node.tpReal, cop, expr);
     }
 
+    @Override
     public Code sin(Code opd) {
         return mathFunc(Node.opRealSin, opd);
     }
 
+    @Override
     public Code cos(Code opd) {
         return mathFunc(Node.opRealCos, opd);
     }
 
+    @Override
     public Code tan(Code opd) {
         return mathFunc(Node.opRealTan, opd);
     }
 
+    @Override
     public Code asin(Code opd) {
         return mathFunc(Node.opRealAsin, opd);
     }
 
+    @Override
     public Code acos(Code opd) {
         return mathFunc(Node.opRealAcos, opd);
     }
 
+    @Override
     public Code atan(Code opd) {
         return mathFunc(Node.opRealAtan, opd);
     }
 
+    @Override
     public Code sqrt(Code opd) {
         return mathFunc(Node.opRealSqrt, opd);
     }
 
+    @Override
     public Code exp(Code opd) {
         return mathFunc(Node.opRealExp, opd);
     }
 
+    @Override
     public Code log(Code opd) {
         return mathFunc(Node.opRealLog, opd);
     }
 
+    @Override
     public Code ceil(Code opd) {
         return mathFunc(Node.opRealCeil, opd);
     }
 
+    @Override
     public Code floor(Code opd) {
         return mathFunc(Node.opRealFloor, opd);
     }
@@ -786,14 +824,17 @@ class CodeGeneratorImpl implements CodeGenerator
         return expr;
     }
 
+    @Override
     public Code upper(Code opd) {
         return new UnaryOpNode(Node.tpStr, Node.opStrUpper, checkType(Node.tpStr, opd));
     }
 
+    @Override
     public Code lower(Code opd) {
         return new UnaryOpNode(Node.tpStr, Node.opStrLower, checkType(Node.tpStr, opd));
     }
 
+    @Override
     public Code length(Code opd) {
         Node expr = (Node)opd;
         if (expr.type == Node.tpStr) { 
@@ -805,6 +846,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code string(Code opd) {
         Node expr = (Node)opd;
         if (expr.type == Node.tpInt) { 
@@ -818,6 +860,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
 
+    @Override
     public Code getAt(Code opd1, Code opd2) {
         Node expr = (Node)opd1;
         Node index = checkType(Node.tpInt, opd2);
@@ -870,18 +913,22 @@ class CodeGeneratorImpl implements CodeGenerator
         return new GetAtNode(type, tag, expr, index);                
     }
 
+    @Override
     public Code integer(Code opd) {
         return new UnaryOpNode(Node.tpStr, Node.opStrLower, checkType(Node.tpReal, opd));
     }
 
+    @Override
     public Code real(Code opd) {
         return new UnaryOpNode(Node.tpStr, Node.opStrLower, checkType(Node.tpReal, opd));
     }
 
+    @Override
     public void predicate(Code code) { 
         query.tree = checkType(Node.tpBool, code);
     }
 
+    @Override
     public void orderBy(String name, boolean ascent) { 
         Field f = ClassDescriptor.locateField(cls, name);
         OrderNode node;
@@ -905,6 +952,7 @@ class CodeGeneratorImpl implements CodeGenerator
         }
     }
     
+    @Override
     public void orderBy(String name) { 
         orderBy(name, true);
     }     

@@ -22,6 +22,7 @@ public class PointRn implements IValue, Cloneable
         System.arraycopy(coords, 0, this.coords, 0, coords.length);
     }
 
+    @Override
     public String toString() {
         StringBuffer buf = new StringBuffer();
         buf.append('(');

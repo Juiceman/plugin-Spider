@@ -12,6 +12,7 @@ public class ReplicationMasterStorageImpl extends StorageImpl implements Replica
         this.pageTimestampFile =  pageTimestampFile;
     }
     
+    @Override
     public void open(IFile file, long pagePoolSize) {
         super.open(asyncBufSize != 0 
                    ? (ReplicationMasterFile)new AsyncReplicationMasterFile(this, file, asyncBufSize, pageTimestampFile)
@@ -19,6 +20,7 @@ public class ReplicationMasterStorageImpl extends StorageImpl implements Replica
                    pagePoolSize);
     }
 
+    @Override
     public int getNumberOfAvailableHosts() { 
         return ((ReplicationMasterFile)pool.file).getNumberOfAvailableHosts();
     }

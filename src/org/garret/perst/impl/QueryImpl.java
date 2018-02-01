@@ -3,7 +3,6 @@ package org.garret.perst.impl;
 import java.lang.reflect.*;
 import java.util.*;
 import java.text.*;
-import java.util.Arrays.*;
 import org.garret.perst.*;
 
 class FilterIterator<T> extends IterableIterator<T> { 
@@ -19,6 +18,7 @@ class FilterIterator<T> extends IterableIterator<T> {
     
     final static int maxIndexVars = 32;
     
+    @Override
     public boolean hasNext() { 
         if (currObj != null) { 
             return true;
@@ -43,6 +43,7 @@ class FilterIterator<T> extends IterableIterator<T> {
         return false;
     }
     
+    @Override
     public T next() { 
         if (!hasNext()) { 
             throw new NoSuchElementException();
@@ -52,6 +53,7 @@ class FilterIterator<T> extends IterableIterator<T> {
         return obj;
     }
 
+    @Override
     public void remove() {
         throw new UnsupportedOperationException();
     }
@@ -82,6 +84,7 @@ class UnionIterator implements Iterator {
         keyType = index.getKeyType();
     }
     
+    @Override
     public boolean hasNext() { 
         if (currObj != null) { 
             return true;
@@ -91,12 +94,13 @@ class UnionIterator implements Iterator {
                 return false;
             }
             Object value = alternativesIterator.next();
-            currIterator = index.iterator(value, value, Index.ASCENT_ORDER);
+            currIterator = index.iterator(value, value, GenericIndex.ASCENT_ORDER);
         }
         currObj = currIterator.next();
         return true;
     }
 
+    @Override
     public Object next() { 
         if (!hasNext()) { 
             throw new NoSuchElementException();
@@ -107,6 +111,7 @@ class UnionIterator implements Iterator {
     }
         
 
+    @Override
     public void remove() {
         throw new UnsupportedOperationException();
     }
@@ -118,6 +123,7 @@ class JoinIterator implements Iterator {
     Iterator joinIterator;
     Object currObj;
 
+    @Override
     public boolean hasNext() { 
         if (currObj != null) { 
             return true;
@@ -128,12 +134,13 @@ class JoinIterator implements Iterator {
             }
             Object obj = iterator.next();
             Key key = new Key(obj);
-            joinIterator = joinIndex.iterator(key, key, Index.ASCENT_ORDER);
+            joinIterator = joinIndex.iterator(key, key, GenericIndex.ASCENT_ORDER);
         }
         currObj = joinIterator.next();
         return true;
     }
 
+    @Override
     public Object next() { 
         if (!hasNext()) { 
             throw new NoSuchElementException();
@@ -143,6 +150,7 @@ class JoinIterator implements Iterator {
         return obj;
     }
 
+    @Override
     public void remove() {
         throw new UnsupportedOperationException();
     }
@@ -385,6 +393,7 @@ class Node implements CodeGenerator.Code {
         return val == null ? "" : (String)val;
     }
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof Node && ((Node)o).tag == tag && ((Node)o).type == type;
     }
@@ -481,6 +490,7 @@ class Node implements CodeGenerator.Code {
         return null;
     }
     
+    @Override
     public String toString() { 
         return "Node tag=" + tag + ", type=" + type;
     }
@@ -492,6 +502,7 @@ class Node implements CodeGenerator.Code {
 }
 
 class EmptyNode extends Node { 
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         return true;
     }
@@ -504,6 +515,7 @@ class EmptyNode extends Node {
 abstract class LiteralNode extends Node {  
     abstract Object getValue();
 
+    @Override
     Object evaluateObj(FilterIterator t) {
         return getValue();
     }
@@ -516,14 +528,17 @@ abstract class LiteralNode extends Node {
 class IntLiteralNode extends LiteralNode { 
     long value;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof IntLiteralNode && ((IntLiteralNode)o).value == value;
     }
 
+    @Override
     Object getValue() { 
         return new Long(value);
     }
 
+    @Override
     long evaluateInt(FilterIterator t) {
         return value;
     }
@@ -538,14 +553,17 @@ class IntLiteralNode extends LiteralNode {
 class RealLiteralNode extends LiteralNode { 
     double value;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof RealLiteralNode && ((RealLiteralNode)o).value == value;
     }
 
+    @Override
     Object getValue() { 
         return new Double(value);
     }
 
+    @Override
     double evaluateReal(FilterIterator t) {
         return value;
     }
@@ -559,14 +577,17 @@ class RealLiteralNode extends LiteralNode {
 class StrLiteralNode extends LiteralNode { 
     String value;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof StrLiteralNode && ((StrLiteralNode)o).value.equals(value);
     }
 
+    @Override
     Object getValue() { 
         return value;
     }
 
+    @Override
     String evaluateStr(FilterIterator t) {
         return value;
     }
@@ -579,10 +600,12 @@ class StrLiteralNode extends LiteralNode {
 
 
 class CurrentNode extends Node { 
+    @Override
     Class getType() {
         return cls;
     }
 
+    @Override
     Object evaluateObj(FilterIterator t) {
         return t.currObj;
     }
@@ -597,14 +620,17 @@ class CurrentNode extends Node {
 class DateLiteralNode extends LiteralNode { 
     Date value;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof DateLiteralNode && ((DateLiteralNode)o).value.equals(value);
     }
 
+    @Override
     Object getValue() { 
         return value;
     }
 
+    @Override
     Date evaluateDate(FilterIterator t) {
         return value;
     }
@@ -616,6 +642,7 @@ class DateLiteralNode extends LiteralNode {
 }
 
 class ConstantNode extends LiteralNode { 
+    @Override
     Object getValue() { 
         switch (tag) { 
           case opNull:
@@ -629,6 +656,7 @@ class ConstantNode extends LiteralNode {
         }
     }
     
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         return tag != opFalse;
     }
@@ -650,10 +678,12 @@ class ExistsNode extends Node {
     Node expr;
     int  loopId;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof ExistsNode && ((ExistsNode)o).expr.equals(expr) && ((ExistsNode)o).loopId == loopId;
     }
 
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         t.indexVar[loopId] = 0;
         try { 
@@ -680,10 +710,12 @@ class ExistsNode extends Node {
 class IndexNode extends Node {
     int loopId;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof IndexNode && ((IndexNode)o).loopId == loopId;
     }
 
+    @Override
     long evaluateInt(FilterIterator t) { 
         return t.indexVar[loopId];
     }
@@ -698,10 +730,12 @@ class GetAtNode extends Node {
     Node left;
     Node right;
     
+    @Override
     public boolean equals(Object o) { 
         return o instanceof GetAtNode && ((GetAtNode)o).left.equals(left) && ((GetAtNode)o).right.equals(right);
     }
 
+    @Override
     long evaluateInt(FilterIterator t) { 
         Object arr = left.evaluateObj(t);
         long idx = right.evaluateInt(t);
@@ -734,6 +768,7 @@ class GetAtNode extends Node {
         }
     }       
 
+    @Override
     double evaluateReal(FilterIterator t) { 
         Object arr = left.evaluateObj(t);
         long index = right.evaluateInt(t);
@@ -757,6 +792,7 @@ class GetAtNode extends Node {
         }
     }       
 
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         boolean[] arr = (boolean[])left.evaluateObj(t);
         long index = right.evaluateInt(t);
@@ -773,6 +809,7 @@ class GetAtNode extends Node {
         return arr[(int)index];
     }
 
+    @Override
     String evaluateStr(FilterIterator t) { 
         String[] arr = (String[])left.evaluateObj(t);
         long index = right.evaluateInt(t);
@@ -789,6 +826,7 @@ class GetAtNode extends Node {
         return wrapNullString(arr[(int)index]);
     }
 
+    @Override
     Object evaluateObj(FilterIterator t) { 
         Object arr = left.evaluateObj(t);
         long index = right.evaluateInt(t);
@@ -817,6 +855,7 @@ class InvokeNode extends Node {
     Node[] arguments;
     Method mth;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof InvokeNode 
             && equalObjects(((InvokeNode)o).target, target)
@@ -824,10 +863,12 @@ class InvokeNode extends Node {
             && equalObjects(((InvokeNode)o).mth, mth);
     }
 
+    @Override
     Class getType() { 
         return mth.getReturnType();
     }
 
+    @Override
     String getFieldName() { 
         if (target != null && target.tag != opCurrent) { 
             String baseName = target.getFieldName();
@@ -881,6 +922,7 @@ class InvokeNode extends Node {
         return parameters;
     }
 
+    @Override
     long evaluateInt(FilterIterator t) {
         Object obj = getTarget(t);
         Object[] parameters = evaluateArguments(t);
@@ -892,6 +934,7 @@ class InvokeNode extends Node {
         }
     }
 
+    @Override
     double evaluateReal(FilterIterator t) {
         Object obj = getTarget(t);
         Object[] parameters = evaluateArguments(t);
@@ -903,6 +946,7 @@ class InvokeNode extends Node {
         }
     }
 
+    @Override
     boolean evaluateBool(FilterIterator t) {
         Object obj = getTarget(t);
         Object[] parameters = evaluateArguments(t);
@@ -914,6 +958,7 @@ class InvokeNode extends Node {
         }
     }
 
+    @Override
     String evaluateStr(FilterIterator t) {
         Object obj = getTarget(t);
         Object[] parameters = evaluateArguments(t);
@@ -925,6 +970,7 @@ class InvokeNode extends Node {
         }
     }
     
+    @Override
     Object evaluateObj(FilterIterator t) {
         Object obj = getTarget(t);
         Object[] parameters = evaluateArguments(t);
@@ -952,6 +998,7 @@ class InvokeAnyNode extends Node {
     String   methodName;
     String   containsFieldName;
 
+    @Override
     public boolean equals(Object o) { 
         if (!(o instanceof InvokeAnyNode)) { 
             return false;
@@ -964,10 +1011,12 @@ class InvokeAnyNode extends Node {
             && equalObjects(node.containsFieldName, containsFieldName);
     }
 
+    @Override
     Class getType() { 
         return Object.class;
     }
 
+    @Override
     String getFieldName() { 
         if (target != null) {         
             if (target.tag != opCurrent) { 
@@ -990,6 +1039,7 @@ class InvokeAnyNode extends Node {
         profile = new Class[arguments.length];
     }
 
+    @Override
     Object evaluateObj(FilterIterator t) {
         Class cls;
         Method m;
@@ -1074,22 +1124,27 @@ class InvokeAnyNode extends Node {
 
 
 class ConvertAnyNode extends Node { 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof ConvertAnyNode && super.equals(o) && ((ConvertAnyNode)o).expr.equals(expr);
     }
 
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         return ((Boolean)evaluateObj(t)).booleanValue();
     }
 
+    @Override
     long evaluateInt(FilterIterator t) { 
         return ((Number)evaluateObj(t)).longValue();
     }
 
+    @Override
     double evaluateReal(FilterIterator t) { 
         return ((Number)evaluateObj(t)).doubleValue();
     }
     
+    @Override
     Object evaluateObj(FilterIterator t) { 
         return expr.evaluateObj(t);
     }
@@ -1105,6 +1160,7 @@ class BinOpNode extends Node {
     Node left;
     Node right;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof BinOpNode 
             && super.equals(o)
@@ -1112,6 +1168,7 @@ class BinOpNode extends Node {
             && ((BinOpNode)o).right.equals(right);
     }
 
+    @Override
     long evaluateInt(FilterIterator t) {
         long lval = left.evaluateInt(t);
         long rval = right.evaluateInt(t);
@@ -1151,6 +1208,7 @@ class BinOpNode extends Node {
         }
     }
 
+    @Override
     double evaluateReal(FilterIterator t) {
         double lval = left.evaluateReal(t);
         double rval = right.evaluateReal(t);
@@ -1170,12 +1228,14 @@ class BinOpNode extends Node {
         }
     }
 
+    @Override
     String evaluateStr(FilterIterator t) {
         String lval = left.evaluateStr(t);
         String rval = right.evaluateStr(t);
         return lval + rval;
     }
 
+    @Override
     Object evaluateObj(FilterIterator t) { 
         Object lval, rval;
         try { 
@@ -1295,6 +1355,7 @@ class BinOpNode extends Node {
         }
     }
 
+    @Override
     boolean evaluateBool(FilterIterator t) {
         switch (tag) { 
           case opAnyEq:
@@ -1556,6 +1617,7 @@ class BinOpNode extends Node {
 class CompareNode extends Node {
     Node o1, o2, o3;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof CompareNode
             && super.equals(o) 
@@ -1563,6 +1625,7 @@ class CompareNode extends Node {
             && equalObjects(((CompareNode)o).o3, o3);
     }
 
+    @Override
     boolean evaluateBool(FilterIterator t) {
         switch(tag) { 
           case opAnyBetween:
@@ -1679,10 +1742,12 @@ class CompareNode extends Node {
 class UnaryOpNode extends Node { 
     Node opd;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof UnaryOpNode && super.equals(o) && ((UnaryOpNode)o).opd.equals(opd);
     }
 
+    @Override
     Object evaluateObj(FilterIterator t) { 
         Object val = opd.evaluateObj(t);
         switch (tag) {
@@ -1707,6 +1772,7 @@ class UnaryOpNode extends Node {
         } 
     }
 
+    @Override
     long evaluateInt(FilterIterator t) {
         long val;
         switch (tag) {
@@ -1745,6 +1811,7 @@ class UnaryOpNode extends Node {
         }
     }
     
+    @Override
     double evaluateReal(FilterIterator t) { 
         double val;
         switch (tag) { 
@@ -1776,12 +1843,13 @@ class UnaryOpNode extends Node {
           case opRealFloor:
             return Math.floor(opd.evaluateReal(t));
           case opIntToReal:
-            return (double)opd.evaluateInt(t);
+            return opd.evaluateInt(t);
           default:
             throw new Error("Invalid tag " + tag);
         }
     }
     
+    @Override
     Date evaluateDate(FilterIterator t) { 
         switch (tag) { 
           case opStrToDate:
@@ -1791,6 +1859,7 @@ class UnaryOpNode extends Node {
         }
     }              
 
+    @Override
     String evaluateStr(FilterIterator t) { 
         switch (tag) { 
           case opStrUpper:
@@ -1810,6 +1879,7 @@ class UnaryOpNode extends Node {
         }
     }
     
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         switch (tag) { 
           case opBoolNot:
@@ -1835,6 +1905,7 @@ class LoadAnyNode extends Node {
     Field  f;
     Method m;
     
+    @Override
     public boolean equals(Object o) { 
         if (!(o instanceof LoadAnyNode)) { 
             return false;
@@ -1846,14 +1917,17 @@ class LoadAnyNode extends Node {
             && equalObjects(node.m, m);
     }
 
+    @Override
     Class getType() { 
         return Object.class;
     }
 
+    @Override
     Field getField() { 
         return f;
     }
 
+    @Override
     String getFieldName() { 
         if (base != null) { 
             if (base.tag != opCurrent) { 
@@ -1874,12 +1948,14 @@ class LoadAnyNode extends Node {
         this.base = base;
     }
 
+    @Override
     public String toString() { 
         return "LoadAnyNode: fieldName='" + fieldName + "', containsFieldName='" 
             + containsFieldName + "', base=(" + base + "), f=" + f + ", m=" + m;
     }
     
 
+    @Override
     Object evaluateObj(FilterIterator t) { 
         Object obj;
         Class  cls;
@@ -1944,6 +2020,7 @@ class ResolveNode extends Node {
     Class    resolvedClass;
     Node     expr;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof ResolveNode 
             && ((ResolveNode)o).expr.equals(expr) 
@@ -1951,18 +2028,22 @@ class ResolveNode extends Node {
             && ((ResolveNode)o).resolvedClass.equals(resolvedClass);
     }
 
+    @Override
     Class getType() { 
         return resolvedClass;
     }
 
+    @Override
     Object evaluateObj(FilterIterator t) { 
         return resolver.resolve(expr.evaluateObj(t));
     }
     
+    @Override
     Field getField() { 
         return (expr != null) ? expr.getField() : null; 
     }
 
+    @Override
     String getFieldName() { 
         return (expr != null) ? expr.getFieldName() : null; 
     }
@@ -1979,10 +2060,12 @@ class LoadNode extends Node {
     Field field;
     Node  base;
 
+    @Override
     int getIndirectionLevel() { 
         return base == null ? 0 : base.getIndirectionLevel() + 1;
     }
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof LoadNode 
             && super.equals(o)
@@ -1994,6 +2077,7 @@ class LoadNode extends Node {
         return base == null || base.tag == opCurrent;
     }
 
+    @Override
     Class getType() { 
         return field.getType();
     }
@@ -2002,10 +2086,12 @@ class LoadNode extends Node {
         return field.getDeclaringClass();
     }
 
+    @Override
     Field getField() { 
         return field;
     }
 
+    @Override
     String getFieldName() { 
         if (base != null && base.tag != opCurrent) { 
             String baseName = base.getFieldName();
@@ -2026,6 +2112,7 @@ class LoadNode extends Node {
         return obj;
     }
 
+    @Override
     long evaluateInt(FilterIterator t) {
         try { 
             return field.getLong(getBase(t));
@@ -2034,6 +2121,7 @@ class LoadNode extends Node {
         }
     }
     
+    @Override
     double evaluateReal(FilterIterator t) { 
         try { 
             return field.getDouble(getBase(t));
@@ -2042,6 +2130,7 @@ class LoadNode extends Node {
         }
     }
     
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         try { 
             return field.getBoolean(getBase(t));
@@ -2050,6 +2139,7 @@ class LoadNode extends Node {
         }
     }
         
+    @Override
     String evaluateStr(FilterIterator t) { 
         try {
             return wrapNullString(field.get(getBase(t)));
@@ -2058,6 +2148,7 @@ class LoadNode extends Node {
         }
     }
         
+    @Override
     Object evaluateObj(FilterIterator t) { 
         try {
             return field.get(getBase(t));
@@ -2075,6 +2166,7 @@ class LoadNode extends Node {
 
 
 class AggregateFunctionNode extends Node { 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof AggregateFunctionNode
             && super.equals(o)
@@ -2082,10 +2174,12 @@ class AggregateFunctionNode extends Node {
             && ((AggregateFunctionNode)o).index == index;
     }
 
+    @Override
     long    evaluateInt(FilterIterator t) {
         return t.intAggregateFuncValue[index];
     }
 
+    @Override
     double  evaluateReal(FilterIterator t) {
         return t.realAggregateFuncValue[index];
     }
@@ -2107,14 +2201,17 @@ class InvokeElementNode extends InvokeNode {
         containsArrayName = arrayName;
     }
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof InvokeElementNode && super.equals(o);
     }
 
+    @Override
     Object getTarget(FilterIterator t) { 
         return t.containsElem;
     }
 
+    @Override
     String getFieldName() { 
         if (containsArrayName != null) { 
             return containsArrayName + "." + mth.getName();
@@ -2129,6 +2226,7 @@ class ElementNode extends Node {
     Field  field;
     Class  type;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof ElementNode 
             && equalObjects(((ElementNode)o).arrayName, arrayName)
@@ -2143,14 +2241,17 @@ class ElementNode extends Node {
         field = f;
     }
 
+    @Override
     Field getField() { 
         return field;
     }
 
+    @Override
     String getFieldName() { 
         return arrayName != null ? arrayName + "." + field.getName() : null;
     }
     
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         try { 
             return field.getBoolean(t.containsElem);
@@ -2158,6 +2259,7 @@ class ElementNode extends Node {
             throw new IllegalAccessError();
         }
     }
+    @Override
     long    evaluateInt(FilterIterator t) {
         try { 
             return field.getLong(t.containsElem);
@@ -2165,6 +2267,7 @@ class ElementNode extends Node {
             throw new IllegalAccessError();
         }
     }
+    @Override
     double  evaluateReal(FilterIterator t) {
         try { 
             return field.getDouble(t.containsElem);
@@ -2172,6 +2275,7 @@ class ElementNode extends Node {
             throw new IllegalAccessError();
         }
     }
+    @Override
     String  evaluateStr(FilterIterator t) {
         try { 
             return wrapNullString(field.get(t.containsElem));
@@ -2179,6 +2283,7 @@ class ElementNode extends Node {
             throw new IllegalAccessError();
         }
     }
+    @Override
     Object  evaluateObj(FilterIterator t) {
         try { 
             return field.get(t.containsElem);
@@ -2186,6 +2291,7 @@ class ElementNode extends Node {
             throw new IllegalAccessError();
         }
     }
+    @Override
     Class   getType() { 
         return type;
     }
@@ -2204,6 +2310,7 @@ class ContainsNode extends Node implements Comparator {
     Resolver  resolver;
     ArrayList aggregateFunctions;
 
+    @Override
     public boolean equals(Object o) { 
         if (!(o instanceof ContainsNode)) { 
             return false;
@@ -2220,6 +2327,7 @@ class ContainsNode extends Node implements Comparator {
             && equalObjects(node.aggregateFunctions, aggregateFunctions);
     }
 
+    @Override
     public int compare(Object o1, Object o2) {
         if (o1 == o2) { 
             return 0;
@@ -2260,6 +2368,7 @@ class ContainsNode extends Node implements Comparator {
     }
 
 
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         int i, j, k, l, n = 0, len = 0;
         Object   collection;
@@ -2612,7 +2721,7 @@ class OrderNode {
     void checkCaseInsensitive() 
     {
         if (field != null) { 
-            Indexable idx = (Indexable)field.getAnnotation(Indexable.class);
+            Indexable idx = field.getAnnotation(Indexable.class);
             isCaseInsensitive = idx != null && idx.caseInsensitive();
         }
     }
@@ -2658,26 +2767,33 @@ class ParameterNode extends LiteralNode {
     ArrayList params;
     int       index;
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof ParameterNode && ((ParameterNode)o).index == index;
     }
     
+    @Override
     boolean evaluateBool(FilterIterator t) { 
         return ((Boolean)params.get(index)).booleanValue();
     }
+    @Override
     long    evaluateInt(FilterIterator t) {
         return ((Number)params.get(index)).longValue();
     }
+    @Override
     double  evaluateReal(FilterIterator t) {
         return ((Number)params.get(index)).doubleValue();
     }
+    @Override
     String  evaluateStr(FilterIterator t) {
         return (String)params.get(index);
     }
+    @Override
     Date    evaluateDate(FilterIterator t) {
         return (Date)params.get(index);
     }
 
+    @Override
     Object getValue() {
         return params.get(index);
     }
@@ -2725,6 +2841,7 @@ class Binding {
 
 public class QueryImpl<T> implements Query<T> 
 {
+    @Override
     public IterableIterator<T> select(Class cls, Iterator<T> iterator, String query) throws CompileError
     {
         this.query = query;
@@ -2736,6 +2853,7 @@ public class QueryImpl<T> implements Query<T>
         return execute(iterator);
     }
 
+    @Override
     public IterableIterator<T> select(String className, Iterator<T> iterator, String query) throws CompileError
 
     {
@@ -2743,26 +2861,31 @@ public class QueryImpl<T> implements Query<T>
         return select(cls, iterator, query);
     }
 
+    @Override
     public void setParameter(int index, Object value)
     {
         parameters.set(index-1, value);
     }
 
+    @Override
     public void setIntParameter(int index, long value)
     {
         setParameter(index, new Long(value));
     }
 
+    @Override
     public void setRealParameter(int index, double value)
     {
         setParameter(index, new Double(value));
     }
 
+    @Override
     public void setBoolParameter(int index, boolean value)
     {
         setParameter(index, new Boolean(value));
     }
 
+    @Override
     public void prepare(Class cls, String query)
     {
         this.query = query;
@@ -2772,6 +2895,7 @@ public class QueryImpl<T> implements Query<T>
         compile();
     }
 
+    @Override
     public void prepare(String className, String query)
     {
         cls = ClassDescriptor.loadClass(storage, className);
@@ -2781,11 +2905,13 @@ public class QueryImpl<T> implements Query<T>
         compile();
     }
     
+    @Override
     public Iterator<T> iterator()
     {
         return execute();
     }
 
+    @Override
     public IterableIterator<T> execute()
     {      
         switch (classExtentLock) { 
@@ -2801,6 +2927,7 @@ public class QueryImpl<T> implements Query<T>
         return execute(classExtent.iterator());
     }
 
+    @Override
     public IterableIterator<T> execute(Iterator<T> iterator)
     {       
         long start = 0;
@@ -2815,7 +2942,7 @@ public class QueryImpl<T> implements Query<T>
                 if (tree == null && order != null && order.next == null) {
                     GenericIndex index = getIndex(cls, order.getName()); 
                     if (index != null) {
-                        return filter((IterableIterator<T>)index.iterator(null, null, order.ascent ? Index.ASCENT_ORDER : Index.DESCENT_ORDER), null);
+                        return filter(index.iterator(null, null, order.ascent ? GenericIndex.ASCENT_ORDER : GenericIndex.DESCENT_ORDER), null);
                     }
                 }
                 if (storage.listener != null) { 
@@ -2929,6 +3056,7 @@ public class QueryImpl<T> implements Query<T>
         }
     }
 
+    @Override
     public void enableRuntimeErrorReporting(boolean enabled) { 
         runtimeErrorsReporting = enabled;
     }
@@ -2943,6 +3071,7 @@ public class QueryImpl<T> implements Query<T>
         }
     };
 
+    @Override
     public void setResolver(Class original, Class resolved, Resolver resolver) {
         if (resolveMap == null) { 
             resolveMap = new HashMap();
@@ -2950,25 +3079,30 @@ public class QueryImpl<T> implements Query<T>
         resolveMap.put(original, new ResolveMapping(resolved, resolver));
     }
 
+    @Override
     public void setIndexProvider(IndexProvider indexProvider) {
         this.indexProvider = indexProvider;
     }
 
+    @Override
     public void setClassExtent(Collection<T> set, ClassExtentLockType lock)
     {
         classExtent = set;
         classExtentLock = lock;
     }
 
+    @Override
     public void setClass(Class cls) { 
         this.cls = cls;
     }
 
+    @Override
     public CodeGenerator getCodeGenerator()
     {
         return getCodeGenerator(cls);
     }
 
+    @Override
     public CodeGenerator getCodeGenerator(Class cls)
     {
         order = null;
@@ -2977,6 +3111,7 @@ public class QueryImpl<T> implements Query<T>
         return new CodeGeneratorImpl(this, cls);
     }
 
+    @Override
     public void addIndex(String key, GenericIndex<T> index) { 
         if (indices == null) { 
             indices = new HashMap();
@@ -2986,7 +3121,7 @@ public class QueryImpl<T> implements Query<T>
 
     private final GenericIndex getIndex(Class ctx, String key) { 
         if (indices != null && cls == ctx) { 
-            GenericIndex index = (GenericIndex)indices.get(key);
+            GenericIndex index = indices.get(key);
             if (index != null) { 
                 return index;
             }
@@ -3371,7 +3506,7 @@ public class QueryImpl<T> implements Query<T>
 
     final static Node int2real(Node expr) {
         if (expr.tag == Node.opIntConst) { 
-            return new RealLiteralNode((double)((IntLiteralNode)expr).value);
+            return new RealLiteralNode(((IntLiteralNode)expr).value);
         } 
         return new UnaryOpNode(Node.tpReal, Node.opIntToReal, expr);
     }
@@ -3386,7 +3521,7 @@ public class QueryImpl<T> implements Query<T>
     static boolean isCaseInsensitive(Node node) { 
         Field f = node.getField();
         if (f != null) { 
-            Indexable idx = (Indexable)f.getAnnotation(Indexable.class);
+            Indexable idx = f.getAnnotation(Indexable.class);
             return idx != null && idx.caseInsensitive();
         }
         return false;
@@ -4562,9 +4697,9 @@ public class QueryImpl<T> implements Query<T>
     final Iterator binOpIndex(GenericIndex index, BinOpNode cmp)
     {
         Key key;
-        int sort = Index.ASCENT_ORDER;
+        int sort = GenericIndex.ASCENT_ORDER;
         if (order != null && order.field != null && order.field.equals(cmp.left.getField()) && !order.ascent) { 
-            sort = Index.DESCENT_ORDER;
+            sort = GenericIndex.DESCENT_ORDER;
         }
         switch (cmp.tag) { 
         case Node.opInAny:
@@ -4631,9 +4766,9 @@ public class QueryImpl<T> implements Query<T>
 
     final Iterator tripleOpIndex(GenericIndex index, CompareNode cmp)
     {
-        int sort = Index.ASCENT_ORDER;
+        int sort = GenericIndex.ASCENT_ORDER;
         if (order != null && order.field != null && order.field.equals(cmp.o1.getField()) && !order.ascent) { 
-            sort = Index.DESCENT_ORDER;
+            sort = GenericIndex.DESCENT_ORDER;
         }
         switch (cmp.tag) { 
         case Node.opIntBetween:
@@ -4862,7 +4997,7 @@ public class QueryImpl<T> implements Query<T>
                                 JoinIterator lastJoinIterator = new JoinIterator();
                                 JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
                                 if (firstJoinIterator != null) { 
-                                    Iterator iterator = index.iterator(nil, nil, Index.ASCENT_ORDER);
+                                    Iterator iterator = index.iterator(nil, nil, GenericIndex.ASCENT_ORDER);
                                     if (iterator != null) { 
                                         lastJoinIterator.iterator = iterator;
                                         return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
@@ -4871,7 +5006,7 @@ public class QueryImpl<T> implements Query<T>
                             }
                         }
                     } else { 
-                        Iterator iterator = index.iterator(nil, nil, Index.ASCENT_ORDER);
+                        Iterator iterator = index.iterator(nil, nil, GenericIndex.ASCENT_ORDER);
                         if (iterator != null) {  
                             return new IndexSearchResult(filter(iterator, filterCondition), 
                                                          unary.opd.getField());
@@ -4895,7 +5030,7 @@ public class QueryImpl<T> implements Query<T>
                                 JoinIterator lastJoinIterator = new JoinIterator();
                                 JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
                                 if (firstJoinIterator != null) { 
-                                    Iterator iterator = index.iterator(f, f, Index.ASCENT_ORDER);
+                                    Iterator iterator = index.iterator(f, f, GenericIndex.ASCENT_ORDER);
                                     if (iterator != null) { 
                                         lastJoinIterator.iterator = iterator;
                                         return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
@@ -4903,7 +5038,7 @@ public class QueryImpl<T> implements Query<T>
                                 }
                             }
                         } else { 
-                            Iterator iterator = index.iterator(f, f, Index.ASCENT_ORDER);
+                            Iterator iterator = index.iterator(f, f, GenericIndex.ASCENT_ORDER);
                             if (iterator != null) {  
                                 return new IndexSearchResult(filter(iterator, filterCondition), 
                                                              unary.opd.getField());
@@ -4926,7 +5061,7 @@ public class QueryImpl<T> implements Query<T>
                             JoinIterator lastJoinIterator = new JoinIterator();
                             JoinIterator firstJoinIterator = join(deref, lastJoinIterator);
                             if (firstJoinIterator != null) { 
-                                Iterator iterator = index.iterator(t, t, Index.ASCENT_ORDER);
+                                Iterator iterator = index.iterator(t, t, GenericIndex.ASCENT_ORDER);
                                 if (iterator != null) { 
                                     lastJoinIterator.iterator = iterator;
                                     return new IndexSearchResult(filter(firstJoinIterator, filterCondition), null);
@@ -4934,7 +5069,7 @@ public class QueryImpl<T> implements Query<T>
                             }
                         }
                     } else { 
-                        Iterator iterator = index.iterator(t, t, Index.ASCENT_ORDER);
+                        Iterator iterator = index.iterator(t, t, GenericIndex.ASCENT_ORDER);
                         if (iterator != null) {  
                             return new IndexSearchResult(filter(iterator, filterCondition), 
                                                          condition.getField());

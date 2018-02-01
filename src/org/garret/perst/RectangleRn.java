@@ -70,6 +70,7 @@ public class RectangleRn implements IValue, Cloneable
     /**
      * Clone rectangle 
      */
+    @Override
     public Object clone() { 
         try { 
             RectangleRn r = (RectangleRn)super.clone();
@@ -164,6 +165,7 @@ public class RectangleRn implements IValue, Cloneable
     /**
      * Check if two rectangles are equal
      */
+    @Override
     public boolean equals(Object o) { 
         if (o instanceof RectangleRn) { 
             RectangleRn r = (RectangleRn)o;
@@ -180,6 +182,7 @@ public class RectangleRn implements IValue, Cloneable
     /**
      * Hash code consists of all rectangle coordinates
      */
+    @Override
     public int hashCode() { 
         long h = 0;
         for (int i = 0, n = coords.length; i < n; i++) {             
@@ -189,6 +192,7 @@ public class RectangleRn implements IValue, Cloneable
         return (int)(h) ^ (int)(h >>> 32);
     }
 
+    @Override
     public String toString() { 
         StringBuffer buf = new StringBuffer();
         int n = coords.length/2; 

@@ -38,6 +38,7 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
     }        
 
 
+    @Override
     public void open(IFile file, long pagePoolSize) {
         if (opened) {
             throw new StorageError(StorageError.STORAGE_ALREADY_OPENED);
@@ -65,10 +66,12 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
      * Check if socket is connected to the master host
      * @return <code>true</code> if connection between slave and master is sucessfully established
      */
+    @Override
     public boolean isConnected() {
         return socket != null;
     }
     
+    @Override
     public void beginThreadTransaction(int mode)
     {
         if (mode != REPLICATION_SLAVE_TRANSACTION) {
@@ -85,6 +88,7 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
         objectCache.clear();
     }
      
+    @Override
     public void endThreadTransaction(int maxDelay)
     {
         lock.unlock();
@@ -117,6 +121,7 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
      * This method blocks current thread until master node commits trasanction and
      * this transanction is completely delivered to this slave node
      */
+    @Override
     public void waitForModification() { 
         try { 
             synchronized (commit) { 
@@ -181,6 +186,7 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
 
     void cancelIO() {}
 
+    @Override
     public void run() { 
         byte[] buf = new byte[Page.pageSize+PAGE_DATA_OFFSET + (pageTimestamps != null ? 4 : 0)];
 
@@ -307,6 +313,7 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
         }            
     }
 
+    @Override
     public void close() {
         synchronized (done) {
             listening = false;
@@ -340,6 +347,7 @@ public abstract class ReplicationSlaveStorageImpl extends StorageImpl implements
         }
     }
 
+    @Override
     protected boolean isDirty() { 
         return false;
     }

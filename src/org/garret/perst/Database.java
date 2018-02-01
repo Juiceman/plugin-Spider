@@ -169,6 +169,7 @@ public class Database implements IndexProvider {
      * database first time (to mark fields for which indices should be created, use Indexable 
      * annotation)
      */
+    @Deprecated
     public boolean createTable(Class table) { 
         if (multithreaded) { 
             checkTransaction();
@@ -191,7 +192,7 @@ public class Database implements IndexProvider {
     private boolean addIndices(Table table, Class cls) {
         boolean schemaUpdated = false;
         for (Field f : cls.getDeclaredFields()) { 
-            Indexable idx = (Indexable)f.getAnnotation(Indexable.class);
+            Indexable idx = f.getAnnotation(Indexable.class);
             if (idx != null) { 
                 int kind = INDEX_KIND_DEFAULT;
                 if (idx.unique()) kind |= INDEX_KIND_UNIQUE;
@@ -230,7 +231,7 @@ public class Database implements IndexProvider {
                     metadata.fullTextIndex.delete(obj);
                 }
                 for (Class baseClass = table; (baseClass = baseClass.getSuperclass()) != null;)  {
-                    Table baseTable = (Table)tables.get(baseClass);
+                    Table baseTable = tables.get(baseClass);
                     if (baseTable != null) { 
                         if (multithreaded) { 
                             baseTable.extent.exclusiveLock();
@@ -522,6 +523,7 @@ public class Database implements IndexProvider {
      * database first time (to mark fields for which indices should be created, use Indexable 
      * annotation)
      */
+    @Deprecated
     public boolean createIndex(Class table, String key, int kind) { 
         return createIndex(locateTable(table, true), table, key, kind);
     }
@@ -539,6 +541,7 @@ public class Database implements IndexProvider {
      * database first time (to mark fields for which indices should be created, use Indexable 
      * annotation)
      */
+    @Deprecated
     public boolean createIndex(Class table, String key, boolean unique) { 
         return createIndex(locateTable(table, true), table, key, unique ? INDEX_KIND_UNIQUE : INDEX_KIND_DEFAULT);
     }
@@ -558,6 +561,7 @@ public class Database implements IndexProvider {
      * database first time (to mark fields for which indices should be created, use Indexable 
      * annotaion)
      */
+    @Deprecated
     public boolean createIndex(Class table, String key, boolean unique, boolean caseInsensitive, boolean thick) { 
         int kind = INDEX_KIND_DEFAULT;
         if (unique) kind |= INDEX_KIND_UNIQUE;
@@ -582,6 +586,7 @@ public class Database implements IndexProvider {
      * database first time (to mark fields for which indices should be created, use Indexable 
      * annotaion)
      */
+    @Deprecated
     public boolean createIndex(Class table, String key, boolean unique, boolean caseInsensitive, boolean thick, boolean randomAccess) { 
         int kind = INDEX_KIND_DEFAULT;
         if (unique) kind |= INDEX_KIND_UNIQUE;
@@ -638,6 +643,7 @@ public class Database implements IndexProvider {
      * @param key field of the class
      * @return Index for this field or null if index doesn't exist
      */
+    @Override
     public GenericIndex getIndex(Class table, String key)
     {
         for (Class c = table; c != null; c = c.getSuperclass()) { 
@@ -1237,7 +1243,7 @@ public class Database implements IndexProvider {
             type = cls;
             fullTextIndexableFields = new ArrayList<Field>();
             for (Field f : cls.getDeclaredFields()) { 
-                FullTextIndexable idx = (FullTextIndexable)f.getAnnotation(FullTextIndexable.class);
+                FullTextIndexable idx = f.getAnnotation(FullTextIndexable.class);
                 if (idx != null) { 
                     try { 
                         f.setAccessible(true);
@@ -1247,18 +1253,20 @@ public class Database implements IndexProvider {
             }
         } 
 
+        @Override
         public void onLoad() { 
             for (int i = indices.size(); --i >= 0;) { 
                 FieldIndex index = (FieldIndex)indices.get(i);
                 Field key = index.getKeyFields()[0];
                 indicesMap.put(key.getName(), index);
-                Indexable idx = (Indexable)key.getAnnotation(Indexable.class);
+                Indexable idx = key.getAnnotation(Indexable.class);
                 if (idx != null && idx.autoincrement()) { 
                     autoincrementIndex = index;
                 }                    
             }            
         }
 
+        @Override
         public void deallocate() {
             extent.deallocate();
             for (Object index : indicesMap.values()) { 
@@ -1280,10 +1288,12 @@ public class Database implements IndexProvider {
 
 class ClassFilterIterator implements Iterator
 {
+    @Override
     public boolean hasNext() {
         return obj != null;
     }
 
+    @Override
     public Object next() {
         Object curr = obj;
         if (curr == null) { 
@@ -1299,6 +1309,7 @@ class ClassFilterIterator implements Iterator
         moveNext();
    }
         
+    @Override
     public void remove() {
         throw new UnsupportedOperationException();
     }

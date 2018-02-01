@@ -24,6 +24,7 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
      *
      * @return <tt>true</tt> if there are no related object
      */
+    @Override
     boolean isEmpty();
 
     /**
@@ -31,6 +32,7 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
      * @param i index of the object in the relation
      * @return referenced object
      */
+    @Override
     public T get(int i);
 
     /**
@@ -48,6 +50,7 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
      * @param obj object to be included in the relation     
      * @return the element previously at the specified position.
      */
+    @Override
     public T set(int i, T obj);
 
     /**
@@ -116,6 +119,7 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
      * not contain any <tt>null</tt> elements.)<p>
      * @return array of object with relation members
      */
+    @Override
     public <T> T[] toArray(T[] arr);
 
     /**
@@ -154,6 +158,7 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
     /**
      * Remove all members from the relation
      */
+    @Override
     public void clear();
 
     /**
@@ -161,6 +166,7 @@ public interface Link<T> extends ITable<T>, List<T>, RandomAccess {
      * This iterator supports remove() method.
      * @return iterator through linked objects
      */
+    @Override
     public Iterator<T> iterator();
 
     /**

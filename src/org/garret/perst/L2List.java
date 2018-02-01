@@ -30,6 +30,7 @@ public class L2List extends L2ListElem implements ITable {
     /**
      * Make list empty. 
      */
+    @Override
     public synchronized void clear() { 
         modify();
         next = prev = this;
@@ -37,6 +38,7 @@ public class L2List extends L2ListElem implements ITable {
         updateCounter += 1;
     }
 
+    @Override
     public void deallocateMembers() {
         Iterator i = iterator();
         while (i.hasNext()) { 
@@ -92,6 +94,7 @@ public class L2List extends L2ListElem implements ITable {
      * Check if list is empty
      * @return <code>true</code> if list is empty
      */
+    @Override
     public synchronized boolean isEmpty() { 
         return next == this;
     }
@@ -101,6 +104,7 @@ public class L2List extends L2ListElem implements ITable {
      * @param obj object added to the list
      * @return always returns <code>true</code>
      */
+    @Override
     public synchronized boolean add(Object obj) { 
         append((L2ListElem)obj);
         return true;
@@ -111,6 +115,7 @@ public class L2List extends L2ListElem implements ITable {
      * @param o object to be removed from the list
      * @return always returns <code>true</code>
      */
+    @Override
     public synchronized boolean remove(Object o) { 
         remove((L2ListElem)o);
         return true;
@@ -120,6 +125,7 @@ public class L2List extends L2ListElem implements ITable {
      * Get size of the list
      * @return number of elements in the list
      */
+    @Override
     public int size() { 
         return nElems;
     }
@@ -130,6 +136,7 @@ public class L2List extends L2ListElem implements ITable {
      * @return <code>true</code> if there is an object in the collection which
      * is equals to the specified object
      */
+    @Override
     public synchronized boolean contains(Object o) { 
         for (L2ListElem e = next; e != this; e = e.next) { 
             if (e.equals(o)) { 
@@ -148,6 +155,7 @@ public class L2List extends L2ListElem implements ITable {
             counter = updateCounter;
         }
 
+        @Override
         public Object next() { 
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -156,6 +164,7 @@ public class L2List extends L2ListElem implements ITable {
             return curr;
         }
 
+        @Override
         public int nextOid() { 
             if (!hasNext()) { 
                 return 0;
@@ -164,6 +173,7 @@ public class L2List extends L2ListElem implements ITable {
             return curr.getOid();
         }
 
+        @Override
         public boolean hasNext() { 
             if (counter != updateCounter) { 
                 throw new IllegalStateException();
@@ -171,6 +181,7 @@ public class L2List extends L2ListElem implements ITable {
             return curr.next != L2List.this;
         } 
 
+        @Override
         public void remove() { 
             if (counter != updateCounter || curr == L2List.this) { 
                 throw new IllegalStateException();
@@ -188,6 +199,7 @@ public class L2List extends L2ListElem implements ITable {
      * during iteration are not possible.
      * @return list iterator
      */
+    @Override
     public synchronized Iterator iterator() { 
         return new L2ListIterator();
     }
@@ -196,6 +208,7 @@ public class L2List extends L2ListElem implements ITable {
      * Get array of the list elements
      * @return array with list elements
      */
+    @Override
     public synchronized Object[] toArray() { 
         L2ListElem[] arr = new L2ListElem[nElems];
         L2ListElem e = this; 
@@ -226,6 +239,7 @@ public class L2List extends L2ListElem implements ITable {
      * @throws ArrayStoreException if the runtime type of a is not a supertype
      *         of the runtime type of every element in this list.
      */
+    @Override
     public synchronized Object[] toArray(Object a[]) { 
         int size = nElems;
         if (a.length < size) { 
@@ -258,6 +272,7 @@ public class L2List extends L2ListElem implements ITable {
      * 
      * @see #contains(Object)
      */
+    @Override
     public synchronized boolean containsAll(Collection c) {
 	Iterator e = c.iterator();
 	while (e.hasNext()) { 
@@ -292,6 +307,7 @@ public class L2List extends L2ListElem implements ITable {
      * 
      * @see #add(Object)
      */
+    @Override
     public synchronized boolean addAll(Collection c) {
 	Iterator e = c.iterator();
 	while (e.hasNext()) {
@@ -325,6 +341,7 @@ public class L2List extends L2ListElem implements ITable {
      * @see #remove(Object)
      * @see #contains(Object)
      */
+    @Override
     public synchronized boolean removeAll(Collection c) {
 	boolean modified = false;
 	Iterator e = iterator();
@@ -364,6 +381,7 @@ public class L2List extends L2ListElem implements ITable {
      * @see #remove(Object)
      * @see #contains(Object)
      */
+    @Override
     public synchronized boolean retainAll(Collection c) {
 	boolean modified = false;
 	Iterator e = iterator();
@@ -384,6 +402,7 @@ public class L2List extends L2ListElem implements ITable {
      * @param predicate JSQL condition
      * @return iterator through members of the collection matching search condition
      */
+    @Override
     public IterableIterator select(Class cls, String predicate) { 
         Query query = new QueryImpl(getStorage());
         return query.select(cls, iterator(), predicate);

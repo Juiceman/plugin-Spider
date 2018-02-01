@@ -5,7 +5,6 @@
 package plugins.Spider.web;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
@@ -50,7 +49,8 @@ class MainPage implements WebPage {
 	 * @see plugins.Spider.WebPage#processPostRequest(freenet.support.api.HTTPRequest,
 	 * freenet.support.HTMLNode)
 	 */
-	public void processPostRequest(HTTPRequest request, HTMLNode contentNode) {
+	@Override
+  public void processPostRequest(HTTPRequest request, HTMLNode contentNode) {
 		// Queue URI
 		String addURI = request.getPartAsString("addURI", 512);
 		if (addURI != null && addURI.length() != 0) {
@@ -75,7 +75,8 @@ class MainPage implements WebPage {
 	 * @see plugins.Spider.WebPage#writeContent(freenet.support.api.HTTPRequest,
 	 * freenet.support.HTMLNode)
 	 */
-	public void writeContent(HTTPRequest request, HTMLNode contentNode) {
+	@Override
+  public void writeContent(HTTPRequest request, HTMLNode contentNode) {
 		HTMLNode overviewTable = contentNode.addChild("table", "class", "column");
 		HTMLNode overviewTableRow = overviewTable.addChild("tr");
 

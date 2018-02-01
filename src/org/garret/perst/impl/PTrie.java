@@ -9,10 +9,12 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
     private PTrieNode<T> rootOne;
     private int          count;
 
+    @Override
     public int size() { 
         return count;
     }
 
+    @Override
     public ArrayList<T> elements() { 
         ArrayList<T> list = new ArrayList<T>(count);
         fill(list, rootZero);
@@ -20,14 +22,17 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
         return list;
     }
 
+    @Override
     public Object[] toArray() { 
         return elements().toArray();
     }
 
+    @Override
     public <E> E[] toArray(E[] arr) { 
         return elements().toArray(arr);
     }
 
+    @Override
     public Iterator<T> iterator() { 
         return elements().iterator();
     }
@@ -63,6 +68,7 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
         return keyLengthA - count;
     }
 
+    @Override
     public T add(PatriciaTrieKey key, T obj) 
     { 
         modify();
@@ -85,6 +91,7 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
         }            
     }
     
+    @Override
     public T findBestMatch(PatriciaTrieKey key) 
     {
         if (firstBit(key.mask, key.length) == 1) {
@@ -100,6 +107,7 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
     }
     
 
+    @Override
     public T findExactMatch(PatriciaTrieKey key) 
     {
         if (firstBit(key.mask, key.length) == 1) {
@@ -114,6 +122,7 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
         return null;
     }
     
+    @Override
     public T remove(PatriciaTrieKey key) 
     { 
         if (firstBit(key.mask, key.length) == 1) {
@@ -146,6 +155,7 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
         return null;
     }
 
+    @Override
     public void clear() 
     {
         if (rootOne != null) { 
@@ -335,6 +345,7 @@ class PTrie<T> extends PersistentCollection<T> implements PatriciaTrie<T>
             return null;
         }		
 
+        @Override
         public void deallocate() 
         {
             if (childOne != null) { 

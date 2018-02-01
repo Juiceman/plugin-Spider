@@ -24,6 +24,7 @@ public class FullTextQueryMatchOp extends FullTextQuery
     /**
      * Query node visitor.
      */
+    @Override
     public void visit(FullTextQueryVisitor visitor) { 
         visitor.visit(this);
     }
@@ -31,10 +32,12 @@ public class FullTextQueryMatchOp extends FullTextQuery
     /**
      * Match node provides query constraint
      */
+    @Override
     public boolean isConstrained() { 
         return true;
     }
 
+    @Override
     public String toString() { 
         return op == MATCH ? word : '"' + word + '"';
     }

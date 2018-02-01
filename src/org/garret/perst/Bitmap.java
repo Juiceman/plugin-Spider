@@ -11,11 +11,13 @@ public class Bitmap implements Iterable
 {    
     class BitmapIterator implements Iterator, PersistentIterator
     { 
+        @Override
         public boolean hasNext() 
         { 
             return curr < n_bits;
         }
 
+        @Override
         public Object next() 
         { 
             int i = curr, n = n_bits;
@@ -30,6 +32,7 @@ public class Bitmap implements Iterable
             return obj;
         }
         
+        @Override
         public int nextOid() 
         { 
             int i = curr, n = n_bits;
@@ -43,6 +46,7 @@ public class Bitmap implements Iterable
             return prev;
         }
 
+        @Override
         public void remove()
         {
             if (prev < 0) { 
@@ -77,6 +81,7 @@ public class Bitmap implements Iterable
      * Get iterator through objects selected in bitmap
      * @return selected object iterator
      */
+    @Override
     public Iterator iterator()
     {
         return new BitmapIterator();

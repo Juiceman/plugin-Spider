@@ -376,17 +376,20 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue
         return (value < 0 ? (value >> 8) : ((value >> 8) + scale - 1)) / scale;
     }
 
+    @Override
     public boolean equals(Object o) { 
         return o instanceof Decimal ? ((Decimal)o).value == value 
             : o instanceof Number ? equals(create(((Number)o).doubleValue())) 
             : o instanceof String ? equals(create((String)o)) : false;
     }
 
+    @Override
     public int compareTo(Decimal x) { 
         checkFormat(x);
         return value < x.value ? -1 : value == x.value ? 0 : 1;
     }
 
+    @Override
     public int hashCode() { 
         return (int)value ^ (int)(value >>> 32);
     }
@@ -407,20 +410,24 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue
         return result;
     }
 
+    @Override
     public long longValue() {
         calculateScale();
         return (value >> 8) / scale;
     }
 
+    @Override
     public int intValue() {
         return (int)longValue();
     }
 
+    @Override
     public double doubleValue() {
         calculateScale();
         return (double)(value >> 8) / scale;
     }
     
+    @Override
     public float floatValue() {
         return (float)doubleValue();
     }
@@ -428,6 +435,7 @@ public class Decimal extends Number implements Comparable<Decimal>, IValue
     /**
      * Get readable representation of decimal number
      */
+    @Override
     public String toString() {
         calculateScale();
         return Long.toString((value >> 8) / scale) + "." 

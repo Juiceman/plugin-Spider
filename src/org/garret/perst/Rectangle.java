@@ -84,6 +84,7 @@ public class Rectangle implements IValue, Cloneable {
     /**
      * Clone rectangle 
      */
+    @Override
     public Object clone() { 
         try { 
             Rectangle r = (Rectangle)super.clone();
@@ -174,6 +175,7 @@ public class Rectangle implements IValue, Cloneable {
     /**
      * Check if two rectangles are equal
      */
+    @Override
     public boolean equals(Object o) { 
         if (o instanceof Rectangle) { 
             Rectangle r = (Rectangle)o;
@@ -185,10 +187,12 @@ public class Rectangle implements IValue, Cloneable {
     /**
      * Hash code consists of all rectangle coordinates
      */
+    @Override
     public int hashCode() { 
         return top ^ (bottom << 1) ^ (left << 2) ^ (right << 3);
     }
 
+    @Override
     public String toString() { 
         return "top=" + top + ", left=" + left + ", bottom=" + bottom + ", right=" + right;
     }

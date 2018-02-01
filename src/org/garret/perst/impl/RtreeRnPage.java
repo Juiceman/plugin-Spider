@@ -10,6 +10,7 @@ public class RtreeRnPage extends Persistent implements SelfSerializable
     RectangleRn[] b;
     Link          branch;
 
+    @Override
     public void pack(PerstOutputStream out) throws java.io.IOException
     {
         int nDims = ((Page.pageSize-ObjectHeader.sizeof-12)/card - 4) / 16;
@@ -23,6 +24,7 @@ public class RtreeRnPage extends Persistent implements SelfSerializable
         }
     }
 
+    @Override
     public void unpack(PerstInputStream in) throws java.io.IOException
     {
         n = in.readInt();

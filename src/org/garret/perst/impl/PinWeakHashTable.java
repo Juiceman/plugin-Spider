@@ -1,5 +1,4 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
 import  java.lang.ref.*;
 
 public class PinWeakHashTable implements OidHashTable { 
@@ -17,6 +16,7 @@ public class PinWeakHashTable implements OidHashTable {
         table = new Entry[initialCapacity];
     }
 
+    @Override
     public synchronized boolean remove(int oid) {
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -39,6 +39,7 @@ public class PinWeakHashTable implements OidHashTable {
         return new WeakReference(obj);
     }
 
+    @Override
     public synchronized void put(int oid, Object obj) { 
         Reference ref = createReference(obj);
         Entry tab[] = table;
@@ -61,6 +62,7 @@ public class PinWeakHashTable implements OidHashTable {
         count += 1;
     }
     
+    @Override
     public synchronized Object get(int oid) {
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -75,6 +77,7 @@ public class PinWeakHashTable implements OidHashTable {
         return null;
     }
     
+    @Override
     public synchronized void reload() {
         disableRehash = true;
         for (int i = 0; i < table.length; i++) { 
@@ -98,6 +101,7 @@ public class PinWeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void flush() {
         disableRehash = true;
         long n;
@@ -122,6 +126,7 @@ public class PinWeakHashTable implements OidHashTable {
         return;
     }
 
+    @Override
     public synchronized void invalidate() {
         for (int i = 0; i < table.length; i++) { 
             for (Entry e = table[i]; e != null; e = e.next) { 
@@ -134,6 +139,7 @@ public class PinWeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void clear() {
         Entry tab[] = table;
         for (int i = 0; i < tab.length; i++) { 
@@ -186,6 +192,7 @@ public class PinWeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void setDirty(Object obj) {
         int oid = db.getOid(obj);
         Entry tab[] = table;
@@ -199,6 +206,7 @@ public class PinWeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void clearDirty(Object obj) {
         int oid = db.getOid(obj);
         Entry tab[] = table;
@@ -211,6 +219,7 @@ public class PinWeakHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public int size() { 
         return count;
     }

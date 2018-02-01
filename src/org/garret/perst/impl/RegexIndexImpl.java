@@ -1,7 +1,6 @@
 package org.garret.perst.impl;
 import  org.garret.perst.*;
 
-import java.lang.reflect.*;
 import java.util.*;
 
 public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexIndex<T> 
@@ -65,6 +64,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         return list;
     }
                 
+    @Override
     protected Key extractKey(Object obj) { 
         String text = extractText(obj);
         return text != null ? new Key(text) : null;
@@ -82,6 +82,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         }
     }
            
+    @Override
     public boolean put(T obj) {
         String text = extractText(obj);
         if (text != null) { 
@@ -92,6 +93,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         return false;
     }
 
+    @Override
     public T set(T obj) {
         throw new UnsupportedOperationException("RegexIndex.set(T obj)");       
     }
@@ -107,21 +109,25 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         }
     }
 
+    @Override
     public void remove(Key key, T obj) {
         throw new UnsupportedOperationException("RegexIndex.remove(Key key, T obj)");       
     }
     
+    @Override
     public void deallocate() { 
         inverseIndex.deallocateMembers();
         inverseIndex.deallocate();
         super.deallocate();
     }
         
+    @Override
     public void clear() {
         super.clear();
         inverseIndex.deallocateMembers();
     }
 
+    @Override
     Key checkKey(Key key) { 
         if (key != null && caseInsensitive) { 
             key = new Key(((String)key.oval).toLowerCase(), key.inclusion != 0);
@@ -129,6 +135,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         return key;
     }  
 
+    @Override
     public boolean remove(Object obj) {
         String text = extractText(obj);
         if (text != null) { 
@@ -160,6 +167,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         return -1;
     }
 
+    @Override
     public IterableIterator<T> match(String pattern) {
         if (caseInsensitive) { 
             pattern = pattern.toLowerCase();
@@ -188,6 +196,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
         }
     }
 
+    @Override
     public boolean isCaseInsensitive() { 
         return caseInsensitive;
     }
@@ -232,6 +241,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             this.pattern = pattern;
         }
 
+        @Override
         public boolean hasNext() { 
             if (currObj == null) { 
                 while (iterator.hasNext()) { 
@@ -247,6 +257,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             return true;
         }
 
+        @Override
         public T next() { 
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -256,6 +267,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             return obj;
         }
             
+        @Override
         public int nextOid() { 
             int oid = 0;
             if (hasNext()) { 
@@ -265,6 +277,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             return oid;
         }
         
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }
@@ -272,18 +285,22 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
 
     static class EmptyIterator<T>  extends IterableIterator<T> implements PersistentIterator 
     {
+        @Override
         public boolean hasNext() { 
             return false;
         }
 
+        @Override
         public T next() { 
             throw new NoSuchElementException();
         }
 
+        @Override
         public int nextOid() { 
             return 0;
         }
         
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }
@@ -306,6 +323,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             }
         }
         
+        @Override
         public boolean hasNext() { 
             if (currObj == null) { 
                 int oid1 = 0, oid2;
@@ -336,6 +354,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             return true;
         }
     
+        @Override
         public T next() { 
             if (!hasNext()) { 
                 throw new NoSuchElementException();
@@ -345,6 +364,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             return obj;
         }
             
+        @Override
         public int nextOid() { 
             if (hasNext()) { 
                 currObj = null;
@@ -353,6 +373,7 @@ public class RegexIndexImpl<T> extends AltBtreeFieldIndex<T> implements RegexInd
             return 0;
         }
         
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }

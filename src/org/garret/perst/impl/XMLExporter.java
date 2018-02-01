@@ -2,7 +2,6 @@ package org.garret.perst.impl;
 
 import java.io.*;
 import java.util.*;
-import java.lang.reflect.Field;
 import org.garret.perst.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;

@@ -65,7 +65,8 @@ abstract public class TermEntry implements Comparable<TermEntry> {
 	**
 	** @throws IllegalArgumentException if the entries have different subjects
 	*/
-	/*@Override**/ public int compareTo(TermEntry o) {
+	/*@Override**/ @Override
+  public int compareTo(TermEntry o) {
 		if (this == o) { return 0; }
 		int c = subj.compareTo(o.subj);
 		if (c != 0) { return c; }

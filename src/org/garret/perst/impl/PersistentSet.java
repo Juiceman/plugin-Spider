@@ -15,6 +15,7 @@ class JoinSetIterator<T> extends IterableIterator<T> implements PersistentIterat
         i2 = (PersistentIterator)right;
     }
     
+    @Override
     public boolean hasNext() { 
         if (currOid == 0) { 
             int oid1, oid2 = 0;
@@ -34,6 +35,7 @@ class JoinSetIterator<T> extends IterableIterator<T> implements PersistentIterat
         return true;
     }
     
+    @Override
     public T next() { 
         if (!hasNext()) { 
             throw new NoSuchElementException();
@@ -41,10 +43,12 @@ class JoinSetIterator<T> extends IterableIterator<T> implements PersistentIterat
         return (T)storage.getObjectByOID(currOid);
     }
     
+    @Override
     public int nextOid() { 
         return hasNext() ? currOid : 0;
     }
     
+    @Override
     public void remove() {
         throw new UnsupportedOperationException();
     }
@@ -59,29 +63,35 @@ class PersistentSet<T> extends Btree<T> implements IPersistentSet<T>
 
     PersistentSet() {}
         
+    @Override
     public boolean isEmpty() { 
         return nElems == 0;
     }
 
+    @Override
     public boolean contains(Object o) {
         Key key = new Key(o);
         Iterator i = iterator(key, key, ASCENT_ORDER);
         return i.hasNext();
     }
     
+    @Override
     public <E> E[] toArray(E[] arr) { 
         return (E[])super.toArray((T[])arr);
     }
 
+    @Override
     public boolean add(T obj) { 
         return put(new Key(obj), obj);
     }
 
+    @Override
     public boolean remove(Object o) { 
         T obj = (T)o;
         return removeIfExists(new BtreeKey(checkKey(new Key(obj)), getStorage().getOid(obj)));
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == this) {
             return true;
@@ -96,6 +106,7 @@ class PersistentSet<T> extends Btree<T> implements IPersistentSet<T>
         return containsAll(c);
     }
 
+    @Override
     public int hashCode() {
         int h = 0;
         Iterator i = iterator();
@@ -105,6 +116,7 @@ class PersistentSet<T> extends Btree<T> implements IPersistentSet<T>
         return h;
     }
 
+    @Override
     public IterableIterator<T> join(Iterator<T> with) { 
         return with == null ? (IterableIterator<T>)iterator() : new JoinSetIterator<T>(getStorage(), iterator(), with);
     }    

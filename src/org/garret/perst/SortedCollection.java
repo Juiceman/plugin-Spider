@@ -73,6 +73,7 @@ public interface SortedCollection<T> extends IPersistent, IResource, ITable<T> {
      * <code>false</code> if collection was declared as unique and there is already member with such value
      * of the key in the collection. 
      */
+    @Override
     public boolean add(T obj);
 
     /**
@@ -96,6 +97,7 @@ public interface SortedCollection<T> extends IPersistent, IResource, ITable<T> {
      * has no influence on iterator.
      * @return collection iterator
      */
+    @Override
     public Iterator<T> iterator();
     /**
      * Get iterator for traversing collection members  with key belonging to the specified range. 

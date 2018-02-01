@@ -1,5 +1,4 @@
 package org.garret.perst.impl;
-import  org.garret.perst.*;
 
 public class StrongHashTable implements OidHashTable { 
     Entry table[];
@@ -22,6 +21,7 @@ public class StrongHashTable implements OidHashTable {
         modified = new Object[MODIFIED_BUFFER_SIZE];
     }
 
+    @Override
     public synchronized boolean remove(int oid) {
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -40,6 +40,7 @@ public class StrongHashTable implements OidHashTable {
         return false;
     }
 
+    @Override
     public synchronized void put(int oid, Object obj) { 
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -61,6 +62,7 @@ public class StrongHashTable implements OidHashTable {
         count++;
     }
 
+    @Override
     public synchronized Object get(int oid) {
         Entry tab[] = table;
         int index = (oid & 0x7FFFFFFF) % tab.length;
@@ -95,6 +97,7 @@ public class StrongHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void flush() {
         long n;
         do { 
@@ -127,6 +130,7 @@ public class StrongHashTable implements OidHashTable {
         nModified = 0;
     }
 
+    @Override
     public synchronized void clear() {
         Entry tab[] = table;
         for (int i = 0; i < tab.length; i++) { 
@@ -136,6 +140,7 @@ public class StrongHashTable implements OidHashTable {
         nModified = 0;
     }
 
+    @Override
     public synchronized void invalidate() {
         for (int i = 0; i < table.length; i++) { 
             for (Entry e = table[i]; e != null; e = e.next) { 
@@ -147,6 +152,7 @@ public class StrongHashTable implements OidHashTable {
         nModified = 0;
     }
 
+    @Override
     public synchronized void reload() {
         disableRehash = true;
         for (int i = 0; i < table.length; i++) { 
@@ -167,6 +173,7 @@ public class StrongHashTable implements OidHashTable {
         }
     }
 
+    @Override
     public synchronized void setDirty(Object obj) {
         if (nModified < MODIFIED_BUFFER_SIZE) { 
             modified[(int)nModified] = obj;
@@ -174,9 +181,11 @@ public class StrongHashTable implements OidHashTable {
         nModified += 1;
     } 
 
+    @Override
     public void clearDirty(Object obj) {
     }
 
+    @Override
     public int size() { 
         return count;
     }

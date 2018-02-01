@@ -15,6 +15,7 @@ public class ThreadSafeIterator<T> extends IterableIterator<T> {
     private Iterator<T> iterator;
     private T           next;
 
+    @Override
     public boolean hasNext() { 
         boolean result;
         if (next == null) {
@@ -32,6 +33,7 @@ public class ThreadSafeIterator<T> extends IterableIterator<T> {
         return result;
     }
     
+    @Override
     public T next() { 
         T obj = next;
         if (obj == null) { 
@@ -49,6 +51,7 @@ public class ThreadSafeIterator<T> extends IterableIterator<T> {
         this.iterator = iterator;
     }
 
+    @Override
     public void remove() {
         collection.exclusiveLock();
         iterator.remove();

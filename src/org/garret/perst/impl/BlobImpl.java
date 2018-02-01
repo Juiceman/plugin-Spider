@@ -24,11 +24,13 @@ public class BlobImpl extends PersistentResource implements Blob {
         protected int      blobOffs;
         protected int      flags;
 
+        @Override
         public int read() {
             byte[] b = new byte[1];
             return read(b, 0, 1) == 1 ? b[0] & 0xFF : -1;
         }
 
+        @Override
         public int read(byte b[], int off, int len) {
             if (pos >= first.size) { 
                 return -1;
@@ -59,6 +61,7 @@ public class BlobImpl extends PersistentResource implements Blob {
             return rc;
         }
 
+        @Override
         public long setPosition(long newPos) { 
             if (newPos < pos) { 
                 if (newPos >= pos - blobOffs) { 
@@ -76,14 +79,17 @@ public class BlobImpl extends PersistentResource implements Blob {
             return pos;
         }
 
+        @Override
         public long getPosition() { 
             return pos;
         }
 
+        @Override
         public long size() {
             return first.size;
         }
 
+        @Override
         public long skip(long offs) {
             int rest = first.size - pos;
             if (offs > rest) { 
@@ -110,10 +116,12 @@ public class BlobImpl extends PersistentResource implements Blob {
         }
 
 
+        @Override
         public int available() {
             return first.size - pos;
         }
 
+        @Override
         public void close() {
             curr.discard(flags);
             if (first != curr) { 
@@ -139,12 +147,14 @@ public class BlobImpl extends PersistentResource implements Blob {
         protected int      flags;
         protected boolean  modified;
 
+        @Override
         public void write(int b) { 
             byte[] buf = new byte[1];
             buf[0] = (byte)b;
             write(buf, 0, 1);
         }
 
+        @Override
         public void write(byte b[], int off, int len) { 
             while (len > 0) { 
                 if (blobOffs == curr.body.length) { 
@@ -183,6 +193,7 @@ public class BlobImpl extends PersistentResource implements Blob {
             }
         }
 
+        @Override
         public void close() {
             if ((flags & TRUNCATE_LAST_SEGMENT) != 0 && blobOffs < curr.body.length && curr.next == null) { 
                 byte[] tmp = new byte[blobOffs];
@@ -198,6 +209,7 @@ public class BlobImpl extends PersistentResource implements Blob {
             first = curr = null;
         }
 
+        @Override
         public long setPosition(long newPos) { 
             if (newPos < pos) { 
                 if (newPos >= pos - blobOffs) { 
@@ -219,10 +231,12 @@ public class BlobImpl extends PersistentResource implements Blob {
             return pos;
         }
 
+        @Override
         public long getPosition() { 
             return pos;
         }
 
+        @Override
         public long size() {
             return first.size;
         }
@@ -269,36 +283,44 @@ public class BlobImpl extends PersistentResource implements Blob {
         }
     }
 
+    @Override
     public boolean recursiveLoading() { 
         return false;
     }
 
+    @Override
     public RandomAccessInputStream getInputStream() { 
         return getInputStream(0);
     }
 
+    @Override
     public RandomAccessInputStream getInputStream(int flags) { 
         return new BlobInputStream(this, flags);
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream() { 
         return getOutputStream(APPEND);
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream(boolean multisession) { 
         return getOutputStream(multisession ? APPEND : TRUNCATE_LAST_SEGMENT|APPEND);
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream(long position, boolean multisession) { 
         RandomAccessOutputStream stream = getOutputStream(multisession);
         stream.setPosition(position);
         return stream;
     }
 
+    @Override
     public RandomAccessOutputStream getOutputStream(int flags) { 
         return new BlobOutputStream(this, flags);
     }
 
+    @Override
     public void deallocate() { 
         load();
         if (size > 0) {

@@ -24,6 +24,7 @@ public class PersistentString extends PersistentResource
      * Get Java string
      * @return Java string
      */
+    @Override
     public String toString() 
     {
         return str;
